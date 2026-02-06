@@ -40,7 +40,7 @@
 
 	async function handleSaveProject() {
 		console.log('Save project triggered');
-		showToast('Project saved successfully!');
+		showToast('Project saved', 'success');
 	}
 </script>
 
