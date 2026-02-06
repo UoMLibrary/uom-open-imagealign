@@ -1,1 +1,5 @@
-<h1>open-uom-imagealign</h1>
+<script>
+	import MainVIew from '$lib/ImagePair/MainVIew.svelte';
+</script>
+
+<MainVIew />
