@@ -9,6 +9,7 @@
 	import {
 		projectStore,
 		selectedPairId,
+		activePair,
 		cleanupProject,
 		serialiseProject
 	} from '$lib/stores/projectStore';
@@ -64,6 +65,8 @@
 				<div class="empty">No project loaded</div>
 			{/if}
 		</SidePanel>
+
+		<div class="main-content"><!-- This is where we select and pair images --></div>
 	</div>
 
 	<HelpModal bind:open={showHelp} />
