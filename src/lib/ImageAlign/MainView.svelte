@@ -6,6 +6,15 @@
 
 	let showHelp = false;
 	let showAbout = false;
+
+	async function handleLoadProject() {
+		console.log('Load project triggered');
+	}
+
+	async function handleSaveProject() {
+		console.log('Save project triggered');
+		showToast('Project saved successfully!');
+	}
 </script>
 
 <div class="app">

@@ -1,5 +1,5 @@
 <script>
-	import MainVIew from '$lib/ImagePair/MainVIew.svelte';
+	import MainVIew from '$lib/ImageAlign/MainView.svelte';
 </script>
 
 <MainVIew />
