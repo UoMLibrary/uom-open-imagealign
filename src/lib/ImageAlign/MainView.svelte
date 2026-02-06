@@ -108,3 +108,18 @@
 		</p>
 	</Modal>
 </div>
+
+<style>
+	.app {
+		display: grid;
+		grid-template-rows: auto 1fr;
+		height: 100vh;
+	}
+
+	.workspace {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		grid-template-rows: 1fr;
+		overflow: hidden;
+	}
+</style>
