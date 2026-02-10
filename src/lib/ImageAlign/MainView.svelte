@@ -6,7 +6,7 @@
 	import Header from '$lib/Header.svelte';
 	import SidePanel from '$lib/components/SidePanel.svelte';
 	import ImageGroupList from '$lib/components/ImageGroupList.svelte';
-
+	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
 	import { images, groups, project } from '$lib/stores/projectStore';
 
 	/* -----------------------------
@@ -50,11 +50,13 @@
 		</SidePanel>
 
 		<div class="main-content">
-			{#if selectedGroupId}
-				<!-- alignment / comparison workspace goes here -->
-			{:else}
-				<div class="empty">Select a group to begin</div>
-			{/if}
+			<div class="main-content">
+				{#if $images.length > 0}
+					<ImageThumbnailGrid images={$images} />
+				{:else}
+					<div class="empty">Import images to begin</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 
@@ -76,6 +78,16 @@
 		overflow: hidden;
 	}
 
+	.main-content {
+		overflow: auto;
+	}
+
+	.empty {
+		padding: 1rem;
+		font-size: 0.875rem;
+		color: #666;
+	}
+
 	.panel-title {
 		display: block;
 		padding: 0.5rem 0.75rem;
@@ -91,11 +103,5 @@
 			'Segoe UI',
 			sans-serif;
 		user-select: none;
-	}
-
-	.empty {
-		padding: 1rem;
-		font-size: 0.875rem;
-		color: #666;
 	}
 </style>
