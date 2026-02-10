@@ -54,11 +54,13 @@
 
 		<div class="main-content">
 			<div class="main-content">
+				<!-- Show the grid of all images -->
 				{#if $images.length > 0}
 					<ImageThumbnailGrid visibleImageIds={allImageIds} />
 				{:else}
 					<div class="empty">Import images to begin</div>
 				{/if}
+				<!-- Show grouping panel if there are images but no groups -->
 				{#if $images.length > 0 && $groups.length === 0}
 					<GroupPanel />
 				{/if}
