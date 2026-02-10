@@ -1,13 +1,12 @@
 <script lang="ts">
 	import ImageThumbnail from './ImageThumbnail.svelte';
 	import type { ImageSource } from '$lib/types/project';
-
-	export let images: ImageSource[] = [];
+	import { images } from '$lib/stores/projectStore';
 </script>
 
 <div class="grid">
-	{#each images as img (img.id)}
-		<ImageThumbnail src={img.uri} label={img.label} />
+	{#each $images as image (image.id)}
+		<ImageThumbnail src={image.uri} label={image.label} />
 	{/each}
 </div>
 

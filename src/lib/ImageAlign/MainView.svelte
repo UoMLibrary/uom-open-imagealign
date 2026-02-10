@@ -52,7 +52,7 @@
 		<div class="main-content">
 			<div class="main-content">
 				{#if $images.length > 0}
-					<ImageThumbnailGrid images={$images} />
+					<ImageThumbnailGrid />
 				{:else}
 					<div class="empty">Import images to begin</div>
 				{/if}

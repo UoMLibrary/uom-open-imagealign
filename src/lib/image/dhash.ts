@@ -1,32 +1,23 @@
 // src/lib/image/dhash.ts
 
-export function dHash(imageData: ImageData): string {
-    const { data, width, height } = imageData;
+export async function dHash(bitmap: ImageBitmap): Promise<string> {
+    const canvas = new OffscreenCanvas(9, 8);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to get 2D context');
+
+    ctx.drawImage(bitmap, 0, 0, 9, 8);
+    const { data } = ctx.getImageData(0, 0, 9, 8);
 
     let bits = '';
 
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width - 1; x++) {
-            const idx = (y * width + x) * 4;
-            const idxNext = (y * width + x + 1) * 4;
-
-            const gray =
-                data[idx] * 0.299 +
-                data[idx + 1] * 0.587 +
-                data[idx + 2] * 0.114;
-
-            const grayNext =
-                data[idxNext] * 0.299 +
-                data[idxNext + 1] * 0.587 +
-                data[idxNext + 2] * 0.114;
-
-            bits += gray > grayNext ? '1' : '0';
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            const i = (y * 9 + x) * 4;
+            const left = data[i];       // red channel
+            const right = data[i + 4];  // next pixel red channel
+            bits += left > right ? '1' : '0';
         }
     }
 
-    // Convert binary string to hex (64 bits → 16 hex chars)
-    return bits
-        .match(/.{1,4}/g)!
-        .map((chunk) => parseInt(chunk, 2).toString(16))
-        .join('');
+    return BigInt('0b' + bits).toString(16).padStart(16, '0');
 }

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { hashWithWorker } from '$lib/image/ImageHasher';
+	import { hashImageFile } from '$lib/image/ImageHasher';
 	import {
+		images,
 		addImage,
 		updateImageByContentHash,
 		findImageByContentHash
 	} from '$lib/stores/projectStore';
 
-	import { supportsFileSystemAccess } from '$lib/components/projectIO';
+	import { supportsFileSystemAccess } from '$lib/platform/fileSystem';
 
 	async function importImages() {
 		if (supportsFileSystemAccess()) {
@@ -40,7 +41,7 @@
 
 	async function ingestFile(file: File) {
 		const bitmap = await createImageBitmap(file);
-		const { contentHash, perceptualHash } = await hashWithWorker(bitmap);
+		const { contentHash, perceptualHash } = await hashImageFile(file);
 
 		const existing = findImageByContentHash(contentHash);
 
@@ -59,6 +60,7 @@
 					label: file.name
 				};
 			});
+			console.log('After relink:', get(images));
 		} else {
 			// ➕ New image
 			addImage({

@@ -7,7 +7,12 @@
 
 <div class="thumb">
 	{#if !broken}
-		<img {src} alt={label ?? 'Image'} on:error={() => (broken = true)} />
+		<img
+			{src}
+			alt={label ?? 'Image'}
+			on:error={() => (broken = true)}
+			on:load={() => (broken = false)}
+		/>
 	{:else}
 		<div class="placeholder">
 			<div class="placeholder-icon">🖼️</div>
@@ -18,7 +23,7 @@
 	{/if}
 
 	{#if label}
-		<div class="label">{label}</div>
+		<div class="label">{label} - {broken}</div>
 	{/if}
 </div>
 
