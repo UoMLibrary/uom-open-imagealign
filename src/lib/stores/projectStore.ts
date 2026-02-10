@@ -112,11 +112,18 @@ export function loadProject(p: Project) {
         notes: p.notes
     });
 
-    images.set(p.images);
+    images.set(
+        p.images.map((img) => ({
+            ...img,
+            uri: '' // 🔑 unlinked by definition
+        }))
+    );
+
     groups.set(p.groups);
     alignments.set(p.alignments);
     annotations.set(p.annotations ?? null);
 }
+
 
 export function addImage(image: ImageSource) {
     images.update(imgs => [...imgs, image]);
@@ -190,3 +197,10 @@ export function upsertImageByContentHash(
     });
 }
 
+export const linkedImagesByHash = derived(images, ($images) =>
+    new Set(
+        $images
+            .filter((img) => img.uri && img.uri.length > 0)
+            .map((img) => img.hashes.contentHash)
+    )
+);
