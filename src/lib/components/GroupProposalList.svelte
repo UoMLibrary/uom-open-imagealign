@@ -2,6 +2,8 @@
 	import { groupingState } from '$lib/stores/groupingStore';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
 	import type { GroupingProposal } from '$lib/types/grouping';
+	import { addGroups } from '$lib/stores/projectStore';
+	import type { ImageGroup } from '$lib/types/project';
 
 	// 🔑 Explicitly typed locals (this fixes the `never` issue)
 	let proposals: GroupingProposal[] = [];
@@ -29,6 +31,27 @@
 		}));
 	}
 
+	function confirmSelected() {
+		const confirmed: ImageGroup[] = proposals
+			.filter((p) => selected.has(p.id))
+			.map((p) => ({
+				id: crypto.randomUUID(),
+				baseImageId: p.imageIds[0], // simple, explicit default
+				imageIds: [...p.imageIds],
+				locked: false
+			}));
+
+		if (confirmed.length === 0) return;
+
+		addGroups(confirmed);
+
+		// Clear proposals after commit (recommended)
+		groupingState.set({
+			proposals: [],
+			selected: new Set()
+		});
+	}
+
 	// Reactive assignments (now safely typed)
 	$: proposals = $groupingState.proposals;
 	$: selected = $groupingState.selected;
@@ -41,6 +64,9 @@
 		<div class="controls">
 			<button on:click={selectAll}>Select all</button>
 			<button on:click={clearAll}>Clear</button>
+
+			<button on:click={confirmSelected} disabled={selected.size === 0}> Confirm selected </button>
+
 			<span class="count">
 				{selected.size} / {proposals.length} selected
 			</span>

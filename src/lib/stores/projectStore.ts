@@ -222,3 +222,10 @@ export const linkedImagesByHash = derived(images, ($images) =>
 export function addGroup(group: ImageGroup) {
     groups.update(gs => [...gs, group]);
 }
+
+// Bulk add groups (e.g. from grouping proposals)
+export function addGroups(newGroups: ImageGroup[]) {
+    for (const group of newGroups) {
+        addGroup(group);
+    }
+}
