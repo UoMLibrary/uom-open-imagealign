@@ -176,3 +176,68 @@ npm install --save-dev json-schema-to-typescript
 ## Core principle
 
 > **“This annotation was made against this exact image.”**
+
+## Grouping model and workflow
+
+Image grouping in this project is intentionally **human-confirmed and strategy-agnostic**.
+
+Grouping strategies (for example, filename similarity or perceptual hash matching) are treated as **transient UI tools**. They propose candidate groupings but never modify the project state directly. This allows users to experiment with different strategies, thresholds, and heuristics without committing to any structural changes until they explicitly choose to do so.
+
+Only the **confirmed output of grouping** is persisted in the project file.
+
+### Key principles
+
+- **Strategies are disposable**
+  Grouping strategies are not stored, versioned, or recorded in the project. They exist solely to help the user discover meaningful relationships between images.
+
+- **Groups are commitments**
+  When a user confirms a group, it is recorded as an `imageGroup` containing:
+  - a stable group ID
+  - the IDs of the grouped images
+  - a designated base image
+  - a locked flag to prevent accidental modification
+
+- **Human-in-the-loop by design**
+  The tool never auto-groups images permanently. All grouping decisions require explicit user confirmation.
+
+### Base image concept
+
+Each group has a single **base image**, which acts as the anchor for:
+
+- alignment transforms
+- annotations (stored externally and opaquely)
+- downstream comparison workflows
+
+Other images in the group exist to support comparison, difference detection, and alignment relative to this base image.
+
+### Locking behaviour
+
+Groups can be marked as `locked` to indicate that their membership and base image selection should not change unless the user explicitly unlocks them. This protects established work as new images or strategies are introduced.
+
+### Separation from alignment and annotation
+
+- Grouping defines **which images belong together**
+- Alignment defines **how images relate geometrically**
+- Annotation data is treated as **opaque** and is not interpreted or validated by this tool
+
+Annotations are anchored to base images using stable content hashes and may optionally reference which comparison image or alignment was used, but their internal structure is outside the scope of this project.
+
+### Why this approach
+
+This design keeps the project model:
+
+- stable over time
+- resilient to changing algorithms
+- reproducible and auditable
+- free from accidental automation bias
+
+It allows grouping strategies to improve or change without breaking existing projects, while ensuring that only deliberate, user-approved structure is persisted.
+
+### Design guarantees
+
+- Grouping strategies **never create groups directly**; they only propose candidate groupings.
+- Groups are only created when **explicitly confirmed by the user**.
+- Each group has a single base image, which anchors alignment and annotation.
+- **Annotations always belong to the base image**; other images may provide comparison context only.
+- The tool asserts image identity and geometric relationships, not interpretive meaning.
+- **Annotation data is treated as opaque** and is not interpreted, validated, or rendered by this tool.
