@@ -1,71 +1,25 @@
 <script lang="ts">
-	import { images } from '$lib/stores/projectStore';
-	import { groupingState } from '$lib/stores/groupingStore';
-	import GroupProposalList from './GroupProposalList.svelte';
-	import { groupByFilename } from '$lib/strategies/grouping/byFilename';
-	import { groupByPHash } from '$lib/strategies/grouping/byPHash';
+	import FilenameGroupingTool from './tools/FilenameGroupingTool.svelte';
+	import PHashGroupingTool from './tools/PHashGroupingTool.svelte';
+	import VisualProfileTool from './tools/VisualProfileTool.svelte';
 
-	let strategy: 'filename' | 'phash' = 'filename';
-	let phashThreshold = 0.95;
-
-	function runGrouping() {
-		let proposals = [];
-
-		if (strategy === 'filename') {
-			proposals = groupByFilename($images);
-		}
-
-		if (strategy === 'phash') {
-			proposals = groupByPHash($images, phashThreshold);
-		}
-
-		groupingState.set({
-			proposals,
-			selected: new Set()
-		});
-	}
+	let tool: 'filename' | 'phash' | 'visual-profile' = 'filename';
 </script>
 
 <div class="group-panel">
 	<header class="controls">
-		<select bind:value={strategy}>
+		<select bind:value={tool}>
 			<option value="filename">Group by filename</option>
 			<option value="phash">Group by visual similarity (pHash)</option>
+			<option value="visual-profile">Group by visual profile (colour & tone)</option>
 		</select>
-
-		{#if strategy === 'phash'}
-			<label class="slider">
-				Similarity: {Math.round(phashThreshold * 100)}%
-				<input
-					type="range"
-					min="0.2"
-					max="1"
-					step="0.01"
-					bind:value={phashThreshold}
-					on:input={runGrouping}
-				/>
-			</label>
-		{/if}
-
-		<button on:click={runGrouping}> Propose groups </button>
 	</header>
 
-	<GroupProposalList />
+	{#if tool === 'filename'}
+		<FilenameGroupingTool />
+	{:else if tool === 'phash'}
+		<PHashGroupingTool />
+	{:else if tool === 'visual-profile'}
+		<VisualProfileTool />
+	{/if}
 </div>
-
-<style>
-	.controls {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.75rem;
-		border-bottom: 1px solid #ddd;
-	}
-
-	.slider {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.85rem;
-	}
-</style>
