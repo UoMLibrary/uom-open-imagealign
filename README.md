@@ -1,88 +1,178 @@
 # UOM-OPEN-Imagealign
 
+## Overview
+
+**UOM-OPEN-Imagealign** is a static, browser-based tool for assembling and preparing images for **annotation, comparison, and downstream reuse** (e.g. datasets, PDFs, research outputs).
+
+A project represents a **working set of images**, their grouping and base-image relationships, and any associated annotation data — **not** a copy of the images themselves. This allows annotation work to begin immediately, even when images live on local file systems or are not yet hosted or IIIF-served.
+
+The application runs entirely client-side (SvelteKit + GitHub Pages compatible), with no backend or server dependency.
+
+---
+
 ## Image identity and project model
 
-An _image alignment project_ is a **working set of images assembled for annotation**, comparison, and downstream reuse (e.g. generating annotation datasets or PDFs). Images may come from public URLs, local folders, or future IIIF sources, and the project file exists to capture _structure and annotation state_ rather than to store image data itself. This allows annotation work to begin immediately, without waiting for images to be hosted or transformed into a specific delivery format.
+An _image alignment project_ captures **structure and intent**, not image storage.
 
-To ensure long-term trust in annotations, the system distinguishes between **image content identity** and **project-local image instances**. Each image’s _bytes_ are identified using a cryptographic SHA-256 hash (`contentHash`), which allows the tool to verify that an annotation was created against _exactly the same image data_, even across projects, machines, or time. At the same time, each project maintains its own image instances with local IDs, enabling independent grouping, base-image selection, and annotation workflows without accidental cross-project coupling.
+Images may originate from:
 
-When a project is loaded, image availability is treated as **ephemeral**: local file references and blob URLs are intentionally cleared, and images are considered _unlinked_ until the user re-imports the relevant folder or source. Re-importing images rehydrates the project by matching files via their `contentHash`, ensuring correctness while keeping the project file portable, honest, and reproducible.
+- local folders (File System Access API or fallback upload)
+- public URLs
+- future IIIF manifests
+
+To ensure long-term trust in annotations, the system explicitly separates:
+
+- **image content identity** (what the image _is_)
+- **project-local image instances** (how the image is _used here_)
+
+### Content identity (cryptographic)
+
+Each image’s raw bytes are hashed using **SHA-256** (`hashes.contentHash`) at ingest time, inside a Web Worker.
+
+This hash:
+
+- uniquely and cryptographically identifies the exact image data
+- survives across machines, sessions, and projects
+- is used to verify that annotations refer to the _correct image_
+
+> If the bytes change, the hash changes — no ambiguity.
+
+### Project-local instances
+
+Each project maintains its own image instances with:
+
+- a project-local UUID
+- grouping order
+- base-image selection
+- alignment metadata
+- UI state
+
+This allows multiple projects to reference the same underlying image content **without coupling their workflows or decisions**.
+
+---
+
+## Ephemeral image availability & relinking
+
+Local file access is intentionally treated as **ephemeral**.
+
+- Blob URLs (`uri`) are **runtime-only**
+- They are never trusted or relied upon across reloads
+- When a project is reloaded, images start in an **unlinked** state
+
+Re-importing images:
+
+- recomputes SHA-256 hashes
+- matches files back to project images by `contentHash`
+- rehydrates blob URLs
+- restores thumbnails and UI state safely
+
+This keeps project files:
+
+- portable
+- honest
+- reproducible
+- safe to share
 
 ---
 
 ## Identity model summary
 
-| Concept                 | Field                           | Scope             | Purpose                                                                 |
-| ----------------------- | ------------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| Image content identity  | `hashes.contentHash` (SHA-256)  | Global, stable    | Cryptographically verifies the exact image data an annotation refers to |
-| Perceptual similarity   | `hashes.perceptualHash` (dHash) | Global, heuristic | Used for grouping and similarity detection, **not** identity            |
-| Project image instance  | `id` (UUID)                     | Project-local     | Manages grouping, ordering, base image selection, and UI state          |
-| Image availability      | `uri` (blob / URL)              | Ephemeral         | Runtime-only reference to image data; never persisted as trusted        |
-| Annotation verification | `annotations.imageContentHash`  | Global            | Confirms annotations match the intended image content                   |
+| Concept                 | Field                           | Scope             | Purpose                                                            |
+| ----------------------- | ------------------------------- | ----------------- | ------------------------------------------------------------------ |
+| Image content identity  | `hashes.contentHash` (SHA-256)  | Global, stable    | Cryptographically verifies the exact image an annotation refers to |
+| Perceptual similarity   | `hashes.perceptualHash` (dHash) | Global, heuristic | Used for grouping/similarity hints — **not** identity              |
+| Project image instance  | `id` (UUID)                     | Project-local     | Grouping, ordering, base image selection, UI state                 |
+| Image availability      | `uri` (blob / URL)              | Ephemeral         | Runtime-only image access; never persisted as trusted              |
+| Annotation verification | `annotations.imageContentHash`  | Global            | Confirms annotations match the intended image content              |
 
-This separation allows multiple projects to safely reference the same underlying image data while remaining independent, auditable, and resilient to changes in how or where images are stored.
+---
 
-## Why these folders
+## Current implemented behaviour
 
-| Folder      | Reason                                    |
-| ----------- | ----------------------------------------- |
-| image/      | All pixel + bitmap work lives here        |
-| validation/ | AJV + schema logic stays isolated         |
-| migration/  | Version upgrades stay boring and explicit |
-| types/      | Generated, read-only contract             |
-| strategies/ | Keeps heuristics out of UI                |
+✔ Image ingestion from folders
+✔ Worker-based hashing (SHA-256 + dHash)
+✔ Duplicate detection by content hash
+✔ Project save/load (JSON)
+✔ Image relinking via re-import
+✔ Thumbnail grid with correct lifecycle handling
+✔ Store-driven, mutation-safe architecture
 
-This keeps components/ pure UI.
+**Important implementation detail:**
+Thumbnail components are explicitly keyed by `image.uri` to ensure correct remounting when images transition from “unlinked” → “linked”.
 
-**NOTE: Components never mutate JSON directly — only stores.**
+---
 
-## Creating a project structure
+## Folder structure rationale
 
-### Mental model
+| Folder        | Purpose                                        |
+| ------------- | ---------------------------------------------- |
+| `image/`      | All bitmap, hashing, and pixel-level work      |
+| `stores/`     | Authoritative project state & mutation APIs    |
+| `components/` | Pure UI — no project mutation logic            |
+| `validation/` | AJV + schema validation                        |
+| `migration/`  | Explicit, versioned project upgrades           |
+| `types/`      | Generated, read-only TypeScript contracts      |
+| `strategies/` | Grouping & alignment heuristics (non-UI logic) |
 
-- Images enter the system ungrouped
-- Groups are created after ingestion
-- Hashing happens before adding to the store
+> **Rule:** Components never mutate project JSON directly — only store actions do.
 
-### Minimal flow
+---
 
-1. User selects a folder
-2. You iterate files
-3. For each image:
-   - create ImageBitmap
-   - hash it (worker)
-   - add to images store
-4. Groups are empty initially
+## Project creation mental model
 
-## Creating the types from schema.json
+1. Images are ingested **ungrouped**
+2. Hashing demonstrates identity before anything else
+3. Images appear in the grid (linked or unlinked)
+4. Groups and base images are created later
+5. Alignment and annotation come downstream
 
-```sh
-npm install --save-dev json-schema-to-typescript
-```
+---
 
-## Install ajv
+## Hashing strategy
 
-ajv by itself does not include format validators like:
+- **SHA-256**
+  - authoritative identity
+  - used for relinking, validation, and annotation trust
 
-- date-time
-- email
-- uri
+- **dHash (perceptual)**
+  - fast, heuristic similarity
+  - used to suggest grouping
+  - never used as identity
+
+Hashing runs in a **Web Worker** to keep the UI responsive, even for large images.
+
+---
+
+## Schema, validation, and migrations
+
+- `schema.json` is the single source of truth
+- Types are generated and treated as read-only
+- AJV is used for runtime validation
+- Version upgrades are explicit and boring (by design)
 
 ```sh
 npm install ajv ajv-formats
+npm install --save-dev json-schema-to-typescript
 ```
 
-## We are building:
+---
 
-- A project = a working set for annotation
+## What this tool is (and is not)
 
-- Images may be:
-  - local files
-  - temporary blobs
-  - URLs
-  - later IIIF
-- Images must not be copied or hosted just to annotate them
-- Multiple projects may reference the same underlying image
-- You must be able to say with confidence:
+**This tool is:**
 
-> “This annotation was made against this exact image”
+- a project preparation and structuring tool
+- a trustable bridge between raw images and annotation systems
+- safe for local-only and offline workflows
+
+**This tool is not:**
+
+- an image hosting service
+- a permanent image store
+- a full annotation editor (by design)
+
+---
+
+## Core principle
+
+> **“This annotation was made against this exact image.”**
