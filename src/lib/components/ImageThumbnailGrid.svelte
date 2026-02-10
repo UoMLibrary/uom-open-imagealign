@@ -1,14 +1,17 @@
 <script lang="ts">
 	import ImageThumbnail from './ImageThumbnail.svelte';
-	import type { ImageSource } from '$lib/types/project';
 	import { images } from '$lib/stores/projectStore';
+
+	/**
+	 * IDs of images to render in this grid.
+	 * The grid does not decide membership; it only renders what it is given.
+	 */
+	export let visibleImageIds: string[] = [];
 </script>
 
 <div class="grid">
-	{#each $images as image (image.id)}
-		{#key image.uri}
-			<ImageThumbnail src={image.uri} label={image.label} />
-		{/key}
+	{#each $images.filter((img) => visibleImageIds.includes(img.id)) as image (image.id)}
+		<ImageThumbnail src={image.uri} label={image.label} />
 	{/each}
 </div>
 

@@ -6,6 +6,7 @@
 	import Header from '$lib/Header.svelte';
 	import SidePanel from '$lib/components/SidePanel.svelte';
 	import ImageGroupList from '$lib/components/ImageGroupList.svelte';
+	import GroupPanel from '$lib/components/GroupPanel.svelte';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
 	import { images, groups, project } from '$lib/stores/projectStore';
 
@@ -25,6 +26,8 @@
 	function handleSaveProject() {
 		showToast('Project saved', 'success');
 	}
+
+	$: allImageIds = $images.map((img) => img.id);
 </script>
 
 <div class="app">
@@ -52,9 +55,12 @@
 		<div class="main-content">
 			<div class="main-content">
 				{#if $images.length > 0}
-					<ImageThumbnailGrid />
+					<ImageThumbnailGrid visibleImageIds={allImageIds} />
 				{:else}
 					<div class="empty">Import images to begin</div>
+				{/if}
+				{#if $images.length > 0 && $groups.length === 0}
+					<GroupPanel />
 				{/if}
 			</div>
 		</div>

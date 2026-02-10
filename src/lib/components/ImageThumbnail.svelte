@@ -23,7 +23,7 @@
 	{/if}
 
 	{#if label}
-		<div class="label">{label} - {broken}</div>
+		<div class="label">{label}</div>
 	{/if}
 </div>
 

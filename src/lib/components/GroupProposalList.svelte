@@ -34,7 +34,6 @@
 	$: selected = $groupingState.selected;
 </script>
 
-let proposals: GroupingProposal[] = [];
 <div class="group-proposal-list">
 	{#if proposals.length === 0}
 		<p class="empty">No grouping proposals. Try running a grouping strategy.</p>
@@ -71,7 +70,7 @@ let proposals: GroupingProposal[] = [];
 					</div>
 				{/if}
 
-				<ImageThumbnailGrid imageIds={proposal.imageIds} />
+				<ImageThumbnailGrid visibleImageIds={proposal.imageIds} />
 			</div>
 		{/each}
 	{/if}

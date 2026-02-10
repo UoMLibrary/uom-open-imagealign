@@ -1,14 +1,15 @@
 import type { ImageSource } from '$lib/types/project';
+import type { GroupingProposal } from '$lib/types/grouping';
 
 export function groupByFilename(
     images: ImageSource[]
-) {
+): GroupingProposal[] {
     const buckets = new Map<string, string[]>();
 
     for (const img of images) {
-        const stem = img.uri
-            .split('/')
-            .pop()!
+        if (!img.label) continue;
+
+        const stem = img.label
             .toLowerCase()
             .replace(/\.(jpg|jpeg|png|tif|tiff)$/i, '')
             .replace(/[_-]?\d+$/, '');
