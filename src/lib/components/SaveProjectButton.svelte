@@ -1,8 +1,21 @@
-<script>
-	import { createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+<script lang="ts">
+	import { get } from 'svelte/store';
+	import { project } from '$lib/stores/projectStore';
 
-	export let disabled = false;
+	function handleSave() {
+		const p = get(project);
+		if (!p) return;
+
+		const json = JSON.stringify(p, null, 2);
+		const blob = new Blob([json], { type: 'application/json' });
+
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = 'image-alignment-project.json';
+		a.click();
+
+		URL.revokeObjectURL(a.href);
+	}
 </script>
 
-<button on:click={() => dispatch('save')} {disabled}> Save </button>
+<button on:click={handleSave} disabled={$project === null}> Save </button>

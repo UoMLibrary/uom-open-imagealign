@@ -1,36 +1,40 @@
-<script>
-	import { createEventDispatcher } from 'svelte';
-	import { supportsFileSystemAccess } from '$lib/components/projectIO';
-
-	const dispatch = createEventDispatcher();
+<script lang="ts">
+	import { migrateProject } from '$lib/migration/migrateProject';
+	import { validateProject } from '$lib/validation/validateProject';
+	import { loadProject } from '$lib/stores/projectStore';
 
 	async function load() {
-		if (supportsFileSystemAccess()) {
-			const dir = await window.showDirectoryPicker();
-			const files = new Map();
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = 'application/json';
 
-			for await (const entry of dir.values()) {
-				if (entry.kind === 'file') {
-					const file = await entry.getFile();
-					files.set(file.name, file);
-				}
+		input.onchange = async () => {
+			const file = input.files?.[0];
+			if (!file) return;
+
+			const text = await file.text();
+			let parsed;
+
+			try {
+				parsed = JSON.parse(text);
+			} catch {
+				alert('Invalid JSON file');
+				return;
 			}
 
-			dispatch('load', { files, dir });
-		} else {
-			const input = document.createElement('input');
-			input.type = 'file';
-			input.webkitdirectory = true;
-			input.multiple = true;
+			const migrated = migrateProject(parsed);
+			const validation = validateProject(migrated);
 
-			input.onchange = () => {
-				const files = new Map(Array.from(input.files).map((f) => [f.name, f]));
-				dispatch('load', { files, dir: null });
-			};
+			if (!validation.valid) {
+				console.warn('Project validation warnings:', validation.errors);
+				// optional: show modal/toast
+			}
 
-			input.click();
-		}
+			loadProject(migrated);
+		};
+
+		input.click();
 	}
 </script>
 
-<button on:click={load}> Load </button>
+<button on:click={load}> Load Project </button>

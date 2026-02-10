@@ -1,6 +1,8 @@
-export function supportsFileSystemAccess() {
-	return 'showDirectoryPicker' in window;
+
+export function supportsFileSystemAccess(): boolean {
+  return 'showDirectoryPicker' in window;
 }
+
 
 function normalise(name) {
 	return name.replace(/^\/+/, '');

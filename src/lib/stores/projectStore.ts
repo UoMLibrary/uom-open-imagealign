@@ -1,47 +1,137 @@
 import { writable, derived, get } from 'svelte/store';
+import type {
+    ImageAlignmentProject as Project,
+    ImageSource,
+    ImageGroup,
+    ImageAlignment
+} from '$lib/types/project';
 
-export const EMPTY_PROJECT = {
-    id: null,
-    name: null,
-    imagePairs: []
-};
+/* ---------------------------------------------
+   Core writable stores (authoritative state)
+--------------------------------------------- */
 
-export const projectStore = writable(EMPTY_PROJECT);
-export const selectedPairId = writable(null);
+export const projectMeta = writable<{
+    version: Project['version'];
+    createdAt: string;
+    notes?: string;
+}>({
+    version: '0.2',
+    createdAt: new Date().toISOString()
+});
 
-export const activePair = derived(
-    [projectStore, selectedPairId],
-    ([$project, $id]) => {
-        if (!$project || !$id) return null;
-        return $project.imagePairs.find((p) => p.id === $id) ?? null;
+export const images = writable<ImageSource[]>([]);
+export const groups = writable<ImageGroup[]>([]);
+export const alignments = writable<ImageAlignment[]>([]);
+export const annotations = writable<Project['annotations'] | null>(null);
+
+/* ---------------------------------------------
+   Derived stores (read-only, computed)
+--------------------------------------------- */
+
+export const imagesById = derived(images, ($images) =>
+    Object.fromEntries($images.map(img => [img.id, img]))
+);
+
+export const groupsById = derived(groups, ($groups) =>
+    Object.fromEntries($groups.map(group => [group.id, group]))
+);
+
+export const alignmentsBySourceImage = derived(
+    alignments,
+    ($alignments) => {
+        const map = new Map<string, ImageAlignment[]>();
+        for (const a of $alignments) {
+            if (!map.has(a.sourceImageId)) {
+                map.set(a.sourceImageId, []);
+            }
+            map.get(a.sourceImageId)!.push(a);
+        }
+        return map;
     }
 );
 
-/**
- * Remove runtime-only fields before saving
- */
-export function serialiseProject(project) {
-    return {
-        ...project,
-        imagePairs: project.imagePairs.map(
-            ({ imageAUrl, imageBUrl, ...rest }) => rest
-        )
-    };
-}
+/* ---------------------------------------------
+   Annotation validation status
+--------------------------------------------- */
 
-/**
- * Revoke blob URLs when unloading a project
- */
-export function cleanupProject(project) {
-    project.imagePairs.forEach((p) => {
-        revoke(p.imageAUrl);
-        revoke(p.imageBUrl);
-        revoke(p.thumbAUrl);
-    });
-}
+export const annotationStatus = derived(
+    [annotations, images],
+    ([$annotations, $images]) => {
+        if (!$annotations) return 'none';
 
-function revoke(url) {
-    if (typeof url === 'string' && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
+        const match = $images.find(
+            img => img.hashes.contentHash === $annotations.imageContentHash
+        );
+
+        return match ? 'valid' : 'mismatch';
     }
+);
+
+/* ---------------------------------------------
+   Project assembly (for saving)
+--------------------------------------------- */
+
+export const project = derived(
+    [projectMeta, images, groups, alignments, annotations],
+    ([$meta, $images, $groups, $alignments, $annotations]): Project | null => {
+        if ($images.length === 0) return null;
+
+        return {
+            version: $meta.version,
+            createdAt: $meta.createdAt,
+            images: $images as [ImageSource, ...ImageSource[]],
+            groups: $groups,
+            alignments: $alignments,
+            notes: $meta.notes,
+            annotations: $annotations ?? undefined
+        };
+    }
+);
+
+
+/* ---------------------------------------------
+   Store actions (the ONLY way to mutate state)
+--------------------------------------------- */
+
+export function resetProject() {
+    projectMeta.set({
+        version: '0.2',
+        createdAt: new Date().toISOString()
+    });
+
+    images.set([]);
+    groups.set([]);
+    alignments.set([]);
+    annotations.set(null);
+}
+
+export function loadProject(p: Project) {
+    projectMeta.set({
+        version: p.version,
+        createdAt: p.createdAt,
+        notes: p.notes
+    });
+
+    images.set(p.images);
+    groups.set(p.groups);
+    alignments.set(p.alignments);
+    annotations.set(p.annotations ?? null);
+}
+
+export function addImage(image: ImageSource) {
+    images.update(imgs => [...imgs, image]);
+}
+
+export function updateGroup(groupId: string, updater: (g: ImageGroup) => ImageGroup) {
+    groups.update(gs =>
+        gs.map(g => (g.id === groupId ? updater(g) : g))
+    );
+}
+
+export function addAlignment(alignment: ImageAlignment) {
+    alignments.update(a => [...a, alignment]);
+}
+
+export function setAnnotations(data: Project['annotations']) {
+    annotations.set(data);
 }

@@ -1,14 +1,22 @@
-<script>
+<script lang="ts">
 	import LoadProjectButton from '$lib/components/LoadProjectButton.svelte';
 	import SaveProjectButton from '$lib/components/SaveProjectButton.svelte';
+	import ImportImagesButton from '$lib/components/ImportImagesButton.svelte';
 	import { createEventDispatcher } from 'svelte';
+
 	const dispatch = createEventDispatcher();
 </script>
 
 <header class="header">
 	<div class="actions">
-		<LoadProjectButton on:load={(e) => dispatch('load-project', e.detail)} />
-		<SaveProjectButton on:save={() => dispatch('save-project')} />
+		<!-- New: Import Images -->
+		<ImportImagesButton />
+
+		<!-- Load / Save now manage stores directly -->
+		<LoadProjectButton />
+		<SaveProjectButton />
+
+		<!-- UI-only events -->
 		<button on:click={() => dispatch('help')}>Help</button>
 		<button on:click={() => dispatch('about')}>About</button>
 	</div>

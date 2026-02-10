@@ -1,0 +1,224 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/image-alignment-project.schema.json",
+    "title": "Image Alignment Project",
+    "type": "object",
+    "required": [
+        "version",
+        "createdAt",
+        "images",
+        "groups",
+        "alignments"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "version": {
+            "type": "string",
+            "pattern": "^0\\.\\d+$"
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "images": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageSource"
+            },
+            "minItems": 1
+        },
+        "groups": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageGroup"
+            }
+        },
+        "alignments": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageAlignment"
+            }
+        },
+        "notes": {
+            "type": "string"
+        },
+        "annotations": {
+            "type": "object",
+            "required": [
+                "imageContentHash",
+                "data"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "imageContentHash": {
+                    "type": "string",
+                    "minLength": 32
+                },
+                "data": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        }
+    },
+    "$defs": {
+        "imageSource": {
+            "type": "object",
+            "required": [
+                "id",
+                "sourceType",
+                "uri",
+                "hashes",
+                "dimensions"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "sourceType": {
+                    "type": "string",
+                    "enum": [
+                        "local",
+                        "url",
+                        "iiif"
+                    ]
+                },
+                "uri": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "hashes": {
+                    "type": "object",
+                    "required": [
+                        "contentHash"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "contentHash": {
+                            "type": "string",
+                            "minLength": 32
+                        },
+                        "perceptualHash": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "dimensions": {
+                    "type": "object",
+                    "required": [
+                        "width",
+                        "height"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "width": {
+                            "type": "number"
+                        },
+                        "height": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "imageGroup": {
+            "type": "object",
+            "required": [
+                "id",
+                "baseImageId",
+                "imageIds",
+                "locked"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "baseImageId": {
+                    "type": "string"
+                },
+                "imageIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "minItems": 2
+                },
+                "locked": {
+                    "type": "boolean"
+                },
+                "pairingStrategy": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "imageAlignment": {
+            "type": "object",
+            "required": [
+                "sourceImageId",
+                "targetImageId",
+                "sourceContentHash",
+                "targetContentHash",
+                "transform",
+                "confidence",
+                "method"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "sourceImageId": {
+                    "type": "string"
+                },
+                "targetImageId": {
+                    "type": "string"
+                },
+                "sourceContentHash": {
+                    "type": "string"
+                },
+                "targetContentHash": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "method": {
+                    "type": "string"
+                },
+                "transform": {
+                    "type": "object",
+                    "required": [
+                        "type",
+                        "matrix"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "affine",
+                                "homography"
+                            ]
+                        },
+                        "matrix": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 9,
+                            "maxItems": 9
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
