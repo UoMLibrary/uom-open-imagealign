@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
 	import { hashWithWorker } from '$lib/image/ImageHasher';
-	import { addImage } from '$lib/stores/projectStore';
+	import { addImage, updateImageByContentHash, images } from '$lib/stores/projectStore';
 	import { supportsFileSystemAccess } from '$lib/components/projectIO';
 
 	async function importImages() {
@@ -36,17 +37,31 @@
 		const bitmap = await createImageBitmap(file);
 		const { contentHash, perceptualHash } = await hashWithWorker(bitmap);
 
-		addImage({
-			id: crypto.randomUUID(),
-			sourceType: 'local',
-			uri: URL.createObjectURL(file),
-			label: file.name,
-			hashes: { contentHash, perceptualHash },
-			dimensions: {
-				width: bitmap.width,
-				height: bitmap.height
-			}
-		});
+		const existing = get(images).find((img) => img.hashes.contentHash === contentHash);
+
+		const objectUrl = URL.createObjectURL(file);
+
+		if (existing) {
+			// 🔁 Relink existing image
+			updateImageByContentHash(contentHash, (img) => ({
+				...img,
+				uri: objectUrl,
+				label: file.name
+			}));
+		} else {
+			// ➕ New image
+			addImage({
+				id: crypto.randomUUID(),
+				sourceType: 'local',
+				uri: objectUrl,
+				label: file.name,
+				hashes: { contentHash, perceptualHash },
+				dimensions: {
+					width: bitmap.width,
+					height: bitmap.height
+				}
+			});
+		}
 	}
 </script>
 

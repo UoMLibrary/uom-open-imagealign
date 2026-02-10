@@ -135,3 +135,58 @@ export function addAlignment(alignment: ImageAlignment) {
 export function setAnnotations(data: Project['annotations']) {
     annotations.set(data);
 }
+
+/* ---------------------------------------------
+   Image lookup & relinking helpers
+--------------------------------------------- */
+
+export function findImageByContentHash(
+    contentHash: string
+): ImageSource | undefined {
+    return get(images).find(
+        (img) => img.hashes.contentHash === contentHash
+    );
+}
+
+export function updateImageByContentHash(
+    contentHash: string,
+    updater: (img: ImageSource) => ImageSource
+) {
+    images.update((list) => {
+        const idx = list.findIndex(
+            (img) => img.hashes.contentHash === contentHash
+        );
+
+        if (idx === -1) return list;
+
+        const next = [...list];
+        next[idx] = updater(next[idx]);
+        return next;
+    });
+}
+
+/**
+ * Convenience helper:
+ * - updates existing image if hash matches
+ * - otherwise inserts new image
+ */
+export function upsertImageByContentHash(
+    contentHash: string,
+    create: () => ImageSource,
+    update: (img: ImageSource) => ImageSource
+) {
+    images.update((list) => {
+        const idx = list.findIndex(
+            (img) => img.hashes.contentHash === contentHash
+        );
+
+        if (idx === -1) {
+            return [...list, create()];
+        }
+
+        const next = [...list];
+        next[idx] = update(next[idx]);
+        return next;
+    });
+}
+
