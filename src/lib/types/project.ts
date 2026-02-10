@@ -11,11 +11,13 @@ export interface ImageAlignmentProject {
   alignments: ImageAlignment[];
   notes?: string;
   annotations?: {
-    imageContentHash: string;
+    baseImageContentHash: string;
+    comparedImageContentHash?: string;
+    alignmentId?: string;
     data: {
       [k: string]: unknown;
     };
-  };
+  }[];
 }
 export interface ImageSource {
   id: string;

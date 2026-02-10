@@ -22,7 +22,8 @@ export const projectMeta = writable<{
 export const images = writable<ImageSource[]>([]);
 export const groups = writable<ImageGroup[]>([]);
 export const alignments = writable<ImageAlignment[]>([]);
-export const annotations = writable<Project['annotations'] | null>(null);
+export const annotations = writable<Project['annotations']>([]);
+
 
 /* ---------------------------------------------
    Derived stores (read-only, computed)
@@ -57,15 +58,21 @@ export const alignmentsBySourceImage = derived(
 export const annotationStatus = derived(
     [annotations, images],
     ([$annotations, $images]) => {
-        if (!$annotations) return 'none';
+        if ($annotations.length === 0) return 'none';
 
-        const match = $images.find(
-            img => img.hashes.contentHash === $annotations.imageContentHash
+        const imageHashes = new Set(
+            $images.map(img => img.hashes.contentHash)
         );
 
-        return match ? 'valid' : 'mismatch';
+        const invalid = $annotations.some(
+            a => !imageHashes.has(a.baseImageContentHash)
+        );
+
+        return invalid ? 'mismatch' : 'valid';
     }
 );
+
+
 
 /* ---------------------------------------------
    Project assembly (for saving)
@@ -83,10 +90,11 @@ export const project = derived(
             groups: $groups,
             alignments: $alignments,
             notes: $meta.notes,
-            annotations: $annotations ?? undefined
+            annotations: $annotations.length ? $annotations : undefined
         };
     }
 );
+
 
 
 /* ---------------------------------------------
@@ -102,7 +110,7 @@ export function resetProject() {
     images.set([]);
     groups.set([]);
     alignments.set([]);
-    annotations.set(null);
+    annotations.set([]);
 }
 
 export function loadProject(p: Project) {
@@ -121,7 +129,7 @@ export function loadProject(p: Project) {
 
     groups.set(p.groups);
     alignments.set(p.alignments);
-    annotations.set(p.annotations ?? null);
+    annotations.set(p.annotations ?? []);
 }
 
 
@@ -139,9 +147,14 @@ export function addAlignment(alignment: ImageAlignment) {
     alignments.update(a => [...a, alignment]);
 }
 
-export function setAnnotations(data: Project['annotations']) {
-    annotations.set(data);
+export function addAnnotation(annotation: Project['annotations'][number]) {
+    annotations.update(list => [...list, annotation]);
 }
+
+export function replaceAnnotations(next: Project['annotations']) {
+    annotations.set(next);
+}
+
 
 /* ---------------------------------------------
    Image lookup & relinking helpers

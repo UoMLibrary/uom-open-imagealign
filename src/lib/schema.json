@@ -43,20 +43,30 @@
             "type": "string"
         },
         "annotations": {
-            "type": "object",
-            "required": [
-                "imageContentHash",
-                "data"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "imageContentHash": {
-                    "type": "string",
-                    "minLength": 32
-                },
-                "data": {
-                    "type": "object",
-                    "additionalProperties": true
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "baseImageContentHash",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "baseImageContentHash": {
+                        "type": "string",
+                        "minLength": 32
+                    },
+                    "comparedImageContentHash": {
+                        "type": "string",
+                        "minLength": 32
+                    },
+                    "alignmentId": {
+                        "type": "string"
+                    },
+                    "data": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
                 }
             }
         }

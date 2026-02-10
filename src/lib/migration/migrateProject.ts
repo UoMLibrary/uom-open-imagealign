@@ -48,10 +48,14 @@ function migrate_0_1_to_0_2(old: AnyProject): AnyProject {
         version: '0.2',
 
         annotations: old.annotations
-            ? {
-                imageContentHash: old.annotations.imageContentHash ?? '',
-                data: old.annotations.data ?? old.annotations
-            }
+            ? [
+                {
+                    baseImageContentHash:
+                        old.annotations.imageContentHash ?? '',
+                    data:
+                        old.annotations.data ?? old.annotations
+                }
+            ]
             : undefined
     };
 }
