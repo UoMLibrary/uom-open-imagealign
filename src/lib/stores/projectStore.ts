@@ -217,3 +217,8 @@ export const linkedImagesByHash = derived(images, ($images) =>
             .map((img) => img.hashes.contentHash)
     )
 );
+
+
+export function addGroup(group: ImageGroup) {
+    groups.update(gs => [...gs, group]);
+}
