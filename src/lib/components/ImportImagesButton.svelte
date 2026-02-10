@@ -60,7 +60,7 @@
 					label: file.name
 				};
 			});
-			console.log('After relink:', get(images));
+			// console.log('After relink:', get(images));
 		} else {
 			// ➕ New image
 			addImage({

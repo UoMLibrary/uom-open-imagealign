@@ -6,7 +6,9 @@
 
 <div class="grid">
 	{#each $images as image (image.id)}
-		<ImageThumbnail src={image.uri} label={image.label} />
+		{#key image.uri}
+			<ImageThumbnail src={image.uri} label={image.label} />
+		{/key}
 	{/each}
 </div>
 
