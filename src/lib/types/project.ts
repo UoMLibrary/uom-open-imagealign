@@ -42,9 +42,6 @@ export interface ImageGroup {
    */
   imageIds: [string, string, ...string[]];
   locked: boolean;
-  pairingStrategy?: {
-    [k: string]: unknown;
-  };
 }
 export interface ImageAlignment {
   sourceImageId: string;

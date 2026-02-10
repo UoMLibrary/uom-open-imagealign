@@ -153,10 +153,6 @@
                 },
                 "locked": {
                     "type": "boolean"
-                },
-                "pairingStrategy": {
-                    "type": "object",
-                    "additionalProperties": true
                 }
             }
         },
