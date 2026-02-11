@@ -6,7 +6,7 @@
 		removeImageFromGroup,
 		removeGroup,
 		addImageToGroup
-	} from '$lib/stores/projectStore';
+	} from '$lib/domain/project/projectStore';
 
 	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
 	import type { ImageGroup } from '$lib/types/project';

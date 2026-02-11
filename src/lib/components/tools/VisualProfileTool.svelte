@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { images, groups } from '$lib/stores/projectStore';
-	import { groupingState } from '$lib/stores/groupingStore';
+	import { images, groups } from '$lib/domain/project/projectStore';
+	import { groupingState } from '$lib/domain/grouping/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByVisualProfile } from '$lib/strategies/grouping/byVisualProfile';
 	import { extractVisualProfile } from '$lib/domain/image/visualProfile';

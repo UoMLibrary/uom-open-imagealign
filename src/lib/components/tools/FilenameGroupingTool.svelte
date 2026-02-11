@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { images } from '$lib/stores/projectStore';
-	import { groups } from '$lib/stores/projectStore';
-	import { groupingState } from '$lib/stores/groupingStore';
+	import { images } from '$lib/domain/project/projectStore';
+	import { groups } from '$lib/domain/project/projectStore';
+	import { groupingState } from '$lib/domain/grouping/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByFilename } from '$lib/strategies/grouping/byFilename';
 

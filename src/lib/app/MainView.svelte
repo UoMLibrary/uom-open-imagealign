@@ -9,7 +9,7 @@
 	import GroupPanel from '$lib/components/GroupPanel.svelte';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
 	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
-	import { images, groups, project } from '$lib/stores/projectStore';
+	import { images, groups, project } from '$lib/domain/project/projectStore';
 
 	/* -----------------------------
      UI state

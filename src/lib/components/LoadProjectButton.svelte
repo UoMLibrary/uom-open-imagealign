@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { migrateProject } from '$lib/migration/migrateProject';
 	import { validateProject } from '$lib/validation/validateProject';
-	import { loadProject } from '$lib/stores/projectStore';
+	import { loadProject } from '$lib/domain/project/projectStore';
 
 	async function load() {
 		const input = document.createElement('input');

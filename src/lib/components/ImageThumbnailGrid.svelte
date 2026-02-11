@@ -1,6 +1,6 @@
 <script lang="ts">
 	import ImageThumbnail from './ImageThumbnail.svelte';
-	import { images } from '$lib/stores/projectStore';
+	import { images } from '$lib/domain/project/projectStore';
 
 	/**
 	 * IDs of images to render in this grid.

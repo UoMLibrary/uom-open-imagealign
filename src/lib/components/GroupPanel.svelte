@@ -3,7 +3,7 @@
 	import PHashGroupingTool from './tools/PHashGroupingTool.svelte';
 	import VisualProfileTool from './tools/VisualProfileTool.svelte';
 
-	import { groupingState } from '$lib/stores/groupingStore';
+	import { groupingState } from '$lib/domain/grouping/groupingStore';
 
 	type GroupingTool = 'filename' | 'phash' | 'visual-profile';
 	let tool: GroupingTool = 'filename';

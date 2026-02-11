@@ -1,6 +1,6 @@
 import { derived } from 'svelte/store';
-import { images, groups } from '$lib/stores/projectStore';
-import { groupingState } from '$lib/stores/groupingStore';
+import { images, groups } from '$lib/domain/project/projectStore';
+import { groupingState } from '$lib/domain/grouping/groupingStore';
 
 /**
  * Image IDs that are part of confirmed groups

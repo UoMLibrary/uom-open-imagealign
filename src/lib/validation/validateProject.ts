@@ -1,6 +1,6 @@
 import Ajv from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import schema from '$lib/schema.json';
+import schema from '$lib/domain/project/schema.json';
 
 const ajv = new Ajv({
     allErrors: true,

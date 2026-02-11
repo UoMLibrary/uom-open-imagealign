@@ -6,7 +6,7 @@
 		addImage,
 		updateImageByContentHash,
 		findImageByContentHash
-	} from '$lib/stores/projectStore';
+	} from '$lib/domain/project/projectStore';
 
 	import { supportsFileSystemAccess } from '$lib/platform/fileSystem';
 

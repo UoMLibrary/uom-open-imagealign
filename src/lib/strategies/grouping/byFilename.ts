@@ -1,5 +1,5 @@
 import type { ImageSource } from '$lib/types/project';
-import type { GroupingProposal } from '$lib/types/grouping';
+import type { GroupingProposal } from '$lib/domain/grouping/types';
 
 export function groupByFilename(
     images: ImageSource[]

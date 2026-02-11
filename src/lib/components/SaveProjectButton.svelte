@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { project } from '$lib/stores/projectStore';
+	import { project } from '$lib/domain/project/projectStore';
 
 	function handleSave() {
 		const p = get(project);
