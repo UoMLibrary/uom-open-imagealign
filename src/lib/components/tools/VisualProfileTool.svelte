@@ -3,7 +3,7 @@
 	import { groupingState } from '$lib/stores/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByVisualProfile } from '$lib/strategies/grouping/byVisualProfile';
-	import { extractVisualProfile } from '$lib/image/visualProfile';
+	import { extractVisualProfile } from '$lib/domain/image/visualProfile';
 
 	let threshold = 0.9;
 

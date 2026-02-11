@@ -1,7 +1,7 @@
 // src/lib/strategies/grouping/byPHash.ts
 import type { ImageSource } from '$lib/types/project';
 import type { GroupingProposal } from '$lib/types/grouping';
-import { phashSimilarity } from '$lib/image/phashSimilarity';
+import { phashSimilarity } from '$lib/domain/image/phashSimilarity';
 
 export function groupByPHash(
     images: ImageSource[],

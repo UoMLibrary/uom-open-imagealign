@@ -3,8 +3,8 @@
 	import { showToast } from '$lib/ui/toast';
 	import HelpModal from '$lib/modals/HelpModal.svelte';
 	import AboutModal from '$lib/modals/AboutModal.svelte';
-	import Header from '$lib/Header.svelte';
-	import SidePanel from '$lib/components/SidePanel.svelte';
+	import Header from '$lib/app/Header.svelte';
+	import SidePanel from '$lib/app/SidePanel.svelte';
 	import ImageGroupList from '$lib/components/ImageGroup/ImageGroupList.svelte';
 	import GroupPanel from '$lib/components/GroupPanel.svelte';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
@@ -16,7 +16,7 @@
   ----------------------------- */
 	let showHelp = false;
 	let showAbout = false;
-	let imagesPanelOpen = false;
+	let GroupListPanelOpen = true;
 
 	// UI-only selection state
 	let selectedGroupId: string | null = null;
@@ -36,7 +36,7 @@
 		const current = $groups.length;
 
 		if (current > 0 && previousGroupCount === 0) {
-			imagesPanelOpen = true;
+			GroupListPanelOpen = true;
 		}
 
 		previousGroupCount = current;
@@ -49,7 +49,7 @@
 	<Header on:help={() => (showHelp = true)} on:about={() => (showAbout = true)} />
 
 	<div class="workspace">
-		<SidePanel side="left" bind:open={imagesPanelOpen}>
+		<SidePanel side="left" bind:open={GroupListPanelOpen}>
 			<span slot="header" class="panel-title">Groups</span>
 
 			{#if $groups.length > 0}
@@ -59,9 +59,9 @@
 					on:select={(e) => (selectedGroupId = e.detail.id)}
 				/>
 			{:else if $images.length > 0}
-				<div class="empty">Images imported, no groups yet</div>
+				<div class="empty">&nbsp;</div>
 			{:else}
-				<div class="empty">No images imported</div>
+				<div class="empty">&nbsp;</div>
 			{/if}
 		</SidePanel>
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { hashImageFile } from '$lib/image/ImageHasher';
+	import { hashImageFile } from '$lib/domain/image/ImageHasher';
 	import {
 		images,
 		addImage,
