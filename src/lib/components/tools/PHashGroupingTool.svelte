@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { images } from '$lib/stores/projectStore';
+	import { images, groups } from '$lib/stores/projectStore';
 	import { groupingState } from '$lib/stores/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByPHash } from '$lib/strategies/grouping/byPHash';
@@ -9,8 +9,13 @@
 	// Automatically recompute proposals when:
 	// - images change
 	// - threshold changes
+	// - grouped/proposed state changes (via ungroupedImageIds)
 	$: {
-		const proposals = groupByPHash($images, threshold);
+		const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
+
+		const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
+
+		const proposals = groupByPHash(eligibleImages, threshold);
 
 		groupingState.set({
 			proposals,

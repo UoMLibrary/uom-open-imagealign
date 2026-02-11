@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { images } from '$lib/stores/projectStore';
+	import { images, groups } from '$lib/stores/projectStore';
 	import { groupingState } from '$lib/stores/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByVisualProfile } from '$lib/strategies/grouping/byVisualProfile';
@@ -56,8 +56,13 @@
 			await buildProfiles();
 		}
 
+		// ✅ Only exclude CONFIRMED groups (not proposals)
+		const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
+
+		const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
+
 		groupingState.set({
-			proposals: groupByVisualProfile($images, profiles, threshold),
+			proposals: groupByVisualProfile(eligibleImages, profiles, threshold),
 			selected: new Set()
 		});
 	}

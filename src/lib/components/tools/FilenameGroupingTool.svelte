@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { images } from '$lib/stores/projectStore';
+	import { groups } from '$lib/stores/projectStore';
 	import { groupingState } from '$lib/stores/groupingStore';
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByFilename } from '$lib/strategies/grouping/byFilename';
 
-	// Automatically recompute proposals when images change
 	$: {
-		const proposals = groupByFilename($images);
+		const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
+
+		const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
+
+		const proposals = groupByFilename(eligibleImages);
 
 		groupingState.set({
 			proposals,
