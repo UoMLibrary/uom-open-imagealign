@@ -229,3 +229,16 @@ export function addGroups(newGroups: ImageGroup[]) {
         addGroup(group);
     }
 }
+
+export function setGroupBaseImage(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.map((g) =>
+            g.id === groupId && g.imageIds.includes(imageId)
+                ? { ...g, baseImageId: imageId }
+                : g
+        )
+    );
+}

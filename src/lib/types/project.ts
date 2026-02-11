@@ -40,9 +40,9 @@ export interface ImageGroup {
   id: string;
   baseImageId: string;
   /**
-   * @minItems 2
+   * @minItems 1
    */
-  imageIds: [string, string, ...string[]];
+  imageIds: [string, ...string[]];
   locked: boolean;
 }
 export interface ImageAlignment {

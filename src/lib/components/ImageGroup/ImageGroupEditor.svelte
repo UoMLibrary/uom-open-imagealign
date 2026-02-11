@@ -1,21 +1,44 @@
 <script lang="ts">
-	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
+	import ImageThumbnail from '$lib/components/ImageThumbnail.svelte';
+	import { imagesById, setGroupBaseImage } from '$lib/stores/projectStore';
 	import type { ImageGroup } from '$lib/types/project';
 
 	export let group: ImageGroup;
+
+	function makeBase(imageId: string) {
+		if (imageId === group.baseImageId) return;
+		setGroupBaseImage(group.id, imageId);
+	}
 </script>
 
 <div class="editor">
 	<h4>Base image</h4>
-	<ImageThumbnailGrid visibleImageIds={[group.baseImageId]} />
+
+	<div class="base">
+		{#if $imagesById[group.baseImageId]}
+			<ImageThumbnail
+				src={$imagesById[group.baseImageId].uri}
+				label={$imagesById[group.baseImageId].label}
+			/>
+		{/if}
+	</div>
 
 	<h4>Group images</h4>
-	<ImageThumbnailGrid visibleImageIds={group.imageIds} />
 
-	<div class="actions">
-		<button>Change base</button>
-		<button>Reorder</button>
-		<button class="danger">Ungroup</button>
+	<div class="variants">
+		{#each group.imageIds as id}
+			{#if $imagesById[id]}
+				<div class="variant" class:base={id === group.baseImageId} on:click={() => makeBase(id)}>
+					<ImageThumbnail src={$imagesById[id].uri} label={$imagesById[id].label} />
+
+					{#if id !== group.baseImageId}
+						<span class="action">Set as base</span>
+					{:else}
+						<span class="action base-label">Base</span>
+					{/if}
+				</div>
+			{/if}
+		{/each}
 	</div>
 </div>
 
@@ -35,13 +58,34 @@
 		color: #666;
 	}
 
-	.actions {
-		display: flex;
+	.variants {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
 		gap: 0.5rem;
 	}
 
-	.danger {
-		margin-left: auto;
-		color: #a00;
+	.variant {
+		position: relative;
+		cursor: pointer;
+	}
+
+	.variant.base {
+		outline: 2px solid #3b82f6;
+	}
+
+	.action {
+		position: absolute;
+		bottom: 4px;
+		left: 4px;
+		right: 4px;
+		font-size: 0.7rem;
+		text-align: center;
+		background: rgba(255, 255, 255, 0.85);
+		padding: 2px;
+		border-radius: 2px;
+	}
+
+	.base-label {
+		font-weight: 600;
 	}
 </style>
