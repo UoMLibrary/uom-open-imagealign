@@ -230,6 +230,42 @@ export function addGroups(newGroups: ImageGroup[]) {
     }
 }
 
+export function removeImageFromGroup(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.flatMap((g) => {
+            if (g.id !== groupId) return g;
+
+            const remaining = g.imageIds.filter((id) => id !== imageId);
+
+            // If fewer than 2 images remain, delete the group
+            if (remaining.length < 2) {
+                return [];
+            }
+
+            // Ensure base image is valid
+            const baseImageId =
+                g.baseImageId === imageId
+                    ? remaining[0]
+                    : g.baseImageId;
+
+            return {
+                ...g,
+                imageIds: remaining,
+                baseImageId
+            };
+        })
+    );
+}
+
+
+export function removeGroup(groupId: string) {
+    groups.update((gs) => gs.filter((g) => g.id !== groupId));
+}
+
+
 export function setGroupBaseImage(
     groupId: string,
     imageId: string
