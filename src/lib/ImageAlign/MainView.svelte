@@ -73,8 +73,8 @@
 				{:else}
 					<div class="empty">Import images to begin</div>
 				{/if}
-				<!-- Show grouping panel if there are images but no groups -->
-				{#if $images.length > 0 && $groups.length === 0}
+				<!-- Show grouping panel if there are any ungrouped images -->
+				{#if $ungroupedImageIds.length > 0}
 					<GroupPanel />
 				{/if}
 			</div>
