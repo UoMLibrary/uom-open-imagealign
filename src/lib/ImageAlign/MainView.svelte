@@ -29,6 +29,18 @@
 	}
 
 	$: allImageIds = $images.map((img) => img.id);
+
+	// Groups are added but sidebar might be closed → user doesn’t see them. Open it automatically when groups appear.
+	let previousGroupCount = 0;
+	$: {
+		const current = $groups.length;
+
+		if (current > 0 && previousGroupCount === 0) {
+			imagesPanelOpen = true;
+		}
+
+		previousGroupCount = current;
+	}
 </script>
 
 <div class="app">
