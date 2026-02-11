@@ -3,7 +3,22 @@
 	import PHashGroupingTool from './tools/PHashGroupingTool.svelte';
 	import VisualProfileTool from './tools/VisualProfileTool.svelte';
 
-	let tool: 'filename' | 'phash' | 'visual-profile' = 'filename';
+	import { groupingState } from '$lib/stores/groupingStore';
+
+	type GroupingTool = 'filename' | 'phash' | 'visual-profile';
+	let tool: GroupingTool = 'filename';
+
+	// Switching grouping tools should reset proposals and selection
+	let previousTool: GroupingTool | null = null;
+	$: {
+		if (tool !== previousTool) {
+			groupingState.set({
+				proposals: [],
+				selected: new Set()
+			});
+			previousTool = tool;
+		}
+	}
 </script>
 
 <div class="group-panel">
