@@ -2,7 +2,7 @@
 	import { images } from '$lib/domain/project/projectStore';
 	import { groups } from '$lib/domain/project/projectStore';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import GroupProposalList from '../GroupProposalList.svelte';
+	import GroupProposalList from '../../../workspace/panels/GroupProposalList.svelte';
 	import { groupByFilename } from '$lib/strategies/grouping/byFilename';
 
 	$: {

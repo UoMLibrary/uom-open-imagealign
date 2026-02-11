@@ -1,6 +1,6 @@
 // src/lib/migration/migrateProject.ts
 
-import type { ImageAlignmentProject as Project } from '$lib/types/project';
+import type { ImageAlignmentProject as Project } from '$lib/domain/project/types';
 
 type AnyProject = Record<string, any>;
 type Migrator = (input: AnyProject) => AnyProject;

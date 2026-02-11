@@ -1,7 +1,7 @@
 <script lang="ts">
-	import LoadProjectButton from '$lib/components/LoadProjectButton.svelte';
-	import SaveProjectButton from '$lib/components/SaveProjectButton.svelte';
-	import ImportImagesButton from '$lib/components/ImportImagesButton.svelte';
+	import LoadProjectButton from '$lib/shared/buttons/LoadProjectButton.svelte';
+	import SaveProjectButton from '$lib/shared/buttons/SaveProjectButton.svelte';
+	import ImportImagesButton from '$lib/shared/buttons/ImportImagesButton.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ImageThumbnail from '$lib/components/ImageThumbnail.svelte';
+	import ImageThumbnail from '$lib/features/thumbnails/ImageThumbnail.svelte';
 	import {
 		imagesById,
 		setGroupBaseImage,
@@ -8,8 +8,8 @@
 		addImageToGroup
 	} from '$lib/domain/project/projectStore';
 
-	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
-	import type { ImageGroup } from '$lib/types/project';
+	import { ungroupedImageIds } from '$lib/features/thumbnails/imageVisibility';
+	import type { ImageGroup } from '$lib/domain/project/types';
 
 	export let group: ImageGroup;
 

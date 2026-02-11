@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { migrateProject } from '$lib/migration/migrateProject';
-	import { validateProject } from '$lib/validation/validateProject';
+	import { migrateProject } from '$lib/domain/project/migrate';
+	import { validateProject } from '$lib/domain/project/validate';
 	import { loadProject } from '$lib/domain/project/projectStore';
 
 	async function load() {

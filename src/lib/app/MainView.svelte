@@ -1,14 +1,14 @@
 <script lang="ts">
-	import Toast from '$lib/ui/Toast.svelte';
-	import { showToast } from '$lib/ui/toast';
-	import HelpModal from '$lib/modals/HelpModal.svelte';
-	import AboutModal from '$lib/modals/AboutModal.svelte';
+	import Toast from '$lib/shared/ui/Toast.svelte';
+	import { showToast } from '$lib/shared/ui/toast';
+	import HelpModal from '$lib/app/modals/HelpModal.svelte';
+	import AboutModal from '$lib/app/modals/AboutModal.svelte';
 	import Header from '$lib/app/Header.svelte';
 	import SidePanel from '$lib/app/SidePanel.svelte';
-	import ImageGroupList from '$lib/components/ImageGroup/ImageGroupList.svelte';
-	import GroupPanel from '$lib/components/GroupPanel.svelte';
-	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
-	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
+	import ImageGroupList from '$lib/features/grouping/GroupList.svelte';
+	import GroupPanel from '$lib/workspace/panels/GroupPanel.svelte';
+	import ImageThumbnailGrid from '$lib/features/thumbnails/ImageThumbnailGrid.svelte';
+	import { ungroupedImageIds } from '$lib/features/thumbnails/imageVisibility';
 	import { images, groups, project } from '$lib/domain/project/projectStore';
 
 	/* -----------------------------

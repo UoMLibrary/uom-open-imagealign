@@ -1,5 +1,5 @@
 // src/lib/strategies/grouping/byPHash.ts
-import type { ImageSource } from '$lib/types/project';
+import type { ImageSource } from '$lib/domain/project/types';
 import type { GroupingProposal } from '$lib/domain/grouping/types';
 import { phashSimilarity } from '$lib/domain/image/phashSimilarity';
 

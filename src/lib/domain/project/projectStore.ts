@@ -4,7 +4,7 @@ import type {
     ImageSource,
     ImageGroup,
     ImageAlignment
-} from '$lib/types/project';
+} from '$lib/domain/project/types';
 
 /* ---------------------------------------------
    Core writable stores (authoritative state)

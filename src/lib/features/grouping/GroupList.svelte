@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import ImageGroupItem from './ImageGroupItem.svelte';
-	import type { ImageGroup } from '$lib/types/project';
+	import ImageGroupItem from '../../workspace/panels/GroupListItem.svelte';
+	import type { ImageGroup } from '$lib/domain/project/types';
 
 	export let groups: ImageGroup[] = [];
 	export let selectedGroupId: string | null = null;

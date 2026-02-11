@@ -1,6 +1,6 @@
 // src/lib/strategies/grouping/byVisualProfile.ts
 import type { GroupingProposal } from '$lib/domain/grouping/types';
-import type { ImageSource } from '$lib/types/project';
+import type { ImageSource } from '$lib/domain/project/types';
 import { cosineSimilarity } from '$lib/domain/image/profileSimilarity';
 
 export function groupByVisualProfile(

@@ -8,7 +8,7 @@
 		findImageByContentHash
 	} from '$lib/domain/project/projectStore';
 
-	import { supportsFileSystemAccess } from '$lib/platform/fileSystem';
+	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 
 	async function importImages() {
 		if (supportsFileSystemAccess()) {

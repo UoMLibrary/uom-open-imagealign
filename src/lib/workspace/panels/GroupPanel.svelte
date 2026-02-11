@@ -1,7 +1,7 @@
 <script lang="ts">
-	import FilenameGroupingTool from './tools/FilenameGroupingTool.svelte';
-	import PHashGroupingTool from './tools/PHashGroupingTool.svelte';
-	import VisualProfileTool from './tools/VisualProfileTool.svelte';
+	import FilenameGroupingTool from '../../features/grouping/tools/FilenameGroupingTool.svelte';
+	import PHashGroupingTool from '../../features/grouping/tools/PHashGroupingTool.svelte';
+	import VisualProfileTool from '../../features/grouping/tools/VisualProfileTool.svelte';
 
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
 

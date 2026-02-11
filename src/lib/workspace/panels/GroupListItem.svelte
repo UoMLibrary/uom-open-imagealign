@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import ImageGroupSummary from './ImageGroupSummary.svelte';
-	import ImageGroupEditor from './ImageGroupEditor.svelte';
-	import type { ImageGroup } from '$lib/types/project';
+	import ImageGroupSummary from './GroupSummary.svelte';
+	import ImageGroupEditor from '../modes/GroupWorkspace.svelte';
+	import type { ImageGroup } from '$lib/domain/project/types';
 
 	export let group: ImageGroup;
 	export let selected = false;
