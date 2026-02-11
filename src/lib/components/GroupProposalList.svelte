@@ -67,7 +67,7 @@
 
 <div class="group-proposal-list">
 	{#if proposals.length === 0}
-		<p class="empty">No grouping proposals. Try running a grouping strategy.</p>
+		<p class="empty">No grouping proposals. Try running a different strategy.</p>
 	{:else}
 		<div class="controls">
 			<button on:click={selectAll}>Select all</button>
