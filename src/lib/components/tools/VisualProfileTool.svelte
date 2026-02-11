@@ -6,10 +6,16 @@
 	import { extractVisualProfile } from '$lib/image/visualProfile';
 
 	let threshold = 0.9;
+
 	let profiles = new Map<string, number[]>();
 	let profilesReady = false;
+	let building = false;
 
+	/* -----------------------------
+	   Build profiles (only when needed)
+	----------------------------- */
 	async function buildProfiles() {
+		building = true;
 		profiles.clear();
 
 		for (const img of $images) {
@@ -23,9 +29,29 @@
 		}
 
 		profilesReady = true;
+		building = false;
 	}
 
+	/* -----------------------------
+	   Rebuild profiles when images change
+	----------------------------- */
+	let previousImageCount = 0;
+
+	$: {
+		if ($images.length !== previousImageCount) {
+			profilesReady = false;
+			previousImageCount = $images.length;
+		}
+	}
+
+	/* -----------------------------
+	   Auto-run grouping
+	----------------------------- */
+	$: run();
+
 	async function run() {
+		if (building) return;
+
 		if (!profilesReady) {
 			await buildProfiles();
 		}
@@ -44,13 +70,11 @@
 
 	<label class="slider">
 		Similarity: {Math.round(threshold * 100)}%
-		<input type="range" min="0.5" max="1" step="0.01" bind:value={threshold} on:input={run} />
+		<input type="range" min="0.5" max="1" step="0.01" bind:value={threshold} />
 	</label>
 
-	<button on:click={run}> Propose groups </button>
-
-	{#if !profilesReady}
-		<p class="hint">Profiles will be computed on first run.</p>
+	{#if building}
+		<p class="hint">Computing visual profiles…</p>
 	{/if}
 
 	<GroupProposalList />

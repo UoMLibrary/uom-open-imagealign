@@ -4,9 +4,12 @@
 	import GroupProposalList from '../GroupProposalList.svelte';
 	import { groupByFilename } from '$lib/strategies/grouping/byFilename';
 
-	function run() {
+	// Automatically recompute proposals when images change
+	$: {
+		const proposals = groupByFilename($images);
+
 		groupingState.set({
-			proposals: groupByFilename($images),
+			proposals,
 			selected: new Set()
 		});
 	}
@@ -14,8 +17,6 @@
 
 <div class="tool">
 	<p class="description">Group images based on shared filename patterns.</p>
-
-	<button on:click={run}> Propose groups </button>
 
 	<GroupProposalList />
 </div>
@@ -31,9 +32,5 @@
 	.description {
 		font-size: 0.85rem;
 		color: #555;
-	}
-
-	button {
-		align-self: flex-start;
 	}
 </style>
