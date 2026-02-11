@@ -5,7 +5,7 @@
 	import AboutModal from '$lib/modals/AboutModal.svelte';
 	import Header from '$lib/Header.svelte';
 	import SidePanel from '$lib/components/SidePanel.svelte';
-	import ImageGroupList from '$lib/components/ImageGroupList.svelte';
+	import ImageGroupList from '$lib/components/ImageGroup/ImageGroupList.svelte';
 	import GroupPanel from '$lib/components/GroupPanel.svelte';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
 	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
@@ -38,12 +38,12 @@
 
 	<div class="workspace">
 		<SidePanel side="left" bind:open={imagesPanelOpen}>
-			<span slot="header" class="panel-title">Images</span>
+			<span slot="header" class="panel-title">Groups</span>
 
 			{#if $groups.length > 0}
 				<ImageGroupList
 					groups={$groups}
-					selectedId={selectedGroupId}
+					{selectedGroupId}
 					on:select={(e) => (selectedGroupId = e.detail.id)}
 				/>
 			{:else if $images.length > 0}

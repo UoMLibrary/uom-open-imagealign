@@ -4,7 +4,7 @@
 	import type { ImageGroup } from '$lib/types/project';
 
 	export let groups: ImageGroup[] = [];
-	export let selectedId: string | null = null;
+	export let selectedGroupId: string | null = null;
 
 	const dispatch = createEventDispatcher<{ select: { id: string } }>();
 
@@ -18,7 +18,7 @@
 		<li>
 			<ImageGroupItem
 				{group}
-				selected={group.id === selectedId}
+				selected={group.id === selectedGroupId}
 				on:select={() => dispatchSelect(group.id)}
 			/>
 		</li>
