@@ -8,6 +8,7 @@
 	import ImageGroupList from '$lib/components/ImageGroupList.svelte';
 	import GroupPanel from '$lib/components/GroupPanel.svelte';
 	import ImageThumbnailGrid from '$lib/components/ImageThumbnailGrid.svelte';
+	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
 	import { images, groups, project } from '$lib/stores/projectStore';
 
 	/* -----------------------------
@@ -56,7 +57,7 @@
 			<div class="main-content">
 				<!-- Show the grid of all images -->
 				{#if $images.length > 0}
-					<ImageThumbnailGrid visibleImageIds={allImageIds} />
+					<ImageThumbnailGrid visibleImageIds={$ungroupedImageIds} />
 				{:else}
 					<div class="empty">Import images to begin</div>
 				{/if}
