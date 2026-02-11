@@ -230,6 +230,23 @@ export function addGroups(newGroups: ImageGroup[]) {
     }
 }
 
+export function addImageToGroup(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.map((g) =>
+            g.id === groupId && !g.imageIds.includes(imageId)
+                ? {
+                    ...g,
+                    imageIds: [...g.imageIds, imageId]
+                }
+                : g
+        )
+    );
+}
+
+
 export function removeImageFromGroup(
     groupId: string,
     imageId: string

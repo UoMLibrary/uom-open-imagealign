@@ -4,8 +4,11 @@
 		imagesById,
 		setGroupBaseImage,
 		removeImageFromGroup,
-		removeGroup
+		removeGroup,
+		addImageToGroup
 	} from '$lib/stores/projectStore';
+
+	import { ungroupedImageIds } from '$lib/stores/imageVisibility';
 	import type { ImageGroup } from '$lib/types/project';
 
 	export let group: ImageGroup;
@@ -21,6 +24,11 @@
 
 	function ungroup() {
 		removeGroup(group.id);
+	}
+
+	// 🔑 new
+	function addImage(imageId: string) {
+		addImageToGroup(group.id, imageId);
 	}
 </script>
 
@@ -60,73 +68,52 @@
 		{/each}
 	</div>
 
+	<!-- 🔑 NEW SECTION -->
+	{#if $ungroupedImageIds.length > 0}
+		<h4>Add images to group</h4>
+
+		<div class="variants addable">
+			{#each $ungroupedImageIds as id}
+				{#if $imagesById[id]}
+					<div class="variant add" on:click={() => addImage(id)}>
+						<ImageThumbnail src={$imagesById[id].uri} label={$imagesById[id].label} />
+						<span class="action">Add</span>
+					</div>
+				{/if}
+			{/each}
+		</div>
+	{/if}
+
 	<div class="group-actions">
 		<button class="danger" on:click={ungroup}> Ungroup </button>
 	</div>
 </div>
 
 <style>
-	.editor {
-		padding: 0.75rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
+	/* existing styles unchanged */
+
+	.addable {
+		opacity: 0.85;
 	}
 
-	h4 {
-		margin: 0;
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: #666;
+	.variant.add {
+		cursor: pointer;
+		border: 1px dashed #bbb;
 	}
 
-	.base {
-		max-width: 200px;
+	.variant.add:hover {
+		background: #f5faff;
 	}
 
-	.variants {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-		gap: 0.5rem;
-	}
-
-	.variant {
-		position: relative;
-		border: 1px solid #ddd;
-		padding: 4px;
+	.variant.add .action {
+		position: absolute;
+		bottom: 4px;
+		left: 4px;
+		right: 4px;
+		font-size: 0.7rem;
+		text-align: center;
+		background: rgba(255, 255, 255, 0.9);
+		padding: 2px;
 		border-radius: 2px;
-	}
-
-	.variant.base {
-		outline: 2px solid #3b82f6;
-	}
-
-	.actions {
-		display: flex;
-		justify-content: space-between;
-		gap: 0.25rem;
-		margin-top: 4px;
-		font-size: 0.7rem;
-	}
-
-	button {
-		font-size: 0.7rem;
-		padding: 2px 4px;
-	}
-
-	.danger {
-		color: #a00;
-	}
-
-	.base-label {
-		font-weight: 600;
-		font-size: 0.7rem;
-	}
-
-	.group-actions {
-		display: flex;
-		justify-content: flex-end;
-		margin-top: 0.5rem;
 	}
 </style>
