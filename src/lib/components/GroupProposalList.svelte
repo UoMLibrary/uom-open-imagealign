@@ -34,18 +34,26 @@
 	function confirmSelected() {
 		const confirmed: ImageGroup[] = proposals
 			.filter((p) => selected.has(p.id))
-			.map((p) => ({
-				id: crypto.randomUUID(),
-				baseImageId: p.imageIds[0], // simple, explicit default
-				imageIds: [...p.imageIds],
-				locked: false
-			}));
+			.map((p) => {
+				const [first, second, ...rest] = p.imageIds;
+
+				// Defensive guard (keeps TS + runtime happy)
+				if (!first || !second) {
+					throw new Error('Cannot create group with fewer than 2 images');
+				}
+
+				return {
+					id: crypto.randomUUID(),
+					baseImageId: first,
+					imageIds: [first, second, ...rest],
+					locked: false
+				};
+			});
 
 		if (confirmed.length === 0) return;
 
 		addGroups(confirmed);
 
-		// Clear proposals after commit (recommended)
 		groupingState.set({
 			proposals: [],
 			selected: new Set()
