@@ -13,7 +13,15 @@
 	async function importImages() {
 		if (supportsFileSystemAccess()) {
 			const dir = await (window as any).showDirectoryPicker();
-			await walkDirectory(dir);
+
+			for await (const entry of dir.values()) {
+				if (entry.kind !== 'file') continue;
+
+				const file = await entry.getFile();
+				if (!file.type.startsWith('image/')) continue;
+
+				await ingestFile(file);
+			}
 		} else {
 			const input = document.createElement('input');
 			input.type = 'file';
@@ -31,24 +39,7 @@
 		}
 	}
 
-	async function walkDirectory(dirHandle: any, parentPath = '') {
-		for await (const entry of dirHandle.values()) {
-			const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-
-			if (entry.kind === 'directory') {
-				await walkDirectory(entry, currentPath);
-			}
-
-			if (entry.kind === 'file') {
-				const file = await entry.getFile();
-				if (!file.type.startsWith('image/')) continue;
-
-				await ingestFile(file, currentPath);
-			}
-		}
-	}
-
-	async function ingestFile(file: File, structuralPath?: string) {
+	async function ingestFile(file: File) {
 		const bitmap = await createImageBitmap(file);
 		const { contentHash, perceptualHash } = await hashImageFile(file);
 
@@ -66,8 +57,7 @@
 				return {
 					...img,
 					uri: objectUrl,
-					label: file.name,
-					structuralPath
+					label: file.name
 				};
 			});
 			// console.log('After relink:', get(images));
@@ -78,7 +68,6 @@
 				sourceType: 'local',
 				uri: objectUrl,
 				label: file.name,
-				structuralPath,
 				hashes: { contentHash, perceptualHash },
 				dimensions: {
 					width: bitmap.width,
