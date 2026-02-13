@@ -23,7 +23,6 @@ export interface ImageSource {
   id: string;
   sourceType: 'local' | 'url' | 'iiif';
   uri: string;
-  structuralPath?: string;
   label?: string;
   hashes: {
     contentHash: string;
