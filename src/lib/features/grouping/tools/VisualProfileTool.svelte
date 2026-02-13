@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+
 	import { images, groups } from '$lib/domain/project/projectStore';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
 	import GroupProposalList from '../../../workspace/panels/GroupProposalList.svelte';
@@ -10,6 +12,12 @@
 	let profiles = new Map<string, number[]>();
 	let profilesReady = false;
 	let building = false;
+
+	let active = true;
+
+	onDestroy(() => {
+		active = false;
+	});
 
 	/* -----------------------------
 	   Build profiles (only when needed)
@@ -50,6 +58,8 @@
 	$: run();
 
 	async function run() {
+		if (!active) return;
+
 		if (building) return;
 
 		if (!profilesReady) {
@@ -60,6 +70,8 @@
 		const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
 
 		const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
+
+		if (!active) return;
 
 		groupingState.set({
 			proposals: groupByVisualProfile(eligibleImages, profiles, threshold),

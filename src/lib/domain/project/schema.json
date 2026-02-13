@@ -97,6 +97,9 @@
                 "uri": {
                     "type": "string"
                 },
+                "structuralPath": {
+                    "type": "string"
+                },
                 "label": {
                     "type": "string"
                 },
