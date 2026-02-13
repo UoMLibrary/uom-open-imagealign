@@ -74,9 +74,9 @@
 					<div class="empty">Import images to begin</div>
 				{/if}
 				<!-- Show grouping panel if there are any ungrouped images -->
-				{#if $ungroupedImageIds.length > 0}
-					<GroupPanel />
-				{/if}
+				<!-- {#if $ungroupedImageIds.length > 0} -->
+				<GroupPanel />
+				<!-- {/if} -->
 			</div>
 		</div>
 	</div>
