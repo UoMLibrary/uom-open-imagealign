@@ -52,7 +52,7 @@
 		}
 	}
 
-	async function ingestFile(file: File) {
+	async function ingestFile(file: File, structuralPath?: string) {
 		const bitmap = await createImageBitmap(file);
 		const { contentHash, perceptualHash } = await hashImageFile(file);
 
@@ -70,7 +70,8 @@
 				return {
 					...img,
 					uri: objectUrl,
-					label: file.name
+					label: file.name,
+					structuralPath
 				};
 			});
 			// console.log('After relink:', get(images));
@@ -81,6 +82,7 @@
 				sourceType: 'local',
 				uri: objectUrl,
 				label: file.name,
+				structuralPath, // 🔥 new field
 				hashes: { contentHash, perceptualHash },
 				dimensions: {
 					width: bitmap.width,
