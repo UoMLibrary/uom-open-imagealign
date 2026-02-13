@@ -89,13 +89,6 @@
 		width: 0;
 	}
 
-	header {
-		padding: 0.5rem;
-		background: #eee;
-		border-bottom: 1px solid #ddd;
-		font-weight: bold;
-	}
-
 	.panel-content {
 		flex: 1;
 		overflow-y: auto;

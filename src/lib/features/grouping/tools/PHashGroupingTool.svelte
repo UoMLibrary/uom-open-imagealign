@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { images, groups } from '$lib/domain/project/projectStore';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import GroupProposalList from '../../../workspace/panels/GroupProposalList.svelte';
 	import { groupByPHash } from '$lib/strategies/grouping/byPHash';
 	import { get } from 'svelte/store';
 
@@ -75,8 +74,6 @@
 	{#if running}
 		<p class="status">Computing similarity…</p>
 	{/if}
-
-	<GroupProposalList />
 </div>
 
 <style>

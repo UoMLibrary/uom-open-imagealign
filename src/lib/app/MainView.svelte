@@ -4,6 +4,7 @@
 	import HelpModal from '$lib/app/modals/HelpModal.svelte';
 	import AboutModal from '$lib/app/modals/AboutModal.svelte';
 	import Header from '$lib/app/Header.svelte';
+	import PanelHeader from '$lib/shared/ui/PanelHeader.svelte';
 	import SidePanel from '$lib/app/SidePanel.svelte';
 	import ImageGroupList from '$lib/features/grouping/GroupList.svelte';
 	import GroupPanel from '$lib/workspace/panels/GroupPanel.svelte';
@@ -50,7 +51,9 @@
 
 	<div class="workspace">
 		<SidePanel side="left" bind:open={GroupListPanelOpen}>
-			<span slot="header" class="panel-title">Groups</span>
+			<PanelHeader inline={true}>
+				<h2 class="panel-title">Grouped Images</h2>
+			</PanelHeader>
 
 			{#if $groups.length > 0}
 				<ImageGroupList
@@ -67,16 +70,14 @@
 
 		<div class="main-content">
 			<div class="main-content">
+				<GroupPanel />
+
 				<!-- Show the grid of all images -->
 				{#if $images.length > 0}
 					<ImageThumbnailGrid visibleImageIds={$ungroupedImageIds} />
 				{:else}
 					<div class="empty">Import images to begin</div>
 				{/if}
-				<!-- Show grouping panel if there are any ungrouped images -->
-				<!-- {#if $ungroupedImageIds.length > 0} -->
-				<GroupPanel />
-				<!-- {/if} -->
 			</div>
 		</div>
 	</div>
@@ -110,8 +111,6 @@
 	}
 
 	.panel-title {
-		display: block;
-		padding: 0.5rem 0.75rem;
 		font-size: 0.75rem;
 		font-weight: 700;
 		letter-spacing: 0.06em;

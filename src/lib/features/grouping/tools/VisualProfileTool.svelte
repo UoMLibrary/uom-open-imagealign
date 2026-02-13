@@ -4,7 +4,6 @@
 
 	import { images, groups } from '$lib/domain/project/projectStore';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import GroupProposalList from '../../../workspace/panels/GroupProposalList.svelte';
 	import { groupByVisualProfile } from '$lib/strategies/grouping/byVisualProfile';
 	import { extractVisualProfile } from '$lib/domain/image/visualProfile';
 
@@ -123,8 +122,6 @@
 	{#if running && !building}
 		<p class="hint">Grouping images…</p>
 	{/if}
-
-	<GroupProposalList />
 </div>
 
 <style>
