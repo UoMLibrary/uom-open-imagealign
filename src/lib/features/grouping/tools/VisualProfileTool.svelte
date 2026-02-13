@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
 
 	import { images, groups } from '$lib/domain/project/projectStore';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
@@ -10,73 +11,91 @@
 	let threshold = 0.9;
 
 	let profiles = new Map<string, number[]>();
-	let profilesReady = false;
 	let building = false;
+	let running = false;
+	let cancelled = false;
 
-	let active = true;
+	let lastImageSignature = '';
 
 	onDestroy(() => {
-		active = false;
+		cancelled = true;
 	});
 
-	/* -----------------------------
-	   Build profiles (only when needed)
-	----------------------------- */
+	/* ----------------------------------
+	   Build visual profiles (lazy)
+	----------------------------------- */
 	async function buildProfiles() {
+		const $images = get(images);
+
 		building = true;
 		profiles.clear();
 
 		for (const img of $images) {
+			if (cancelled) return;
 			if (!img.uri) continue;
 
 			const el = new Image();
 			el.src = img.uri;
 			await el.decode();
 
+			if (cancelled) return;
+
 			profiles.set(img.id, extractVisualProfile(el));
 		}
 
-		profilesReady = true;
 		building = false;
 	}
 
-	/* -----------------------------
-	   Rebuild profiles when images change
-	----------------------------- */
-	let previousImageCount = 0;
+	/* ----------------------------------
+	   Explicit execution
+	----------------------------------- */
+	export async function run() {
+		if (running) return;
 
-	$: {
-		if ($images.length !== previousImageCount) {
-			profilesReady = false;
-			previousImageCount = $images.length;
+		running = true;
+		cancelled = false;
+
+		try {
+			const $images = get(images);
+			const $groups = get(groups);
+
+			// Detect if images changed (simple signature)
+			const signature = $images.map((i) => i.id).join('|');
+
+			if (signature !== lastImageSignature) {
+				lastImageSignature = signature;
+				await buildProfiles();
+			}
+
+			if (cancelled) return;
+
+			const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
+
+			const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
+
+			const proposals = groupByVisualProfile(eligibleImages, profiles, threshold);
+
+			if (cancelled) return;
+
+			groupingState.set({
+				proposals,
+				selected: new Set()
+			});
+		} finally {
+			running = false;
 		}
 	}
 
-	/* -----------------------------
-	   Auto-run grouping
-	----------------------------- */
-	$: run();
+	export function cancel() {
+		cancelled = true;
+	}
 
-	async function run() {
-		if (!active) return;
-
-		if (building) return;
-
-		if (!profilesReady) {
-			await buildProfiles();
-		}
-
-		// ✅ Only exclude CONFIRMED groups (not proposals)
-		const groupedIds = new Set($groups.flatMap((g) => g.imageIds));
-
-		const eligibleImages = $images.filter((img) => !groupedIds.has(img.id));
-
-		if (!active) return;
-
-		groupingState.set({
-			proposals: groupByVisualProfile(eligibleImages, profiles, threshold),
-			selected: new Set()
-		});
+	/* ----------------------------------
+	   Run only when slider released
+	----------------------------------- */
+	function handleSliderChange() {
+		cancel();
+		run();
 	}
 </script>
 
@@ -87,11 +106,22 @@
 
 	<label class="slider">
 		Similarity: {Math.round(threshold * 100)}%
-		<input type="range" min="0.5" max="1" step="0.01" bind:value={threshold} />
+		<input
+			type="range"
+			min="0.5"
+			max="1"
+			step="0.01"
+			bind:value={threshold}
+			on:change={handleSliderChange}
+		/>
 	</label>
 
 	{#if building}
 		<p class="hint">Computing visual profiles…</p>
+	{/if}
+
+	{#if running && !building}
+		<p class="hint">Grouping images…</p>
 	{/if}
 
 	<GroupProposalList />
@@ -112,9 +142,10 @@
 
 	.slider {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+		flex-direction: column;
+		gap: 0.25rem;
 		font-size: 0.85rem;
+		color: #555;
 	}
 
 	.hint {

@@ -1,44 +1,126 @@
 <script lang="ts">
+	import { groupingState } from '$lib/domain/grouping/groupingStore';
+
 	import FilenameGroupingTool from '../../features/grouping/tools/FilenameGroupingTool.svelte';
 	import PHashGroupingTool from '../../features/grouping/tools/PHashGroupingTool.svelte';
 	import VisualProfileTool from '../../features/grouping/tools/VisualProfileTool.svelte';
 	import LeafFolderGroupingTool from '../../features/grouping/tools/LeafFolderGroupingTool.svelte';
 
-	import { groupingState } from '$lib/domain/grouping/groupingStore';
-
 	type GroupingTool = 'filename' | 'phash' | 'visual-profile' | 'leaf-folder';
+
 	let tool: GroupingTool = 'filename';
 
-	// Switching grouping tools should reset proposals and selection
-	let previousTool: GroupingTool | null = null;
-	$: {
-		if (tool !== previousTool) {
-			groupingState.set({
-				proposals: [],
-				selected: new Set()
-			});
-			previousTool = tool;
+	let toolRef: any = null;
+	let previousToolRef: any = null;
+	let running = false;
+
+	/* -----------------------------
+	   When tool component changes:
+	   - cancel previous tool
+	   - clear proposals
+	----------------------------- */
+	$: if (toolRef !== previousToolRef) {
+		previousToolRef?.cancel?.();
+
+		groupingState.set({
+			proposals: [],
+			selected: new Set()
+		});
+
+		previousToolRef = toolRef;
+	}
+
+	async function runTool() {
+		if (!toolRef?.run || running) return;
+
+		running = true;
+
+		try {
+			await toolRef.run();
+		} finally {
+			running = false;
 		}
 	}
 </script>
 
 <div class="group-panel">
 	<header class="controls">
-		<select bind:value={tool}>
-			<option value="filename">Group by filename</option>
-			<option value="phash">Group by visual similarity (pHash)</option>
-			<option value="visual-profile">Group by visual profile (colour & tone)</option>
-			<option value="leaf-folder">Group by leaf folder</option>
-		</select>
+		<div class="tool-select">
+			<label>Grouping strategy</label>
+			<select bind:value={tool} disabled={running}>
+				<option value="filename">Filename</option>
+				<option value="phash">Visual similarity (pHash)</option>
+				<option value="visual-profile">Visual profile (colour & tone)</option>
+				<option value="leaf-folder">Leaf folder</option>
+			</select>
+		</div>
+
+		<button class="run-button" on:click={runTool} disabled={running}>
+			{running ? 'Running…' : 'Run grouping'}
+		</button>
 	</header>
 
-	{#if tool === 'filename'}
-		<FilenameGroupingTool />
-	{:else if tool === 'phash'}
-		<PHashGroupingTool />
-	{:else if tool === 'visual-profile'}
-		<VisualProfileTool />
-	{:else if tool === 'leaf-folder'}
-		<LeafFolderGroupingTool />
-	{/if}
+	<section class="tool-body">
+		{#if tool === 'filename'}
+			<FilenameGroupingTool bind:this={toolRef} />
+		{:else if tool === 'phash'}
+			<PHashGroupingTool bind:this={toolRef} />
+		{:else if tool === 'visual-profile'}
+			<VisualProfileTool bind:this={toolRef} />
+		{:else if tool === 'leaf-folder'}
+			<LeafFolderGroupingTool bind:this={toolRef} />
+		{/if}
+	</section>
 </div>
+
+<style>
+	.group-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.controls {
+		display: flex;
+		justify-content: space-between;
+		align-items: end;
+		gap: 1rem;
+		padding: 0.75rem;
+		background: var(--panel-bg, #f5f5f5);
+		border-radius: 8px;
+	}
+
+	.tool-select {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	select {
+		padding: 0.4rem 0.6rem;
+		border-radius: 6px;
+		border: 1px solid #ccc;
+	}
+
+	.run-button {
+		padding: 0.5rem 1rem;
+		border-radius: 6px;
+		border: none;
+		background: #2d6cdf;
+		color: white;
+		cursor: pointer;
+		font-weight: 500;
+	}
+
+	.run-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.tool-body {
+		padding: 0.75rem;
+		border: 1px solid #eee;
+		border-radius: 8px;
+		background: white;
+	}
+</style>
