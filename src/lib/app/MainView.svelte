@@ -8,6 +8,7 @@
 	import SidePanel from '$lib/app/SidePanel.svelte';
 	import ImageGroupList from '$lib/features/grouping/GroupList.svelte';
 	import GroupPanel from '$lib/workspace/panels/GroupPanel.svelte';
+	import GroupProposalList from '$lib/workspace/panels/GroupProposalList.svelte';
 	import ImageThumbnailGrid from '$lib/features/thumbnails/ImageThumbnailGrid.svelte';
 	import { ungroupedImageIds } from '$lib/features/thumbnails/imageVisibility';
 	import { images, groups, project } from '$lib/domain/project/projectStore';
@@ -72,11 +73,21 @@
 			<div class="main-content">
 				<GroupPanel />
 
+				<div>
+					<PanelHeader inline={true}>
+						<h2 class="panel-title">Proposed Image Groups</h2>
+					</PanelHeader>
+					<GroupProposalList />
+				</div>
+
 				<!-- Show the grid of all images -->
-				{#if $images.length > 0}
-					<ImageThumbnailGrid visibleImageIds={$ungroupedImageIds} />
-				{:else}
-					<div class="empty">Import images to begin</div>
+				{#if $ungroupedImageIds.length > 0}
+					<div>
+						<PanelHeader inline={true}>
+							<h2 class="panel-title">Ungrouped Images</h2>
+						</PanelHeader>
+						<ImageThumbnailGrid visibleImageIds={$ungroupedImageIds} />
+					</div>
 				{/if}
 			</div>
 		</div>

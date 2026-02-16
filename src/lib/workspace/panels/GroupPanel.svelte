@@ -56,8 +56,6 @@
 			<LeafFolderGroupingTool bind:this={toolRef} />
 		{/if}
 	</section>
-
-	<GroupProposalList />
 </div>
 
 <style>
