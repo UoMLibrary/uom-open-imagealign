@@ -38,36 +38,43 @@ async function buildNormalised(bitmap: ImageBitmap): Promise<Blob> {
     canvas.height = size;
 
     const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = 'white';
+
+    // 1️⃣ Paint white background
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, size, size);
 
+    // 2️⃣ Calculate scaling
     const scale = size / Math.max(bitmap.width, bitmap.height);
-    const w = bitmap.width * scale;
-    const h = bitmap.height * scale;
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
 
-    const offsetX = (size - w) / 2;
-    const offsetY = (size - h) / 2;
+    const offsetX = Math.round((size - w) / 2);
+    const offsetY = Math.round((size - h) / 2);
 
+    // 3️⃣ Draw image
     ctx.drawImage(bitmap, offsetX, offsetY, w, h);
 
-    const imgData = ctx.getImageData(0, 0, size, size);
+    // 4️⃣ Grayscale ONLY the image region
+    const imgData = ctx.getImageData(offsetX, offsetY, w, h);
     const data = imgData.data;
 
     for (let i = 0; i < data.length; i += 4) {
-        const gray =
+        const gray = Math.round(
             0.299 * data[i] +
             0.587 * data[i + 1] +
-            0.114 * data[i + 2];
+            0.114 * data[i + 2]
+        );
 
         data[i] = data[i + 1] = data[i + 2] = gray;
     }
 
-    ctx.putImageData(imgData, 0, 0);
+    ctx.putImageData(imgData, offsetX, offsetY);
 
     return new Promise((resolve) =>
         canvas.toBlob((b) => resolve(b!), 'image/png')
     );
 }
+
 
 async function buildThumbnail(bitmap: ImageBitmap): Promise<Blob> {
     const size = 256;

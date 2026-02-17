@@ -83,14 +83,15 @@
 
 	.image-frame {
 		width: 100%;
-		height: 90px;
+		height: 120px;
 		border-radius: 6px;
-		background: #f3f3f3;
+		background: white;
 		border: 1px solid #ddd;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+		padding: 0.25rem;
 	}
 
 	img {
