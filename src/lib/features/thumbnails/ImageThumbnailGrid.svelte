@@ -15,7 +15,7 @@
 			contentHash={image.hashes.contentHash}
 			fallbackSrc={image.uri}
 			label={image.label}
-			mode="thumb"
+			mode="normalised"
 		/>
 	{/each}
 </div>
