@@ -1,6 +1,6 @@
 import { get } from 'idb-keyval';
 
-const NORMALISE_VERSION = 'v1_512_gray_pad';
+const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
 
 export async function computePHashFromNormalised(
     contentHash: string

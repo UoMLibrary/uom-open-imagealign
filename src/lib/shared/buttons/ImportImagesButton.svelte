@@ -8,6 +8,7 @@
 	import { ensureDerivedImages } from '$lib/domain/image/ImageDerivationStore';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 	import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
+	import { autoTrimBorders } from '$lib/domain/image/AutoTrim';
 
 	let ingesting = false;
 	let ingestProgress = 0;
@@ -131,6 +132,7 @@
 
 			// 2️⃣ compute pHash
 			const perceptualHash = await computePHashFromNormalised(contentHash);
+			console.log('Computed pHash:', perceptualHash);
 
 			// 3️⃣ now add image fully ready
 			addImage({

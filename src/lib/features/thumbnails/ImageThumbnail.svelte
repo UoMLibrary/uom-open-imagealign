@@ -5,27 +5,51 @@
 	export let contentHash: string;
 	export let fallbackSrc: string;
 	export let label: string | undefined = undefined;
-	export let mode: 'thumb' | 'normalised' = 'thumb';
 
+	// Which derived version to display
+	export let mode: 'thumb' | 'normalised' | 'trim' = 'thumb';
+
+	// Debug: show original + trimmed side by side
+	export let debugCompare: boolean = false;
+
+	const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
 	const THUMB_VERSION = 'v1_256';
-	const NORMALISE_VERSION = 'v1_512_gray_pad';
+	const TRIM_VERSION = 'v1_raw_trim';
+
+	const versionMap = {
+		thumb: THUMB_VERSION,
+		normalised: NORMALISE_VERSION,
+		trim: TRIM_VERSION
+	};
+
+	const prefixMap = {
+		thumb: 'thumb',
+		normalised: 'norm',
+		trim: 'trim'
+	};
 
 	let src: string = fallbackSrc;
+	let trimSrc: string | null = null;
+
 	let broken = false;
 	let objectUrl: string | null = null;
+	let trimObjectUrl: string | null = null;
 
 	async function loadImage() {
-		// revoke old URL if switching
+		if (!contentHash) return;
+
+		// Cleanup old URLs
 		if (objectUrl) {
 			URL.revokeObjectURL(objectUrl);
 			objectUrl = null;
 		}
+		if (trimObjectUrl) {
+			URL.revokeObjectURL(trimObjectUrl);
+			trimObjectUrl = null;
+		}
 
-		const key =
-			mode === 'thumb'
-				? `thumb::${contentHash}::${THUMB_VERSION}`
-				: `norm::${contentHash}::${NORMALISE_VERSION}`;
-
+		// Main image
+		const key = `${prefixMap[mode]}::${contentHash}::${versionMap[mode]}`;
 		const blob = await get(key);
 
 		if (blob) {
@@ -34,30 +58,51 @@
 		} else {
 			src = fallbackSrc;
 		}
+
+		// Debug trimmed version
+		if (debugCompare) {
+			const trimKey = `trim::${contentHash}::${TRIM_VERSION}`;
+			const trimBlob = await get(trimKey);
+
+			if (trimBlob) {
+				trimObjectUrl = URL.createObjectURL(trimBlob);
+				trimSrc = trimObjectUrl;
+			} else {
+				trimSrc = null;
+			}
+		} else {
+			trimSrc = null;
+		}
 	}
 
 	onMount(loadImage);
 
-	// react if mode or hash changes
-	$: if (contentHash && mode) {
-		loadImage();
-	}
+	// React to changes
+	$: (contentHash, mode, debugCompare, loadImage());
 
 	onDestroy(() => {
 		if (objectUrl) URL.revokeObjectURL(objectUrl);
+		if (trimObjectUrl) URL.revokeObjectURL(trimObjectUrl);
 	});
 </script>
 
 <div class="thumb">
-	<div class="image-frame">
+	<div class="image-frame {debugCompare ? 'debug' : ''}">
 		{#if !broken}
-			<img
-				{src}
-				alt={label ?? 'Image'}
-				draggable="false"
-				on:error={() => (broken = true)}
-				on:load={() => (broken = false)}
-			/>
+			{#if debugCompare && trimSrc}
+				<div class="compare">
+					<img src={fallbackSrc} alt="original" draggable="false" />
+					<img src={trimSrc} alt="trimmed" draggable="false" />
+				</div>
+			{:else}
+				<img
+					{src}
+					alt={label ?? 'Image'}
+					draggable="false"
+					on:error={() => (broken = true)}
+					on:load={() => (broken = false)}
+				/>
+			{/if}
 		{:else}
 			<div class="placeholder">
 				<div class="placeholder-icon">🖼️</div>
@@ -92,6 +137,7 @@
 		justify-content: center;
 		overflow: hidden;
 		padding: 0.25rem;
+		box-sizing: border-box;
 	}
 
 	img {
@@ -100,6 +146,28 @@
 		object-fit: contain;
 		user-select: none;
 		pointer-events: none;
+	}
+
+	/*  Debug mode */
+	.image-frame.debug {
+		padding: 0;
+	}
+
+	.compare {
+		display: flex;
+		width: 100%;
+		height: 100%;
+	}
+
+	.compare img {
+		width: 50%;
+		height: 100%;
+		object-fit: contain;
+		border-right: 1px solid #eee;
+	}
+
+	.compare img:last-child {
+		border-right: none;
 	}
 
 	.placeholder {
@@ -111,7 +179,6 @@
 		font-size: 0.65rem;
 		color: #666;
 		padding: 0.5rem;
-		box-sizing: border-box;
 		width: 100%;
 		height: 100%;
 	}

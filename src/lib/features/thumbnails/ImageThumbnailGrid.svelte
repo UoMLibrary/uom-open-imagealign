@@ -16,6 +16,7 @@
 			fallbackSrc={image.uri}
 			label={image.label}
 			mode="thumb"
+			debugCompare={true}
 		/>
 	{/each}
 </div>

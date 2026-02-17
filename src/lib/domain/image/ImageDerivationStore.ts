@@ -1,7 +1,9 @@
 import { get, set } from 'idb-keyval';
+import { autoTrimBorders } from './AutoTrim';
 
-const NORMALISE_VERSION = 'v1_512_gray_pad';
+const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
 const THUMB_VERSION = 'v1_256';
+const TRIM_VERSION = 'v1_raw_trim';
 
 export async function ensureDerivedImages(
     contentHash: string,
@@ -9,26 +11,42 @@ export async function ensureDerivedImages(
 ) {
     const normKey = `norm::${contentHash}::${NORMALISE_VERSION}`;
     const thumbKey = `thumb::${contentHash}::${THUMB_VERSION}`;
+    const trimKey = `trim::${contentHash}::${TRIM_VERSION}`;
 
-    const [existingNorm, existingThumb] = await Promise.all([
+    const [existingNorm, existingThumb, existingTrim] = await Promise.all([
         get(normKey),
-        get(thumbKey)
+        get(thumbKey),
+        get(trimKey)
     ]);
 
-    if (existingNorm && existingThumb) {
+    if (existingNorm && existingThumb && existingTrim) {
         return;
     }
 
     const bitmap = await createImageBitmap(file);
 
-    const normalisedBlob = await buildNormalised(bitmap);
+    // --- Trim ---
+    const trimmedCanvas = await autoTrimBorders(bitmap);
+    const trimmedBitmap = await createImageBitmap(trimmedCanvas);
+
+    // --- Canonical normalised (uses trimmed) ---
+    const normalisedBlob = await buildNormalised(trimmedBitmap);
+
+    // --- Thumbnail (uses original) ---
     const thumbBlob = await buildThumbnail(bitmap);
+
+    // --- Raw trimmed blob (for inspection / debugging) ---
+    const trimmedBlob = await new Promise<Blob>((resolve) =>
+        trimmedCanvas.toBlob((b) => resolve(b!), 'image/png')
+    );
 
     await Promise.all([
         set(normKey, normalisedBlob),
-        set(thumbKey, thumbBlob)
+        set(thumbKey, thumbBlob),
+        set(trimKey, trimmedBlob)
     ]);
 }
+
 
 async function buildNormalised(bitmap: ImageBitmap): Promise<Blob> {
     const size = 512;
