@@ -7,6 +7,7 @@
 		updateImageByContentHash,
 		findImageByContentHash
 	} from '$lib/domain/project/projectStore';
+	import { ensureDerivedImages } from '$lib/domain/image/ImageDerivationStore';
 
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 
@@ -89,6 +90,9 @@
 					height: bitmap.height
 				}
 			});
+
+			//
+			await ensureDerivedImages(contentHash, file);
 		}
 	}
 </script>

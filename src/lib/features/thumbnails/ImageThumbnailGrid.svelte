@@ -11,7 +11,12 @@
 
 <div class="grid">
 	{#each $images.filter((img) => visibleImageIds.includes(img.id)) as image (image.id)}
-		<ImageThumbnail src={image.uri} label={image.label} />
+		<ImageThumbnail
+			contentHash={image.hashes.contentHash}
+			fallbackSrc={image.uri}
+			label={image.label}
+			mode="thumb"
+		/>
 	{/each}
 </div>
 

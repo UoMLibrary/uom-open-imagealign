@@ -1,8 +1,36 @@
 <script lang="ts">
-	export let src: string;
-	export let label: string | undefined = undefined;
+	import { onMount, onDestroy } from 'svelte';
+	import { get } from 'idb-keyval';
 
+	export let contentHash: string;
+	export let fallbackSrc: string;
+	export let label: string | undefined = undefined;
+	export let mode: 'thumb' | 'normalised' = 'thumb';
+
+	const THUMB_VERSION = 'v1_256';
+	const NORMALISE_VERSION = 'v1_512_gray_pad';
+
+	let src: string = fallbackSrc;
 	let broken = false;
+	let objectUrl: string | null = null;
+
+	onMount(async () => {
+		const key =
+			mode === 'thumb'
+				? `thumb::${contentHash}::${THUMB_VERSION}`
+				: `norm::${contentHash}::${NORMALISE_VERSION}`;
+
+		const blob = await get(key);
+
+		if (blob) {
+			objectUrl = URL.createObjectURL(blob);
+			src = objectUrl;
+		}
+	});
+
+	onDestroy(() => {
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
+	});
 </script>
 
 <div class="thumb">
