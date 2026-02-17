@@ -132,7 +132,6 @@
 
 			// 2️⃣ compute pHash
 			const perceptualHash = await computePHashFromNormalised(contentHash);
-			console.log('Computed pHash:', perceptualHash);
 
 			// 3️⃣ now add image fully ready
 			addImage({
