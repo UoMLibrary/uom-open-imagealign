@@ -37,7 +37,7 @@ export async function autoTrimBorders(bitmap: ImageBitmap): Promise<HTMLCanvasEl
     }
 
     // --- 3️⃣ Trim based on edge density ---
-    const minEdgeFraction = 0.02; // 2% edge pixels required
+    const minEdgeFraction = 0.01; // 2% edge pixels required
 
     let top = 0;
     let bottom = height - 1;
