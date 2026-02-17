@@ -91,7 +91,7 @@
 				}
 			});
 
-			//
+			// Generate derived images immediately so they're ready when the user scrolls
 			await ensureDerivedImages(contentHash, file);
 		}
 	}

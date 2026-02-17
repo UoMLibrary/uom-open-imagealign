@@ -14,7 +14,13 @@
 	let broken = false;
 	let objectUrl: string | null = null;
 
-	onMount(async () => {
+	async function loadImage() {
+		// revoke old URL if switching
+		if (objectUrl) {
+			URL.revokeObjectURL(objectUrl);
+			objectUrl = null;
+		}
+
 		const key =
 			mode === 'thumb'
 				? `thumb::${contentHash}::${THUMB_VERSION}`
@@ -25,8 +31,17 @@
 		if (blob) {
 			objectUrl = URL.createObjectURL(blob);
 			src = objectUrl;
+		} else {
+			src = fallbackSrc;
 		}
-	});
+	}
+
+	onMount(loadImage);
+
+	// react if mode or hash changes
+	$: if (contentHash && mode) {
+		loadImage();
+	}
 
 	onDestroy(() => {
 		if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -34,21 +49,24 @@
 </script>
 
 <div class="thumb">
-	{#if !broken}
-		<img
-			{src}
-			alt={label ?? 'Image'}
-			on:error={() => (broken = true)}
-			on:load={() => (broken = false)}
-		/>
-	{:else}
-		<div class="placeholder">
-			<div class="placeholder-icon">🖼️</div>
-			<div class="placeholder-text">
-				Re-import folder<br />to relink
+	<div class="image-frame">
+		{#if !broken}
+			<img
+				{src}
+				alt={label ?? 'Image'}
+				draggable="false"
+				on:error={() => (broken = true)}
+				on:load={() => (broken = false)}
+			/>
+		{:else}
+			<div class="placeholder">
+				<div class="placeholder-icon">🖼️</div>
+				<div class="placeholder-text">
+					Re-import folder<br />to relink
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 
 	{#if label}
 		<div class="label">{label}</div>
@@ -59,20 +77,28 @@
 	.thumb {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.35rem;
 		width: 120px;
 	}
 
-	img,
-	.placeholder {
+	.image-frame {
 		width: 100%;
 		height: 90px;
-		border-radius: 4px;
-		background: #eee;
+		border-radius: 6px;
+		background: #f3f3f3;
+		border: 1px solid #ddd;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
 	}
 
 	img {
-		object-fit: cover;
+		max-width: 100%;
+		max-height: 100%;
+		object-fit: contain;
+		user-select: none;
+		pointer-events: none;
 	}
 
 	.placeholder {
@@ -80,12 +106,13 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-
 		text-align: center;
 		font-size: 0.65rem;
 		color: #666;
 		padding: 0.5rem;
 		box-sizing: border-box;
+		width: 100%;
+		height: 100%;
 	}
 
 	.placeholder-icon {
