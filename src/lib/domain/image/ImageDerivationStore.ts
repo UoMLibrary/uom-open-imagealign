@@ -1,5 +1,6 @@
 import { get, set } from 'idb-keyval';
 import { autoTrimBorders } from './AutoTrim';
+import { detectPageRegion } from './DetectPageRegion';
 
 const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
 const THUMB_VERSION = 'v1_256';
@@ -26,7 +27,7 @@ export async function ensureDerivedImages(
     const bitmap = await createImageBitmap(file);
 
     // --- Trim ---
-    const trimmedCanvas = await autoTrimBorders(bitmap);
+    const trimmedCanvas = await detectPageRegion(bitmap);
     const trimmedBitmap = await createImageBitmap(trimmedCanvas);
 
     // --- Canonical normalised (uses trimmed) ---

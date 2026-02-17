@@ -8,7 +8,6 @@
 	import { ensureDerivedImages } from '$lib/domain/image/ImageDerivationStore';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 	import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
-	import { autoTrimBorders } from '$lib/domain/image/AutoTrim';
 
 	let ingesting = false;
 	let ingestProgress = 0;
