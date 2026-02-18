@@ -17,9 +17,10 @@
 
 <style>
 	.rotation-controls {
-		margin-top: 1rem;
 		display: flex;
 		align-items: center;
+		justify-content: center; /* centers horizontally */
 		gap: 1rem;
+		padding: 0.75rem 0;
 	}
 </style>

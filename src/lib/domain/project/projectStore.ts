@@ -315,3 +315,23 @@ export function updateImageTransform(
     );
 }
 
+export function updateImagePreparation(
+    imageId: string,
+    preparation: {
+        corners: { x: number; y: number }[];
+        rotation: number;
+    }
+) {
+    images.update((list) =>
+        list.map((img) =>
+            img.id === imageId
+                ? {
+                    ...img,
+                    preparation
+                }
+                : img
+        )
+    );
+}
+
+
