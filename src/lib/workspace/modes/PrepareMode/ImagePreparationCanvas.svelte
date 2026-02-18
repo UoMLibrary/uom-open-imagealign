@@ -74,15 +74,23 @@
 
 <div class="canvas-wrapper">
 	<div class="viewport">
-		<CrosshairGuide x={crosshair.x} y={crosshair.y} on:change={(e) => (crosshair = e.detail)} />
-
-		<div class="stage">
-			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
-				<img src={selectedImage.uri} alt="" />
-
-				<CropRectangle {rect} on:change={(e) => onRectChange(e.detail)} />
-			</div>
+		<!-- ROTATED IMAGE ONLY -->
+		<div class="rotated-layer" style="transform: rotate({rotation}deg);">
+			<img src={selectedImage.uri} alt="" />
 		</div>
+
+		<!-- NON-ROTATING CROP RECTANGLE -->
+		<div class="crop-layer">
+			<CropRectangle {rect} on:change={(e) => onRectChange(e.detail)} />
+		</div>
+
+		<!-- NON-ROTATING CROSSHAIR -->
+		<CrosshairGuide
+			fullSize
+			x={crosshair.x}
+			y={crosshair.y}
+			on:change={(e) => (crosshair = e.detail)}
+		/>
 	</div>
 
 	<RotationControls {rotation} on:change={(e) => onRotationChange(e.detail)} />
@@ -98,23 +106,16 @@
 
 	.viewport {
 		position: relative;
-		flex: 1; /* fills available space */
+		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		min-height: 0;
 	}
 
-	.stage {
-		position: relative;
-		z-index: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
 	.rotated-layer {
 		position: relative;
+		z-index: 1;
 		transform-origin: center center;
 	}
 
@@ -123,5 +124,19 @@
 		max-height: 70vh;
 		display: block;
 		user-select: none;
+	}
+
+	.crop-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+	}
+
+	.crop-layer :global(.overlay) {
+		pointer-events: auto;
+	}
+
+	.crosshair-overlay {
+		z-index: 10;
 	}
 </style>
