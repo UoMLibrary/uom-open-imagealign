@@ -18,6 +18,7 @@ export interface ImageAlignmentProject {
       [k: string]: unknown;
     };
   }[];
+  ui?: ProjectUIState;
 }
 export interface ImageSource {
   id: string;
@@ -75,4 +76,9 @@ export interface ImageAlignment {
      */
     matrix: [number, number, number, number, number, number, number, number, number];
   };
+}
+export interface ProjectUIState {
+  lastSelectedImageId?: string;
+  lastMode?: 'prepare' | 'group' | 'align' | 'annotate';
+  sidebarOpen?: boolean;
 }

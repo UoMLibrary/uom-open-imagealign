@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { images } from '$lib/domain/project/projectStore';
+	import { images, project, updateProjectUI } from '$lib/domain/project/projectStore';
+	import { get } from 'svelte/store';
 	import Sidebar from '$lib/app/SidePanel.svelte';
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
@@ -7,10 +8,40 @@
 	let selectedId: string | null = null;
 	let sidebarOpen = true;
 
+	/* ------------------------------------------------
+	   Derive selected image
+	------------------------------------------------ */
+
 	$: selectedImage = $images.find((img) => img.id === selectedId) ?? null;
+
+	/* ------------------------------------------------
+	   Initialise from project.ui or fallback
+	------------------------------------------------ */
+
+	$: {
+		if ($images.length === 0) {
+			selectedId = null;
+		} else if (!selectedId) {
+			const last = $project.ui?.lastSelectedImageId;
+
+			if (last && $images.some((i) => i.id === last)) {
+				selectedId = last;
+			} else {
+				selectedId = $images[0].id;
+			}
+		}
+	}
+
+	/* ------------------------------------------------
+	   Selection handler
+	------------------------------------------------ */
 
 	function selectImage(id: string) {
 		selectedId = id;
+
+		updateProjectUI({
+			lastSelectedImageId: id
+		});
 	}
 </script>
 

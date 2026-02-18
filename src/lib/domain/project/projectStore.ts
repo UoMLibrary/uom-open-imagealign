@@ -4,7 +4,8 @@ import type {
     ImageSource,
     ImageGroup,
     ImageAlignment,
-    ImagePreparation
+    ImagePreparation,
+    ProjectUIState
 } from '$lib/domain/project/types';
 import { invalidateDownstream } from './workflow';
 
@@ -25,7 +26,7 @@ export const images = writable<ImageSource[]>([]);
 export const groups = writable<ImageGroup[]>([]);
 export const alignments = writable<ImageAlignment[]>([]);
 export const annotations = writable<Project['annotations']>([]);
-
+export const projectUI = writable<ProjectUIState | undefined>(undefined);
 
 /* ---------------------------------------------
    Derived stores (read-only, computed)
@@ -74,15 +75,13 @@ export const annotationStatus = derived(
     }
 );
 
-
-
 /* ---------------------------------------------
    Project assembly (for saving)
 --------------------------------------------- */
 
 export const project = derived(
-    [projectMeta, images, groups, alignments, annotations],
-    ([$meta, $images, $groups, $alignments, $annotations]): Project | null => {
+    [projectMeta, images, groups, alignments, annotations, projectUI],
+    ([$meta, $images, $groups, $alignments, $annotations, $ui]): Project | null => {
         if ($images.length === 0) return null;
 
         return {
@@ -92,15 +91,14 @@ export const project = derived(
             groups: $groups,
             alignments: $alignments,
             notes: $meta.notes,
-            annotations: $annotations.length ? $annotations : undefined
+            annotations: $annotations.length ? $annotations : undefined,
+            ui: $ui && Object.keys($ui).length > 0 ? $ui : undefined
         };
     }
 );
 
-
-
 /* ---------------------------------------------
-   Store actions (the ONLY way to mutate state)
+   Store actions (ONLY way to mutate state)
 --------------------------------------------- */
 
 export function resetProject() {
@@ -113,6 +111,7 @@ export function resetProject() {
     groups.set([]);
     alignments.set([]);
     annotations.set([]);
+    projectUI.set(undefined);
 }
 
 export function loadProject(p: Project) {
@@ -125,199 +124,36 @@ export function loadProject(p: Project) {
     images.set(
         p.images.map((img) => ({
             ...img,
-            uri: '' // 🔑 unlinked by definition
+            uri: '' // unlinked by definition
         }))
     );
 
     groups.set(p.groups);
     alignments.set(p.alignments);
     annotations.set(p.annotations ?? []);
+    projectUI.set(p.ui);
 }
 
+/* ---------------------------------------------
+   UI state mutation
+--------------------------------------------- */
+
+export function updateProjectUI(
+    partial: Partial<ProjectUIState>
+) {
+    projectUI.update((current) => ({
+        ...current,
+        ...partial
+    }));
+}
+
+/* ---------------------------------------------
+   Image mutations
+--------------------------------------------- */
 
 export function addImage(image: ImageSource) {
     images.update(imgs => [...imgs, image]);
 }
-
-export function updateGroup(groupId: string, updater: (g: ImageGroup) => ImageGroup) {
-    groups.update(gs =>
-        gs.map(g => (g.id === groupId ? updater(g) : g))
-    );
-}
-
-export function addAlignment(alignment: ImageAlignment) {
-    alignments.update(a => [...a, alignment]);
-}
-
-export function addAnnotation(annotation: Project['annotations'][number]) {
-    annotations.update(list => [...list, annotation]);
-}
-
-export function replaceAnnotations(next: Project['annotations']) {
-    annotations.set(next);
-}
-
-
-/* ---------------------------------------------
-   Image lookup & relinking helpers
---------------------------------------------- */
-
-export function findImageByContentHash(
-    contentHash: string
-): ImageSource | undefined {
-    return get(images).find(
-        (img) => img.hashes.contentHash === contentHash
-    );
-}
-
-export function updateImageByContentHash(
-    contentHash: string,
-    updater: (img: ImageSource) => ImageSource
-) {
-    images.update((list) => {
-        const idx = list.findIndex(
-            (img) => img.hashes.contentHash === contentHash
-        );
-
-        if (idx === -1) return list;
-
-        const next = [...list];
-        next[idx] = updater(next[idx]);
-        return next;
-    });
-}
-
-/**
- * Convenience helper:
- * - updates existing image if hash matches
- * - otherwise inserts new image
- */
-export function upsertImageByContentHash(
-    contentHash: string,
-    create: () => ImageSource,
-    update: (img: ImageSource) => ImageSource
-) {
-    images.update((list) => {
-        const idx = list.findIndex(
-            (img) => img.hashes.contentHash === contentHash
-        );
-
-        if (idx === -1) {
-            return [...list, create()];
-        }
-
-        const next = [...list];
-        next[idx] = update(next[idx]);
-        return next;
-    });
-}
-
-export const linkedImagesByHash = derived(images, ($images) =>
-    new Set(
-        $images
-            .filter((img) => img.uri && img.uri.length > 0)
-            .map((img) => img.hashes.contentHash)
-    )
-);
-
-
-export function addGroup(group: ImageGroup) {
-    groups.update(gs => [...gs, group]);
-}
-
-// Bulk add groups (e.g. from grouping proposals)
-export function addGroups(newGroups: ImageGroup[]) {
-    for (const group of newGroups) {
-        addGroup(group);
-    }
-}
-
-export function addImageToGroup(
-    groupId: string,
-    imageId: string
-) {
-    groups.update((gs) =>
-        gs.map((g) =>
-            g.id === groupId && !g.imageIds.includes(imageId)
-                ? {
-                    ...g,
-                    imageIds: [...g.imageIds, imageId]
-                }
-                : g
-        )
-    );
-}
-
-
-export function removeImageFromGroup(
-    groupId: string,
-    imageId: string
-) {
-    groups.update((gs) =>
-        gs.flatMap((g) => {
-            if (g.id !== groupId) return g;
-
-            const remaining = g.imageIds.filter((id) => id !== imageId);
-
-            // If fewer than 2 images remain, delete the group
-            if (remaining.length < 2) {
-                return [];
-            }
-
-            // Ensure base image is valid
-            const baseImageId =
-                g.baseImageId === imageId
-                    ? remaining[0]
-                    : g.baseImageId;
-
-            return {
-                ...g,
-                imageIds: remaining,
-                baseImageId
-            };
-        })
-    );
-}
-
-
-export function removeGroup(groupId: string) {
-    groups.update((gs) => gs.filter((g) => g.id !== groupId));
-}
-
-
-export function setGroupBaseImage(
-    groupId: string,
-    imageId: string
-) {
-    groups.update((gs) =>
-        gs.map((g) =>
-            g.id === groupId && g.imageIds.includes(imageId)
-                ? { ...g, baseImageId: imageId }
-                : g
-        )
-    );
-}
-
-export function updateImageTransform(
-    imageId: string,
-    transform: {
-        corners: { x: number; y: number }[];
-        rotation: number;
-    }
-) {
-    images.update((list) =>
-        list.map((img) =>
-            img.id === imageId
-                ? {
-                    ...img,
-                    transform
-                }
-                : img
-        )
-    );
-}
-
-
 
 export function updateImagePreparation(
     imageId: string,
@@ -341,4 +177,161 @@ export function updateImagePreparation(
     invalidateDownstream(imageId, "prepared");
 }
 
+export function updateImageByContentHash(
+    contentHash: string,
+    updater: (img: ImageSource) => ImageSource
+) {
+    images.update((list) => {
+        const idx = list.findIndex(
+            (img) => img.hashes.contentHash === contentHash
+        );
 
+        if (idx === -1) return list;
+
+        const next = [...list];
+        next[idx] = updater(next[idx]);
+        return next;
+    });
+}
+
+export function upsertImageByContentHash(
+    contentHash: string,
+    create: () => ImageSource,
+    update: (img: ImageSource) => ImageSource
+) {
+    images.update((list) => {
+        const idx = list.findIndex(
+            (img) => img.hashes.contentHash === contentHash
+        );
+
+        if (idx === -1) {
+            return [...list, create()];
+        }
+
+        const next = [...list];
+        next[idx] = update(next[idx]);
+        return next;
+    });
+}
+
+export function findImageByContentHash(
+    contentHash: string
+): ImageSource | undefined {
+    return get(images).find(
+        (img) => img.hashes.contentHash === contentHash
+    );
+}
+
+/* ---------------------------------------------
+   Groups
+--------------------------------------------- */
+
+export function addGroup(group: ImageGroup) {
+    groups.update(gs => [...gs, group]);
+}
+
+export function addGroups(newGroups: ImageGroup[]) {
+    groups.update(gs => [...gs, ...newGroups]);
+}
+
+export function updateGroup(
+    groupId: string,
+    updater: (g: ImageGroup) => ImageGroup
+) {
+    groups.update(gs =>
+        gs.map(g => (g.id === groupId ? updater(g) : g))
+    );
+}
+
+export function removeGroup(groupId: string) {
+    groups.update(gs => gs.filter(g => g.id !== groupId));
+}
+
+export function addImageToGroup(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.map((g) =>
+            g.id === groupId && !g.imageIds.includes(imageId)
+                ? {
+                    ...g,
+                    imageIds: [...g.imageIds, imageId]
+                }
+                : g
+        )
+    );
+}
+
+export function removeImageFromGroup(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.flatMap((g) => {
+            if (g.id !== groupId) return g;
+
+            const remaining = g.imageIds.filter((id) => id !== imageId);
+
+            if (remaining.length === 0) {
+                return [];
+            }
+
+            const baseImageId =
+                g.baseImageId === imageId
+                    ? remaining[0]
+                    : g.baseImageId;
+
+            return {
+                ...g,
+                imageIds: remaining,
+                baseImageId
+            };
+        })
+    );
+}
+
+export function setGroupBaseImage(
+    groupId: string,
+    imageId: string
+) {
+    groups.update((gs) =>
+        gs.map((g) =>
+            g.id === groupId && g.imageIds.includes(imageId)
+                ? { ...g, baseImageId: imageId }
+                : g
+        )
+    );
+}
+
+/* ---------------------------------------------
+   Alignments
+--------------------------------------------- */
+
+export function addAlignment(alignment: ImageAlignment) {
+    alignments.update(a => [...a, alignment]);
+}
+
+/* ---------------------------------------------
+   Annotations
+--------------------------------------------- */
+
+export function addAnnotation(annotation: Project['annotations'][number]) {
+    annotations.update(list => [...list, annotation]);
+}
+
+export function replaceAnnotations(next: Project['annotations']) {
+    annotations.set(next);
+}
+
+/* ---------------------------------------------
+   Helpers
+--------------------------------------------- */
+
+export const linkedImagesByHash = derived(images, ($images) =>
+    new Set(
+        $images
+            .filter((img) => img.uri && img.uri.length > 0)
+            .map((img) => img.hashes.contentHash)
+    )
+);

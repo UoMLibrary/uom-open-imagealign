@@ -69,6 +69,9 @@
                     }
                 }
             }
+        },
+        "ui": {
+            "$ref": "#/$defs/projectUIState"
         }
     },
     "$defs": {
@@ -300,6 +303,27 @@
                 "updatedAt": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "projectUIState": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "lastSelectedImageId": {
+                    "type": "string"
+                },
+                "lastMode": {
+                    "type": "string",
+                    "enum": [
+                        "prepare",
+                        "group",
+                        "align",
+                        "annotate"
+                    ]
+                },
+                "sidebarOpen": {
+                    "type": "boolean"
                 }
             }
         }
