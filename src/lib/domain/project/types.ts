@@ -38,16 +38,13 @@ export interface ImageSource {
   preparation?: ImagePreparation;
 }
 export interface ImagePreparation {
-  /**
-   * @minItems 4
-   * @maxItems 4
-   */
-  corners: [NormalizedPoint, NormalizedPoint, NormalizedPoint, NormalizedPoint];
+  rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   rotation: number;
-}
-export interface NormalizedPoint {
-  x: number;
-  y: number;
 }
 export interface ImageGroup {
   id: string;

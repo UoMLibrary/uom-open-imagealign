@@ -4,7 +4,7 @@ import type {
     ImageSource,
     ImageGroup,
     ImageAlignment,
-    NormalizedPoint
+    ImagePreparation
 } from '$lib/domain/project/types';
 
 /* ---------------------------------------------
@@ -320,15 +320,7 @@ export function updateImageTransform(
 
 export function updateImagePreparation(
     imageId: string,
-    preparation: {
-        corners: [
-            NormalizedPoint,
-            NormalizedPoint,
-            NormalizedPoint,
-            NormalizedPoint
-        ];
-        rotation: number;
-    }
+    preparation: ImagePreparation
 ) {
     images.update((list) =>
         list.map((img) =>

@@ -17,9 +17,14 @@
 	$: if (selectedImage) {
 		if (selectedImage.preparation) {
 			rotation = selectedImage.preparation.rotation ?? 0;
-			rect = rectangleFromCorners(selectedImage.preparation.corners);
+			rect = selectedImage.preparation.rect ?? {
+				x: 0,
+				y: 0,
+				width: 1,
+				height: 1
+			};
 		} else {
-			rotation = 7;
+			rotation = 0;
 			rect = { x: 0, y: 0, width: 1, height: 1 };
 		}
 	}
@@ -28,42 +33,26 @@
 	   Helpers
 	----------------------------- */
 
-	function rectangleFromCorners(corners) {
-		const [tl, tr, br, bl] = corners;
+	function clampRect(r) {
+		const x = Math.max(0, Math.min(1, r.x));
+		const y = Math.max(0, Math.min(1, r.y));
+		const width = Math.max(0, Math.min(1 - x, r.width));
+		const height = Math.max(0, Math.min(1 - y, r.height));
 
-		return {
-			x: tl.x,
-			y: tl.y,
-			width: tr.x - tl.x,
-			height: bl.y - tl.y
-		};
-	}
-
-	function cornersFromRectangle(
-		r
-	): [
-		{ x: number; y: number },
-		{ x: number; y: number },
-		{ x: number; y: number },
-		{ x: number; y: number }
-	] {
-		return [
-			{ x: r.x, y: r.y },
-			{ x: r.x + r.width, y: r.y },
-			{ x: r.x + r.width, y: r.y + r.height },
-			{ x: r.x, y: r.y + r.height }
-		];
+		return { x, y, width, height };
 	}
 
 	function save() {
+		if (!selectedImage) return;
+
 		updateImagePreparation(selectedImage.id, {
-			corners: cornersFromRectangle(rect),
+			rect: clampRect(rect),
 			rotation
 		});
 	}
 
 	function onRectChange(next) {
-		rect = next;
+		rect = clampRect(next);
 		save();
 	}
 
@@ -75,23 +64,23 @@
 
 <div class="canvas-wrapper">
 	<div class="viewport">
-		<!-- ROTATED IMAGE ONLY -->
-		<div class="rotated-layer" style="transform: rotate({rotation}deg);">
-			<img src={selectedImage.uri} alt="" />
-		</div>
+		<div class="image-frame">
+			<!-- Rotate image only -->
+			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
+				<img src={selectedImage.uri} alt="" />
+			</div>
 
-		<!-- NON-ROTATING CROP RECTANGLE -->
-		<div class="crop-layer">
-			<CropRectangle {rect} on:change={(e) => onRectChange(e.detail)} />
+			<!-- Crop aligned to original image frame -->
+			<div class="crop-layer">
+				<CropRectangle {rect} on:change={(e) => onRectChange(e.detail)} />
+				<CrosshairGuide
+					fullSize
+					x={crosshair.x}
+					y={crosshair.y}
+					on:change={(e) => (crosshair = e.detail)}
+				/>
+			</div>
 		</div>
-
-		<!-- NON-ROTATING CROSSHAIR -->
-		<CrosshairGuide
-			fullSize
-			x={crosshair.x}
-			y={crosshair.y}
-			on:change={(e) => (crosshair = e.detail)}
-		/>
 	</div>
 
 	<RotationControls {rotation} on:change={(e) => onRotationChange(e.detail)} />
@@ -106,24 +95,28 @@
 	}
 
 	.viewport {
-		position: relative;
-		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		flex: 1;
 		min-height: 0;
 	}
 
-	.rotated-layer {
+	/* This is the key fix */
+	.image-frame {
 		position: relative;
-		z-index: 1;
+		display: inline-block;
+	}
+
+	.rotated-layer {
 		transform-origin: center center;
+		z-index: 1;
 	}
 
 	img {
+		display: block;
 		max-width: 80vw;
 		max-height: 70vh;
-		display: block;
 		user-select: none;
 	}
 
@@ -131,13 +124,10 @@
 		position: absolute;
 		inset: 0;
 		z-index: 5;
+		pointer-events: none;
 	}
 
 	.crop-layer :global(.overlay) {
 		pointer-events: auto;
-	}
-
-	.crosshair-overlay {
-		z-index: 10;
 	}
 </style>
