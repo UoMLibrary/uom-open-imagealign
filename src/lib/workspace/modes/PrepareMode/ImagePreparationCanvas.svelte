@@ -64,22 +64,25 @@
 
 <div class="canvas-wrapper">
 	<div class="viewport">
+		<!-- IMAGE FRAME (image-sized) -->
 		<div class="image-frame">
-			<!-- Rotate image only -->
 			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
 				<img src={selectedImage.uri} alt="" />
 			</div>
 
-			<!-- Crop aligned to original image frame -->
 			<div class="crop-layer">
 				<CropRectangle {rect} on:change={(e) => onRectChange(e.detail)} />
-				<CrosshairGuide
-					fullSize
-					x={crosshair.x}
-					y={crosshair.y}
-					on:change={(e) => (crosshair = e.detail)}
-				/>
 			</div>
+		</div>
+
+		<!-- FULL VIEWPORT CROSSHAIR -->
+		<div class="crosshair-layer">
+			<CrosshairGuide
+				fullSize
+				x={crosshair.x}
+				y={crosshair.y}
+				on:change={(e) => (crosshair = e.detail)}
+			/>
 		</div>
 	</div>
 
@@ -95,6 +98,7 @@
 	}
 
 	.viewport {
+		position: relative; /* important */
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -102,10 +106,29 @@
 		min-height: 0;
 	}
 
-	/* This is the key fix */
 	.image-frame {
 		position: relative;
 		display: inline-block;
+		z-index: 1;
+	}
+
+	.crop-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+		pointer-events: none;
+	}
+
+	.crop-layer :global(.overlay) {
+		pointer-events: auto;
+	}
+
+	/* NEW */
+	.crosshair-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 10;
+		pointer-events: none;
 	}
 
 	.rotated-layer {
@@ -118,16 +141,5 @@
 		max-width: 80vw;
 		max-height: 70vh;
 		user-select: none;
-	}
-
-	.crop-layer {
-		position: absolute;
-		inset: 0;
-		z-index: 5;
-		pointer-events: none;
-	}
-
-	.crop-layer :global(.overlay) {
-		pointer-events: auto;
 	}
 </style>
