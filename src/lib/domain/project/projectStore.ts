@@ -6,6 +6,7 @@ import type {
     ImageAlignment,
     ImagePreparation
 } from '$lib/domain/project/types';
+import { invalidateDownstream } from './workflow';
 
 /* ---------------------------------------------
    Core writable stores (authoritative state)
@@ -323,14 +324,21 @@ export function updateImagePreparation(
     preparation: ImagePreparation
 ) {
     images.update((list) =>
-        list.map((img) =>
-            img.id === imageId
-                ? {
-                    ...img,
-                    preparation
+        list.map((img) => {
+            if (img.id !== imageId) return img;
+
+            return {
+                ...img,
+                preparation,
+                workflow: {
+                    stage: "prepared",
+                    updatedAt: new Date().toISOString()
                 }
-                : img
-        )
+            };
+        })
     );
+
+    invalidateDownstream(imageId, "prepared");
 }
+
 

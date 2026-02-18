@@ -36,6 +36,7 @@ export interface ImageSource {
     [k: string]: unknown;
   };
   preparation?: ImagePreparation;
+  workflow: ImageWorkflow;
 }
 export interface ImagePreparation {
   rect: {
@@ -45,6 +46,10 @@ export interface ImagePreparation {
     height: number;
   };
   rotation: number;
+}
+export interface ImageWorkflow {
+  stage: 'ingested' | 'prepared' | 'grouped' | 'aligned' | 'annotated';
+  updatedAt?: string;
 }
 export interface ImageGroup {
   id: string;

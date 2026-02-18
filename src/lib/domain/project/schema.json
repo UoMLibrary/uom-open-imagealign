@@ -79,7 +79,8 @@
                 "sourceType",
                 "uri",
                 "hashes",
-                "dimensions"
+                "dimensions",
+                "workflow"
             ],
             "additionalProperties": false,
             "properties": {
@@ -138,6 +139,9 @@
                 },
                 "preparation": {
                     "$ref": "#/$defs/imagePreparation"
+                },
+                "workflow": {
+                    "$ref": "#/$defs/imageWorkflow"
                 }
             }
         },
@@ -273,6 +277,29 @@
                     "type": "number",
                     "minimum": -45,
                     "maximum": 45
+                }
+            }
+        },
+        "imageWorkflow": {
+            "type": "object",
+            "required": [
+                "stage"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "enum": [
+                        "ingested",
+                        "prepared",
+                        "grouped",
+                        "aligned",
+                        "annotated"
+                    ]
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         }
