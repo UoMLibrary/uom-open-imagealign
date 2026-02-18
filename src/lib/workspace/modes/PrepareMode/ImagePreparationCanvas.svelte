@@ -6,22 +6,23 @@
 
 	export let selectedImage;
 
+	let rotation = 0;
+	let rect = { x: 0, y: 0, width: 1, height: 1 };
+	let crosshair = { x: 0.5, y: 0.5 };
+
 	/* -----------------------------
-	   Initial state from schema
+	   Sync from selectedImage
 	----------------------------- */
 
-	let rotation = selectedImage.preparation?.rotation ?? 0;
-
-	let rect = selectedImage.preparation
-		? rectangleFromCorners(selectedImage.preparation.corners)
-		: {
-				x: 0.1,
-				y: 0.1,
-				width: 0.8,
-				height: 0.8
-			};
-
-	let crosshair = { x: 0.5, y: 0.5 };
+	$: if (selectedImage) {
+		if (selectedImage.preparation) {
+			rotation = selectedImage.preparation.rotation ?? 0;
+			rect = rectangleFromCorners(selectedImage.preparation.corners);
+		} else {
+			rotation = 7;
+			rect = { x: 0, y: 0, width: 1, height: 1 };
+		}
+	}
 
 	/* -----------------------------
 	   Helpers
@@ -47,10 +48,10 @@
 		{ x: number; y: number }
 	] {
 		return [
-			{ x: r.x, y: r.y }, // TL
-			{ x: r.x + r.width, y: r.y }, // TR
-			{ x: r.x + r.width, y: r.y + r.height }, // BR
-			{ x: r.x, y: r.y + r.height } // BL
+			{ x: r.x, y: r.y },
+			{ x: r.x + r.width, y: r.y },
+			{ x: r.x + r.width, y: r.y + r.height },
+			{ x: r.x, y: r.y + r.height }
 		];
 	}
 

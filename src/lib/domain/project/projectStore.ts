@@ -3,7 +3,8 @@ import type {
     ImageAlignmentProject as Project,
     ImageSource,
     ImageGroup,
-    ImageAlignment
+    ImageAlignment,
+    NormalizedPoint
 } from '$lib/domain/project/types';
 
 /* ---------------------------------------------
@@ -315,10 +316,17 @@ export function updateImageTransform(
     );
 }
 
+
+
 export function updateImagePreparation(
     imageId: string,
     preparation: {
-        corners: { x: number; y: number }[];
+        corners: [
+            NormalizedPoint,
+            NormalizedPoint,
+            NormalizedPoint,
+            NormalizedPoint
+        ];
         rotation: number;
     }
 ) {
@@ -333,5 +341,4 @@ export function updateImagePreparation(
         )
     );
 }
-
 
