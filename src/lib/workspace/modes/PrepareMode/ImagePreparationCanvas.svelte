@@ -1,3 +1,17 @@
+<!-- 
+	Raw Image
+		↓
+	User defines region + rotation
+		↓
+	Normalised Image Generated
+		↓
+	Thumbnail Generated
+		↓
+	pHash Generated
+		↓
+	Visual Profile Generated 
+-->
+
 <script lang="ts">
 	import CropRectangle from './CropRectangle.svelte';
 	import CrosshairGuide from './CrosshairGuide.svelte';
