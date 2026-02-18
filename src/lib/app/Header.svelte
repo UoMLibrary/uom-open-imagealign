@@ -2,35 +2,37 @@
 	import LoadProjectButton from '$lib/shared/buttons/LoadProjectButton.svelte';
 	import SaveProjectButton from '$lib/shared/buttons/SaveProjectButton.svelte';
 	import ImportImagesButton from '$lib/shared/buttons/ImportImagesButton.svelte';
+	import ModeTabs from '$lib/workspace/shared/ModeTabs.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
 </script>
 
-<header class="header">
-	<div class="actions">
-		<!-- New: Import Images -->
-		<ImportImagesButton />
+<div class="header-wrapper">
+	<header class="header">
+		<div class="actions">
+			<ImportImagesButton />
+			<LoadProjectButton />
+			<SaveProjectButton />
 
-		<!-- Load / Save now manage stores directly -->
-		<LoadProjectButton />
-		<SaveProjectButton />
+			<button on:click={() => dispatch('help')}>Help</button>
+			<button on:click={() => dispatch('about')}>About</button>
+		</div>
 
-		<!-- UI-only events -->
-		<button on:click={() => dispatch('help')}>Help</button>
-		<button on:click={() => dispatch('about')}>About</button>
-	</div>
+		<div class="title">
+			<a
+				href="https://github.com/UoMLibrary/uom-open-annotator/"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				Image Alignment Tool
+			</a>
+		</div>
+	</header>
 
-	<div class="title">
-		<a
-			href="https://github.com/UoMLibrary/uom-open-annotator/"
-			target="_blank"
-			rel="noopener noreferrer"
-		>
-			Image Alignment Tool
-		</a>
-	</div>
-</header>
+	<!-- Mode Tabs below header line -->
+	<ModeTabs />
+</div>
 
 <style>
 	/* ---------- Header shell ---------- */
@@ -102,5 +104,10 @@
 	.actions :global(button:focus-visible) {
 		outline: 2px solid #4c9ffe;
 		outline-offset: -2px;
+	}
+
+	.header-wrapper {
+		display: flex;
+		flex-direction: column;
 	}
 </style>

@@ -23,7 +23,6 @@ export interface ImageSource {
   id: string;
   sourceType: 'local' | 'url' | 'iiif';
   uri: string;
-  structuralPath?: string;
   label?: string;
   hashes: {
     contentHash: string;
@@ -36,6 +35,19 @@ export interface ImageSource {
   metadata?: {
     [k: string]: unknown;
   };
+  preparation?: ImagePreparation;
+}
+export interface ImagePreparation {
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  corners: [NormalizedPoint, NormalizedPoint, NormalizedPoint, NormalizedPoint];
+  rotation: number;
+}
+export interface NormalizedPoint {
+  x: number;
+  y: number;
 }
 export interface ImageGroup {
   id: string;

@@ -4,6 +4,7 @@
 	import HelpModal from '$lib/app/modals/HelpModal.svelte';
 	import AboutModal from '$lib/app/modals/AboutModal.svelte';
 	import Header from '$lib/app/Header.svelte';
+	import WorkspaceShell from '$lib/workspace/WorkspaceShell.svelte';
 	import PanelHeader from '$lib/shared/ui/PanelHeader.svelte';
 	import SidePanel from '$lib/app/SidePanel.svelte';
 	import ImageGroupList from '$lib/features/grouping/GroupList.svelte';
@@ -49,6 +50,8 @@
 	<Toast />
 
 	<Header on:help={() => (showHelp = true)} on:about={() => (showAbout = true)} />
+
+	<WorkspaceShell />
 
 	<div class="workspace">
 		<SidePanel side="left" bind:open={GroupListPanelOpen}>

@@ -295,3 +295,23 @@ export function setGroupBaseImage(
         )
     );
 }
+
+export function updateImageTransform(
+    imageId: string,
+    transform: {
+        corners: { x: number; y: number }[];
+        rotation: number;
+    }
+) {
+    images.update((list) =>
+        list.map((img) =>
+            img.id === imageId
+                ? {
+                    ...img,
+                    transform
+                }
+                : img
+        )
+    );
+}
+

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import ImageGroupSummary from './GroupSummary.svelte';
-	import ImageGroupEditor from '../modes/GroupWorkspace.svelte';
+	// import ImageGroupEditor from './GroupEditor.svelte';
 	import type { ImageGroup } from '$lib/domain/project/types';
 
 	export let group: ImageGroup;
@@ -14,7 +14,7 @@
 
 <div class="group-item">
 	{#if selected}
-		<ImageGroupEditor {group} />
+		<!-- <ImageGroupEditor {group} /> -->
 	{:else}
 		<!-- 🔑 THIS is the missing link -->
 		<div on:click={() => dispatch('select')}>

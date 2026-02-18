@@ -135,6 +135,9 @@
                 "metadata": {
                     "type": "object",
                     "additionalProperties": true
+                },
+                "preparation": {
+                    "$ref": "#/$defs/imagePreparation"
                 }
             }
         },
@@ -223,6 +226,49 @@
                             "maxItems": 9
                         }
                     }
+                }
+            }
+        },
+        "imagePreparation": {
+            "type": "object",
+            "required": [
+                "corners",
+                "rotation"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "corners": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                        "$ref": "#/$defs/normalizedPoint"
+                    }
+                },
+                "rotation": {
+                    "type": "number",
+                    "minimum": -45,
+                    "maximum": 45
+                }
+            }
+        },
+        "normalizedPoint": {
+            "type": "object",
+            "required": [
+                "x",
+                "y"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                 }
             }
         }
