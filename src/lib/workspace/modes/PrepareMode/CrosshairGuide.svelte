@@ -10,7 +10,8 @@
 	let dragging = false;
 	let container: HTMLDivElement;
 
-	function onPointerDown() {
+	function onPointerDown(e: PointerEvent) {
+		e.stopPropagation();
 		dragging = true;
 		window.addEventListener('pointermove', onMove);
 		window.addEventListener('pointerup', onUp);
@@ -44,8 +45,11 @@
 	<!-- Horizontal -->
 	<div class="line horizontal" style="top: {y * 100}%" />
 
-	<!-- Center handle -->
-	<div class="center" style="left: {x * 100}%; top: {y * 100}%" on:pointerdown={onPointerDown} />
+	<!-- Large invisible hit area -->
+	<div class="hit-area" style="left: {x * 100}%; top: {y * 100}%" on:pointerdown={onPointerDown}>
+		<!-- Visible dot inside -->
+		<div class="center" />
+	</div>
 </div>
 
 <style>
@@ -87,16 +91,28 @@
 		);
 	}
 
-	.center {
+	.hit-area {
 		position: absolute;
-		width: 14px;
+		width: 40px; /* big hit zone */
+		height: 40px;
+		transform: translate(-50%, -50%);
+		cursor: move;
+		pointer-events: auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.center {
+		width: 14px; /* small visible dot */
 		height: 14px;
 		background: #10b981;
 		border: 2px solid white;
 		border-radius: 50%;
-		transform: translate(-50%, -50%);
-		cursor: move;
-		pointer-events: auto; /* critical */
 		box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+	}
+
+	.hit-area:hover .center {
+		transform: scale(1.2);
 	}
 </style>

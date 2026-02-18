@@ -5,22 +5,45 @@
 
 	const dispatch = createEventDispatcher();
 
-	function onInput(e) {
-		dispatch('change', Number(e.target.value));
+	function onInput(e: Event) {
+		const value = Number((e.target as HTMLInputElement).value);
+		dispatch('change', value);
 	}
 </script>
 
 <div class="rotation-controls">
-	<input type="range" min="-10" max="10" step="0.1" value={rotation} on:input={onInput} />
-	<span>{rotation.toFixed(1)}°</span>
+	<input
+		class="slider"
+		type="range"
+		min="-10"
+		max="10"
+		step="0.01"
+		value={rotation}
+		on:input={onInput}
+	/>
+
+	<span class="angle">{rotation.toFixed(2)}°</span>
 </div>
 
 <style>
 	.rotation-controls {
 		display: flex;
 		align-items: center;
-		justify-content: center; /* centers horizontally */
+		justify-content: center;
 		gap: 1rem;
-		padding: 0.75rem 0;
+		padding: 1rem 0;
+	}
+
+	.slider {
+		width: 400px; /* MUCH wider */
+		max-width: 70vw;
+		cursor: pointer;
+	}
+
+	.angle {
+		font-variant-numeric: tabular-nums;
+		min-width: 60px;
+		text-align: right;
+		color: #374151;
 	}
 </style>
