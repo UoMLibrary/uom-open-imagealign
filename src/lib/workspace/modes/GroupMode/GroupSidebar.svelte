@@ -8,9 +8,9 @@
 </script>
 
 <SidePanel side="left" open={true}>
-	<PanelHeader inline>
-		<h2 class="panel-title">Grouped Images</h2>
-	</PanelHeader>
+	<svelte:fragment slot="header">
+		<div class="panel-title">Groups</div>
+	</svelte:fragment>
 
 	{#if $groups.length > 0}
 		<ImageGroupList
@@ -22,3 +22,14 @@
 		<div class="empty">No groups yet</div>
 	{/if}
 </SidePanel>
+
+<style>
+	.panel-title {
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: #6b7280;
+		padding: 0.5rem 0.75rem;
+	}
+</style>
