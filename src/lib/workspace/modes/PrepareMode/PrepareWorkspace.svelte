@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { images } from '$lib/domain/project/projectStore';
+	import Sidebar from '$lib/app/SidePanel.svelte';
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
 
 	let selectedId: string | null = null;
+	let sidebarOpen = true;
 
 	$: selectedImage = $images.find((img) => img.id === selectedId) ?? null;
 
@@ -13,13 +15,17 @@
 </script>
 
 <div class="prepare-layout">
-	<div class="sidebar">
+	<Sidebar side="left" bind:open={sidebarOpen} width={260}>
+		<svelte:fragment slot="header">
+			<div class="panel-title">Images</div>
+		</svelte:fragment>
+
 		{#each $images as img}
 			<button class:selected={img.id === selectedId} on:click={() => selectImage(img.id)}>
-				{img.id}
+				{img.label ?? img.id}
 			</button>
 		{/each}
-	</div>
+	</Sidebar>
 
 	<div class="workspace">
 		{#if selectedImage}
@@ -35,34 +41,43 @@
 	.prepare-layout {
 		display: flex;
 		height: 100%;
-	}
-
-	.sidebar {
-		width: 220px;
-		border-right: 1px solid rgba(0, 0, 0, 0.08);
-		padding: 0.5rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.sidebar button {
-		all: unset;
-		padding: 0.5rem;
-		cursor: pointer;
-		border-radius: 4px;
-		font-size: 0.8rem;
-	}
-
-	.sidebar button.selected {
-		background: rgba(0, 0, 0, 0.05);
-		font-weight: 600;
+		min-height: 0; /* important for flex scrolling */
 	}
 
 	.workspace {
 		flex: 1;
 		display: flex;
 		flex-direction: column;
+		min-width: 0; /* prevents overflow issues */
+	}
+
+	button {
+		all: unset;
+		display: block;
+		padding: 0.5rem 0.75rem;
+		cursor: pointer;
+		border-radius: 4px;
+		font-size: 0.8rem;
+		color: #374151;
+	}
+
+	button:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	button.selected {
+		background: rgba(0, 0, 0, 0.06);
+		font-weight: 600;
+		color: #111827;
+	}
+
+	.panel-title {
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: #6b7280;
+		padding: 0.5rem 0.75rem;
 	}
 
 	.placeholder {

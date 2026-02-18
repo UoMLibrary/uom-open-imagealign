@@ -52,7 +52,7 @@
 	<Header on:help={() => (showHelp = true)} on:about={() => (showAbout = true)} />
 
 	<WorkspaceShell />
-
+	<!-- 
 	<div class="workspace">
 		<SidePanel side="left" bind:open={GroupListPanelOpen}>
 			<PanelHeader inline={true}>
@@ -83,7 +83,7 @@
 					<GroupProposalList />
 				</div>
 
-				<!-- Show the grid of all images -->
+				
 				{#if $ungroupedImageIds.length > 0}
 					<div>
 						<PanelHeader inline={true}>
@@ -94,7 +94,7 @@
 				{/if}
 			</div>
 		</div>
-	</div>
+	</div> -->
 
 	<HelpModal bind:open={showHelp} />
 	<AboutModal bind:open={showAbout} />
