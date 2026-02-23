@@ -68,21 +68,3 @@ export function applyGroupingProposal(proposal: GroupingProposal) {
 }
 
 
-// export function initialiseDefaultGroups() {
-//     groups.update((currentGroups) => {
-//         // Do nothing if groups already exist
-//         if (currentGroups.length > 0) return currentGroups;
-
-//         const imgs = get(images);
-//         if (imgs.length === 0) return currentGroups;
-
-//         const newGroups: ImageGroup[] = imgs.map((img) => ({
-//             id: crypto.randomUUID(),
-//             baseImageId: img.id,
-//             imageIds: [img.id],
-//             locked: false
-//         }));
-
-//         return newGroups;
-//     });
-// }
