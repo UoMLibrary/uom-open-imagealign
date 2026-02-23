@@ -1,35 +1,54 @@
 <script lang="ts">
-	import PanelHeader from '$lib/shared/ui/PanelHeader.svelte';
-	import SidePanel from '$lib/app/SidePanel.svelte';
-	import ImageGroupList from './ImageGroupList.svelte';
+	import { createEventDispatcher } from 'svelte';
 	import { groups } from '$lib/domain/project/projectStore';
 
 	export let selectedGroupId: string | null = null;
+
+	const dispatch = createEventDispatcher<{
+		select: { id: string };
+	}>();
+
+	function select(id: string) {
+		dispatch('select', { id });
+	}
 </script>
 
-<SidePanel side="left" open={true}>
-	<svelte:fragment slot="header">
-		<div class="panel-title">Groups</div>
-	</svelte:fragment>
-
-	{#if $groups.length > 0}
-		<ImageGroupList
-			groups={$groups}
-			{selectedGroupId}
-			on:select={(e) => (selectedGroupId = e.detail.id)}
-		/>
-	{:else}
+<div class="group-list">
+	{#if $groups.length === 0}
 		<div class="empty">No groups yet</div>
+	{:else}
+		{#each $groups as group (group.id)}
+			<div
+				class="group-row"
+				class:selected={group.id === selectedGroupId}
+				on:click={() => select(group.id)}
+			>
+				Group ({group.imageIds.length})
+			</div>
+		{/each}
 	{/if}
-</SidePanel>
+</div>
 
 <style>
-	.panel-title {
-		font-size: 0.75rem;
-		font-weight: 700;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: #6b7280;
-		padding: 0.5rem 0.75rem;
+	.group-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		padding: 0.5rem;
+	}
+
+	.group-row {
+		padding: 0.5rem;
+		border-radius: 4px;
+		cursor: pointer;
+	}
+
+	.group-row:hover {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	.group-row.selected {
+		background: rgba(0, 0, 0, 0.08);
+		font-weight: 600;
 	}
 </style>

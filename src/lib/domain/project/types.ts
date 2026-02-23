@@ -80,6 +80,7 @@ export interface ImageAlignment {
 }
 export interface ProjectUIState {
   lastSelectedImageId?: string;
+  lastSelectedGroupId?: string;
   lastMode?: 'prepare' | 'group' | 'align' | 'annotate';
   sidebarOpen?: boolean;
 }

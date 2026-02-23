@@ -316,6 +316,9 @@
                 "lastSelectedImageId": {
                     "type": "string"
                 },
+                "lastSelectedGroupId": {
+                    "type": "string"
+                },
                 "lastMode": {
                     "type": "string",
                     "enum": [
