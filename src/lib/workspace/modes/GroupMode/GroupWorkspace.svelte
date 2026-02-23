@@ -2,6 +2,7 @@
 	import { images, groups, project, updateProjectUI } from '$lib/domain/project/projectStore';
 	import { get } from 'svelte/store';
 	import { applyGroupingProposal } from '$lib/domain/project/groupActions';
+	import type { GroupingProposal } from '$lib/domain/grouping/types';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
 	import { initialiseSingleImageProposals } from '$lib/domain/grouping/groupingStore';
 
@@ -16,6 +17,7 @@
 	/* ------------------------------------------------
 	   Initialise selection from project.ui
 	------------------------------------------------ */
+	$: console.log('PROPOSALS NOW:', $groupingState.proposals.length);
 
 	$: {
 		if ($groups.length === 0) {
@@ -31,8 +33,16 @@
 		}
 	}
 
-	$: if ($images.length > 0) {
-		initialiseSingleImageProposals();
+	import { onMount } from 'svelte';
+
+	onMount(() => {
+		if (get(images).length > 0) {
+			initialiseSingleImageProposals();
+		}
+	});
+
+	$: if (selectedGroupId && !$groups.some((g) => g.id === selectedGroupId)) {
+		selectedGroupId = null;
 	}
 
 	function selectGroup(id: string) {
@@ -43,13 +53,20 @@
 		});
 	}
 
-	function confirmProposal(proposal) {
+	function confirmProposal(proposal: GroupingProposal) {
 		applyGroupingProposal(proposal);
 
-		groupingState.update((s) => ({
-			...s,
-			proposals: s.proposals.filter((p) => p.id !== proposal.id)
-		}));
+		groupingState.update((state) => {
+			const affected = new Set(proposal.imageIds);
+
+			const remaining = state.proposals.filter((p) => !p.imageIds.some((id) => affected.has(id)));
+
+			return {
+				...state,
+				proposals: remaining,
+				selected: new Set()
+			};
+		});
 	}
 </script>
 
@@ -70,9 +87,9 @@
 			<GroupProposalList {selectedGroupId} on:confirm={(e) => confirmProposal(e.detail)} />
 		</div>
 
-		<div class="strategy">
+		<!-- <div class="strategy">
 			<GroupStrategyPanel />
-		</div>
+		</div> -->
 	</div>
 </div>
 

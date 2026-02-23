@@ -4,8 +4,8 @@
 	import { groups } from '$lib/domain/project/projectStore';
 	import type { GroupingProposal } from '$lib/domain/grouping/types';
 	import type { ImageGroup } from '$lib/domain/project/types';
-
-	export let selectedGroupId: string | null = null;
+	import { images } from '$lib/domain/project/projectStore';
+	import ImageThumbnail from '$lib/features/thumbnails/ImageThumbnail.svelte';
 
 	const dispatch = createEventDispatcher<{
 		confirm: GroupingProposal;
@@ -19,27 +19,12 @@
 	$: proposals = $groupingState.proposals;
 	$: projectGroups = $groups;
 
+	$: imagesById = Object.fromEntries($images.map((img) => [img.id, img]));
+
 	// Sort largest first
 	$: sorted = [...proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
 
-	// If a group is selected, only show proposals that intersect it
-	$: visible =
-		selectedGroupId == null
-			? sorted
-			: filterBySelectedGroup(sorted, selectedGroupId, projectGroups);
-
-	function filterBySelectedGroup(
-		list: GroupingProposal[],
-		groupId: string,
-		allGroups: ImageGroup[]
-	) {
-		const group = allGroups.find((g) => g.id === groupId);
-		if (!group) return list;
-
-		const groupImageSet = new Set(group.imageIds);
-
-		return list.filter((proposal) => proposal.imageIds.some((id) => groupImageSet.has(id)));
-	}
+	$: visible = sorted;
 </script>
 
 {#if visible.length === 0}
@@ -66,7 +51,15 @@
 
 				<div class="proposal-images">
 					{#each proposal.imageIds as id}
-						<span class="image-pill">{id}</span>
+						{#if imagesById[id]}
+							<ImageThumbnail
+								contentHash={imagesById[id].hashes.contentHash}
+								fallbackSrc={imagesById[id].uri}
+								label={imagesById[id].label}
+								mode="thumb"
+								debugCompare={true}
+							/>
+						{/if}
 					{/each}
 				</div>
 
@@ -125,8 +118,8 @@
 	.proposal-images {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.4rem;
-		margin-bottom: 0.5rem;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
 	}
 
 	.image-pill {
