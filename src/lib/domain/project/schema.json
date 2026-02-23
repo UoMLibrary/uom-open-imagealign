@@ -104,6 +104,9 @@
                 "label": {
                     "type": "string"
                 },
+                "structuralPath": {
+                    "type": "string"
+                },
                 "hashes": {
                     "type": "object",
                     "required": [

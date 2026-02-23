@@ -1,3 +1,45 @@
+/**
+ * detectPageRegion
+ * ----------------
+ * Experimental helper for automatically detecting a central "page-like"
+ * region within an ImageBitmap and returning a cropped canvas.
+ *
+ * This function performs a lightweight, heuristic-based edge detection pass:
+ *
+ * 1. Converts the image to grayscale.
+ * 2. Computes a simple edge magnitude using horizontal and vertical
+ *    intensity differences.
+ * 3. Scans inward from each edge (top, bottom, left, right) but only
+ *    within a central band (≈35–65%) to avoid reacting to noise in
+ *    the outer margins.
+ * 4. Identifies the first row/column where edge density exceeds a
+ *    small threshold and treats this as a boundary.
+ * 5. Applies safety padding and crops to the detected rectangle.
+ *
+ * The goal is not precise page detection, but a fast, dependency-free
+ * approximation that works well for high-contrast page-on-background
+ * images (e.g. photographed documents).
+ *
+ * Current status:
+ * - Not actively used in the pipeline.
+ * - Intended as a potential future mechanism for generating an initial
+ *   crop rectangle prior to manual adjustment.
+ *
+ * Design considerations:
+ * - Pure Canvas implementation (no OpenCV or external deps).
+ * - Deterministic and synchronous processing of bitmap pixels.
+ * - Returns original canvas as fallback if detection fails.
+ *
+ * Limitations:
+ * - Sensitive to low contrast or complex backgrounds.
+ * - Assumes roughly central, axis-aligned content.
+ * - Does not perform perspective correction.
+ *
+ * If reintroduced into the workflow, this should likely:
+ * - Output a normalized bounding rect instead of a cropped canvas.
+ * - Integrate with the project.json corner / crop model.
+ */
+
 export async function detectPageRegion(
     bitmap: ImageBitmap
 ): Promise<HTMLCanvasElement> {

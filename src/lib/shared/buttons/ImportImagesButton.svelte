@@ -154,6 +154,10 @@
 				dimensions: {
 					width: bitmap.width,
 					height: bitmap.height
+				},
+				workflow: {
+					stage: 'ingested',
+					updatedAt: new Date().toISOString()
 				}
 			});
 		}
