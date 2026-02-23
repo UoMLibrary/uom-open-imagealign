@@ -1,48 +1,42 @@
 @startuml
-title Image Alignment Workflow (Human-in-the-Loop)
+title Image Alignment Application – Data Enrichment Workflow
 
 start
 
 :Create or Load Project;
 
 if (Existing project?) then (Yes)
-  :Load project JSON;
+  :Load project.json;
 else (No)
-  :Ingest folder(s) of images;
-  :Create image records;
+  :Ingest images;
+  :Initialise project.json;
 endif
 
 partition "Prepare Stage" {
 
   repeat
-    :Select image from thumbnail strip;
-    :Display large image in workspace;
-
+    :Select image;
     :System proposes bounding rectangle;
-    :User drags rectangle corners;
-    :User adjusts rotation (if needed);
+    :User adjusts rectangle corners;
+    :User adjusts rotation;
 
-    :Compute corners from rectangle;
     :Generate normalised image;
-    :Generate thumbnail + region overlay;
-    :Generate pHash + metadata;
+    :Generate thumbnail;
+    :Compute pHash;
 
-    :Mark image as Prepared;
-  repeat while (More images to prepare?)
-
+    :Write preparation data to project.json
+    (rotation, bounding box, pHash, normalised ref);
+  repeat while (More images?)
 }
 
 partition "Group Stage" {
 
-  :Choose grouping strategy;
+  :Select grouping strategy;
 
-  if (Automatic grouping?) then (Yes)
-    :Group by pHash / filename / folder;
-  else (Manual)
-    :User assigns images to groups;
-  endif
+  :Create / modify groups;
 
-  :Review and adjust groups;
+  :Write grouping data to project.json
+  (group IDs, membership);
 }
 
 partition "Align Stage" {
@@ -50,23 +44,116 @@ partition "Align Stage" {
   repeat
     :Select group;
     :Choose reference image;
-    :Apply transformation;
-    :Preview overlay / diff mode;
+    :Compute alignment transform;
     :Confirm alignment;
-  repeat while (More groups?)
 
+    :Write alignment data to project.json
+    (transform matrix, reference ID);
+  repeat while (More groups?)
 }
 
 partition "Annotate Stage" {
 
   repeat
-    :Select aligned image;
-    :Add / edit / remove annotations;
+    :Add / edit annotations;
+    :Write annotation data to project.json;
   repeat while (More annotations?)
-
 }
 
-:Save / Export project;
+:Persist final project.json;
+
+partition "Downstream Processing" {
+
+  :Load project.json;
+
+  if (Use bounding boxes?) then (Yes)
+    :Use normalised images;
+  else (No)
+    :Ignore preparation metadata;
+  endif
+
+  :Use pHash / groups / alignments
+  for further analysis;
+}
+
+stop
+@enduml@startuml
+title Image Alignment Application – Data Enrichment Workflow
+
+start
+
+:Create or Load Project;
+
+if (Existing project?) then (Yes)
+  :Load project.json;
+else (No)
+  :Ingest images;
+  :Initialise project.json;
+endif
+
+partition "Prepare Stage" {
+
+  repeat
+    :Select image;
+    :System proposes bounding rectangle;
+    :User adjusts rectangle corners;
+    :User adjusts rotation;
+
+    :Generate normalised image;
+    :Generate thumbnail;
+    :Compute pHash;
+
+    :Write preparation data to project.json
+    (rotation, bounding box, pHash, normalised ref);
+  repeat while (More images?)
+}
+
+partition "Group Stage" {
+
+  :Select grouping strategy;
+
+  :Create / modify groups;
+
+  :Write grouping data to project.json
+  (group IDs, membership);
+}
+
+partition "Align Stage" {
+
+  repeat
+    :Select group;
+    :Choose reference image;
+    :Compute alignment transform;
+    :Confirm alignment;
+
+    :Write alignment data to project.json
+    (transform matrix, reference ID);
+  repeat while (More groups?)
+}
+
+partition "Annotate Stage" {
+
+  repeat
+    :Add / edit annotations;
+    :Write annotation data to project.json;
+  repeat while (More annotations?)
+}
+
+:Persist final project.json;
+
+partition "Downstream Processing" {
+
+  :Load project.json;
+
+  if (Use bounding boxes?) then (Yes)
+    :Use normalised images;
+  else (No)
+    :Ignore preparation metadata;
+  endif
+
+  :Use pHash / groups / alignments
+  for further analysis;
+}
 
 stop
 @enduml
