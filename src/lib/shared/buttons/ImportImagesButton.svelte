@@ -126,8 +126,16 @@
 			// 2️⃣ Create bitmap only for new images
 			const bitmap = await createImageBitmap(file);
 
-			// 1️⃣ derive first
-			await ensureDerivedImages(contentHash, file);
+			// 1️⃣ derive first with a full frame default preparation to get a normalised image for pHash computation. This also ensures we have a normalised version cached for later use in the app.
+			await ensureDerivedImages(contentHash, file, {
+				rotation: 0,
+				corners: [
+					{ x: 0, y: 0 },
+					{ x: 1, y: 0 },
+					{ x: 1, y: 1 },
+					{ x: 0, y: 1 }
+				]
+			});
 
 			// 2️⃣ compute pHash
 			const perceptualHash = await computePHashFromNormalised(contentHash);
