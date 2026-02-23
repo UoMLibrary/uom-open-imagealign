@@ -1,0 +1,72 @@
+@startuml
+title Image Alignment Workflow (Human-in-the-Loop)
+
+start
+
+:Create or Load Project;
+
+if (Existing project?) then (Yes)
+  :Load project JSON;
+else (No)
+  :Ingest folder(s) of images;
+  :Create image records;
+endif
+
+partition "Prepare Stage" {
+
+  repeat
+    :Select image from thumbnail strip;
+    :Display large image in workspace;
+
+    :System proposes bounding rectangle;
+    :User drags rectangle corners;
+    :User adjusts rotation (if needed);
+
+    :Compute corners from rectangle;
+    :Generate normalised image;
+    :Generate thumbnail + region overlay;
+    :Generate pHash + metadata;
+
+    :Mark image as Prepared;
+  repeat while (More images to prepare?)
+
+}
+
+partition "Group Stage" {
+
+  :Choose grouping strategy;
+
+  if (Automatic grouping?) then (Yes)
+    :Group by pHash / filename / folder;
+  else (Manual)
+    :User assigns images to groups;
+  endif
+
+  :Review and adjust groups;
+}
+
+partition "Align Stage" {
+
+  repeat
+    :Select group;
+    :Choose reference image;
+    :Apply transformation;
+    :Preview overlay / diff mode;
+    :Confirm alignment;
+  repeat while (More groups?)
+
+}
+
+partition "Annotate Stage" {
+
+  repeat
+    :Select aligned image;
+    :Add / edit / remove annotations;
+  repeat while (More annotations?)
+
+}
+
+:Save / Export project;
+
+stop
+@enduml
