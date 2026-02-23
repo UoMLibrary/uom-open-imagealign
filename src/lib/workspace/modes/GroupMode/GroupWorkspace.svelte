@@ -26,3 +26,12 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.workspace {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0; /* prevents overflow issues */
+	}
+</style>
