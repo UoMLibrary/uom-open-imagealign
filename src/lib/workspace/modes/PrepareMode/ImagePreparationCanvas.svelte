@@ -17,8 +17,12 @@
 	import CrosshairGuide from './CrosshairGuide.svelte';
 	import RotationControls from './RotationControls.svelte';
 	import { updateImagePreparation } from '$lib/domain/project/projectStore';
-	import { regenerateCanonicalNormalised } from '$lib/domain/image/ImageDerivationStore';
+	import {
+		regeneratePreparedWorking,
+		regenerateCanonicalNormalised
+	} from '$lib/domain/image/ImageDerivationStore';
 	import { setImageStage } from '$lib/domain/project/workflow';
+	import { invalidatePrepared } from '$lib/domain/image/ImageDerivationStore';
 
 	export let selectedImage;
 
@@ -29,9 +33,9 @@
 	let lastRotation = rotation;
 	let lastRect = JSON.stringify(rect);
 
+	// TODO: this is a bit hacky - we want to trigger confirmation when geometry changes, but not on initial load. We can probably improve this logic by tracking "dirty" state or similar.
 	$: {
 		const rectString = JSON.stringify(rect);
-
 		const geometryChanged = rotation !== lastRotation || rectString !== lastRect;
 
 		if (geometryChanged) {
@@ -39,6 +43,7 @@
 			lastRect = rectString;
 
 			if (selectedImage.workflow?.stage !== 'ingested') {
+				invalidatePrepared(selectedImage.hashes.contentHash);
 				setImageStage(selectedImage.id, 'ingested');
 			}
 		}
@@ -47,14 +52,18 @@
 	$: needsConfirmation = selectedImage.workflow?.stage === 'ingested';
 
 	async function confirmPreparation() {
-		const { hashes, file, preparation } = selectedImage;
+		const { hashes, preparation } = selectedImage;
 
-		if (!hashes?.contentHash || !file || !preparation) {
-			console.error('Missing data for canonical regeneration');
+		if (!hashes?.contentHash || !preparation) {
+			console.error('Missing data for regeneration');
 			return;
 		}
 
-		await regenerateCanonicalNormalised(hashes.contentHash, file, preparation);
+		// 1️⃣ Generate prepared working image (for Align)
+		await regeneratePreparedWorking(hashes.contentHash, preparation);
+
+		// 2️⃣ Generate canonical (for pHash / grouping)
+		await regenerateCanonicalNormalised(hashes.contentHash, preparation);
 
 		setImageStage(selectedImage.id, 'prepared');
 	}

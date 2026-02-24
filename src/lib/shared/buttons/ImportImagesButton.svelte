@@ -5,10 +5,7 @@
 		updateImageByContentHash,
 		findImageByContentHash
 	} from '$lib/domain/project/projectStore';
-	import {
-		ensureThumbnail,
-		regenerateCanonicalNormalised
-	} from '$lib/domain/image/ImageDerivationStore';
+	import { ensureWorkingImage, ensureThumbnail } from '$lib/domain/image/ImageDerivationStore';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 	import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
 	import type { ImagePreparation } from '$lib/domain/project/types';
@@ -141,14 +138,11 @@
 				rect: { x: 0, y: 0, width: 1, height: 1 }
 			};
 
-			// 1️⃣ Thumbnail (file-derived only)
-			await ensureThumbnail(contentHash, file);
+			// 1️⃣ Build bounded working image
+			await ensureWorkingImage(contentHash, file);
 
-			// 2️⃣ Canonical normalised (file + preparation)
-			await regenerateCanonicalNormalised(contentHash, file, defaultPreparation);
-
-			// 2️⃣ compute pHash
-			const perceptualHash = await computePHashFromNormalised(contentHash);
+			// 2️⃣ Build thumbnail from working
+			await ensureThumbnail(contentHash);
 
 			// 3️⃣ now add image fully ready
 			addImage({
@@ -159,7 +153,7 @@
 				structuralPath,
 				hashes: {
 					contentHash,
-					perceptualHash
+					perceptualHash: undefined // will be computed later from normalised image
 				},
 				dimensions: {
 					width: bitmap.width,
