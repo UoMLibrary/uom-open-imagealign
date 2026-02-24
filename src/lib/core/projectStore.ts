@@ -359,9 +359,9 @@ export function addAlignment(alignment: ImageAlignment) {
     alignments.update(a => [...a, alignment]);
 }
 
-export function removeAlignment(alignmentId: string) {
+export function removeAlignment(alignmentIdx: number) {
     alignments.update((list) =>
-        list.filter((a) => a.id !== alignmentId)
+        list.filter((_, idx) => idx !== alignmentIdx)
     );
 }
 

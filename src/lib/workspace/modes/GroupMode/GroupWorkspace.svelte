@@ -2,7 +2,7 @@
 	import { images, groups, project, updateProjectUI } from '$lib/core/projectStore';
 	import { get } from 'svelte/store';
 	import { applyGroupingProposal } from '$lib/services/groupService';
-	import type { GroupingProposal } from '$lib/core/types';
+	import type { GroupingProposal } from '$lib/core/groupingStore';
 	import { groupingState } from '$lib/core/groupingStore';
 	import { initialiseSingleImageProposals } from '$lib/core/groupingStore';
 

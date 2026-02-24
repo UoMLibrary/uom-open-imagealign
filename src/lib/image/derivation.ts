@@ -17,6 +17,7 @@
 
 import { get, set, del } from 'idb-keyval';
 import type { ImagePreparation } from '$lib/core/types';
+import type { RuntimeImageSource } from '$lib/core/runtimeTypes';
 
 /* ============================================================
    VERSIONING & POLICY
@@ -347,8 +348,8 @@ export async function computePHashFromNormalised(
  * Used during project load.
  */
 export async function rehydrateImagesFromCache(
-    imageList: Array<{ hashes: { contentHash: string }; runtimeUri?: string }>
-) {
+    imageList: RuntimeImageSource[]
+): Promise<RuntimeImageSource[]> {
     return Promise.all(
         imageList.map(async (img) => {
             if (img.runtimeUri) return img;
