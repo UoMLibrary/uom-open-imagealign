@@ -241,3 +241,13 @@ It allows grouping strategies to improve or change without breaking existing pro
 - **Annotations always belong to the base image**; other images may provide comparison context only.
 - The tool asserts image identity and geometric relationships, not interpretive meaning.
 - **Annotation data is treated as opaque** and is not interpreted, validated, or rendered by this tool.
+
+## TODO
+
+- Update in Image prepare needs to regenerate the normalised image
+- Strategy return matches, they need to also return unmatched as groups of 1
+- Lots of wasted screen real estate with group suggestions, use grid?
+- Need visual component for Group > Sidebar > item
+- If importing an image folder and it contains a project.json file, use it
+- Need to be able to order within the group
+- Align mode can infer base image as groupImage[0]

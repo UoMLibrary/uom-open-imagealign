@@ -84,12 +84,12 @@
 	<div class="workspace">
 		<div class="suggestions">
 			<div class="panel-title">Group Suggestions</div>
-			<GroupProposalList {selectedGroupId} on:confirm={(e) => confirmProposal(e.detail)} />
+			<GroupProposalList on:confirm={(e) => confirmProposal(e.detail)} />
 		</div>
 
-		<!-- <div class="strategy">
+		<div class="strategy">
 			<GroupStrategyPanel />
-		</div> -->
+		</div>
 	</div>
 </div>
 

@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import { groups } from '$lib/domain/project/projectStore';
-	import type { GroupingProposal } from '$lib/domain/grouping/types';
-	import type { ImageGroup } from '$lib/domain/project/types';
 	import { images } from '$lib/domain/project/projectStore';
+	import type { GroupingProposal } from '$lib/domain/grouping/types';
 	import ImageThumbnail from '$lib/features/thumbnails/ImageThumbnail.svelte';
 
 	const dispatch = createEventDispatcher<{
@@ -12,26 +10,18 @@
 		discard: string;
 	}>();
 
-	/* ------------------------------------------------
-	   Derived state
-	------------------------------------------------ */
+	// Sort proposals largest first
+	$: sorted = [...$groupingState.proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
 
-	$: proposals = $groupingState.proposals;
-	$: projectGroups = $groups;
-
+	// Image lookup map
 	$: imagesById = Object.fromEntries($images.map((img) => [img.id, img]));
-
-	// Sort largest first
-	$: sorted = [...proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
-
-	$: visible = sorted;
 </script>
 
-{#if visible.length === 0}
+{#if sorted.length === 0}
 	<div class="empty">No group suggestions</div>
 {:else}
 	<div class="proposal-list">
-		{#each visible as proposal (proposal.id)}
+		{#each sorted as proposal (proposal.id)}
 			<div class="proposal-card">
 				<div class="proposal-header">
 					<div class="proposal-title">
