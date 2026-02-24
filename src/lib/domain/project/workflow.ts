@@ -1,3 +1,14 @@
+// src/lib/domain/project/workflow.ts
+
+/*
+
+ingested   → file known, geometry NOT confirmed
+prepared   → geometry confirmed by human
+grouped    → grouping confirmed
+aligned    → alignment confirmed
+annotated  → annotations exist
+
+*/
 import { images, groups, alignments, annotations } from './projectStore';
 import {
     removeFromGroups,

@@ -17,12 +17,47 @@
 	import CrosshairGuide from './CrosshairGuide.svelte';
 	import RotationControls from './RotationControls.svelte';
 	import { updateImagePreparation } from '$lib/domain/project/projectStore';
+	import { regenerateCanonicalNormalised } from '$lib/domain/image/ImageDerivationStore';
+	import { setImageStage } from '$lib/domain/project/workflow';
 
 	export let selectedImage;
 
 	let rotation = 0;
 	let rect = { x: 0, y: 0, width: 1, height: 1 };
 	let crosshair = { x: 0.5, y: 0.5 };
+
+	let lastRotation = rotation;
+	let lastRect = JSON.stringify(rect);
+
+	$: {
+		const rectString = JSON.stringify(rect);
+
+		const geometryChanged = rotation !== lastRotation || rectString !== lastRect;
+
+		if (geometryChanged) {
+			lastRotation = rotation;
+			lastRect = rectString;
+
+			if (selectedImage.workflow?.stage !== 'ingested') {
+				setImageStage(selectedImage.id, 'ingested');
+			}
+		}
+	}
+
+	$: needsConfirmation = selectedImage.workflow?.stage === 'ingested';
+
+	async function confirmPreparation() {
+		const { hashes, file, preparation } = selectedImage;
+
+		if (!hashes?.contentHash || !file || !preparation) {
+			console.error('Missing data for canonical regeneration');
+			return;
+		}
+
+		await regenerateCanonicalNormalised(hashes.contentHash, file, preparation);
+
+		setImageStage(selectedImage.id, 'prepared');
+	}
 
 	/* -----------------------------
 	   Sync from selectedImage
@@ -99,6 +134,10 @@
 			/>
 		</div>
 	</div>
+
+	{#if needsConfirmation}
+		<button on:click={confirmPreparation}> Confirm Geometry </button>
+	{/if}
 
 	<RotationControls {rotation} on:change={(e) => onRotationChange(e.detail)} />
 </div>

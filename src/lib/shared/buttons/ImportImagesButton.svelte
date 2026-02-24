@@ -102,6 +102,12 @@
 	}
 
 	async function ingestFile(file: File, structuralPath?: string) {
+		// Warn when unsupported file type is encountered, but continue processing other files
+		if (!file.type.match(/^image\/(png|jpeg|jpg|webp)$/)) {
+			console.warn('Unsupported image type:', file.name);
+			return;
+		}
+
 		// 1️⃣ Hash original file bytes
 		const { contentHash } = await hashImageFile(file);
 

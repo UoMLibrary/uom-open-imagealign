@@ -5,6 +5,9 @@
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
 
+	// DEBUG
+	console.log('Images in store:', get(images));
+
 	let selectedId: string | null = null;
 	let sidebarOpen = true;
 
