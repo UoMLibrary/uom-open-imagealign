@@ -73,19 +73,68 @@
  */
 import { get, set } from 'idb-keyval';
 
+/**
+NORMALISE_VERSION will need bumping if any of the following change:
+    - size
+    - grayscale logic
+    - padding logic
+*/
+import type { ImagePreparation } from '$lib/domain/project/types';
+
 const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
 const THUMB_VERSION = 'v1_256';
 
-export interface ImagePreparation {
-    rotation: number; // degrees
-    corners: { x: number; y: number }[]; // normalised 0–1
+
+export async function ensureThumbnail(
+    contentHash: string,
+    file: File
+) {
+    const key = `thumb::${contentHash}::${THUMB_VERSION}`;
+    const existing = await get(key);
+    if (existing) return;
+
+    const bitmap = await createImageBitmap(file);
+    const blob = await buildThumbnail(bitmap);
+    await set(key, blob);
 }
+
+export async function ensureCanonicalNormalised(
+    contentHash: string,
+    file: File,
+    preparation: ImagePreparation
+) {
+    const key = `norm::${contentHash}::${NORMALISE_VERSION}`;
+
+    const existing = await get(key);
+    if (existing) return;
+
+    await regenerateCanonicalNormalised(contentHash, file, preparation);
+}
+
+export async function regenerateCanonicalNormalised(
+    contentHash: string,
+    file: File,
+    preparation: ImagePreparation
+) {
+    const key = `norm::${contentHash}::${NORMALISE_VERSION}`;
+
+    const bitmap = await createImageBitmap(file);
+
+    const preparedCanvas = applyPreparation(bitmap, preparation);
+    const preparedBitmap = await createImageBitmap(preparedCanvas);
+
+    const blob = await buildNormalised(preparedBitmap);
+
+    await set(key, blob); // overwrite
+}
+
 
 export async function ensureDerivedImages(
     contentHash: string,
     file: File,
     preparation: ImagePreparation
 ) {
+
     const normKey = `norm::${contentHash}::${NORMALISE_VERSION}`;
     const thumbKey = `thumb::${contentHash}::${THUMB_VERSION}`;
 
@@ -190,7 +239,7 @@ function applyPreparation(
     preparation: ImagePreparation
 ): HTMLCanvasElement {
 
-    const { rotation, corners } = preparation;
+    const { rotation, rect } = preparation;
 
     // 1️⃣ Rotate full image first
     const rotateCanvas = document.createElement('canvas');
@@ -208,17 +257,11 @@ function applyPreparation(
     rctx.rotate(radians);
     rctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
 
-    // 2️⃣ Convert normalised corners to pixel bounds
-    const xs = corners.map(c => c.x * rotateCanvas.width);
-    const ys = corners.map(c => c.y * rotateCanvas.height);
-
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-
-    const width = maxX - minX;
-    const height = maxY - minY;
+    // 2️⃣ Convert normalised rect to pixel bounds
+    const minX = rect.x * rotateCanvas.width;
+    const minY = rect.y * rotateCanvas.height;
+    const width = rect.width * rotateCanvas.width;
+    const height = rect.height * rotateCanvas.height;
 
     // 3️⃣ Crop
     const cropCanvas = document.createElement('canvas');

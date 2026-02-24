@@ -5,9 +5,13 @@
 		updateImageByContentHash,
 		findImageByContentHash
 	} from '$lib/domain/project/projectStore';
-	import { ensureDerivedImages } from '$lib/domain/image/ImageDerivationStore';
+	import {
+		ensureThumbnail,
+		regenerateCanonicalNormalised
+	} from '$lib/domain/image/ImageDerivationStore';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 	import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
+	import type { ImagePreparation } from '$lib/domain/project/types';
 
 	let ingesting = false;
 	let ingestProgress = 0;
@@ -126,16 +130,16 @@
 			// 2️⃣ Create bitmap only for new images
 			const bitmap = await createImageBitmap(file);
 
-			// 1️⃣ derive first with a full frame default preparation to get a normalised image for pHash computation. This also ensures we have a normalised version cached for later use in the app.
-			await ensureDerivedImages(contentHash, file, {
+			const defaultPreparation: ImagePreparation = {
 				rotation: 0,
-				corners: [
-					{ x: 0, y: 0 },
-					{ x: 1, y: 0 },
-					{ x: 1, y: 1 },
-					{ x: 0, y: 1 }
-				]
-			});
+				rect: { x: 0, y: 0, width: 1, height: 1 }
+			};
+
+			// 1️⃣ Thumbnail (file-derived only)
+			await ensureThumbnail(contentHash, file);
+
+			// 2️⃣ Canonical normalised (file + preparation)
+			await regenerateCanonicalNormalised(contentHash, file, defaultPreparation);
 
 			// 2️⃣ compute pHash
 			const perceptualHash = await computePHashFromNormalised(contentHash);
@@ -155,6 +159,7 @@
 					width: bitmap.width,
 					height: bitmap.height
 				},
+				preparation: defaultPreparation,
 				workflow: {
 					stage: 'ingested',
 					updatedAt: new Date().toISOString()

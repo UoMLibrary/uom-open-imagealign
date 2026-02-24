@@ -254,3 +254,4 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Add search filters and sort onto the list panels e.g by filename
 - Some metadata can attach to the file hash so could be added at any step.
 - Add select/unselect all in Group suggestions fixed header along with actions
+- Summary page of where each Image is in terms of Mode (show ticks versus crosses)
