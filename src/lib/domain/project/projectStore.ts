@@ -1,13 +1,14 @@
 import { writable, derived, get } from 'svelte/store';
 import type {
     ImageAlignmentProject as Project,
-    ImageSource,
     ImageGroup,
     ImageAlignment,
     ImagePreparation,
     ProjectUIState
 } from '$lib/domain/project/types';
+import type { RuntimeImageSource } from './runtimeTypes';
 import { invalidateDownstream } from './workflow';
+import { rehydrateImagesFromCache } from '$lib/domain/image/Rehydration';
 
 /* ---------------------------------------------
    Core writable stores (authoritative state)
@@ -22,7 +23,7 @@ export const projectMeta = writable<{
     createdAt: new Date().toISOString()
 });
 
-export const images = writable<ImageSource[]>([]);
+export const images = writable<RuntimeImageSource[]>([]);
 export const groups = writable<ImageGroup[]>([]);
 export const alignments = writable<ImageAlignment[]>([]);
 export const annotations = writable<Project['annotations']>([]);
@@ -84,10 +85,12 @@ export const project = derived(
     ([$meta, $images, $groups, $alignments, $annotations, $ui]): Project | null => {
         if ($images.length === 0) return null;
 
+        const persistableImages = $images.map(({ runtimeUri, ...rest }) => rest);
+
         return {
             version: $meta.version,
             createdAt: $meta.createdAt,
-            images: $images as [ImageSource, ...ImageSource[]],
+            images: persistableImages as [Project['images'][number], ...Project['images'][number][]],
             groups: $groups,
             alignments: $alignments,
             notes: $meta.notes,
@@ -114,7 +117,9 @@ export function resetProject() {
     projectUI.set(undefined);
 }
 
-export function loadProject(p: Project) {
+
+
+export async function loadProject(p: Project) {
     projectMeta.set({
         version: p.version,
         createdAt: p.createdAt,
@@ -124,7 +129,7 @@ export function loadProject(p: Project) {
     images.set(
         p.images.map((img) => ({
             ...img,
-            uri: '' // unlinked by definition
+            runtimeUri: undefined
         }))
     );
 
@@ -132,6 +137,11 @@ export function loadProject(p: Project) {
     alignments.set(p.alignments);
     annotations.set(p.annotations ?? []);
     projectUI.set(p.ui);
+
+    // wait one microtask so store is populated
+    await Promise.resolve();
+
+    await rehydrateImagesFromCache();
 }
 
 /* ---------------------------------------------
@@ -151,7 +161,7 @@ export function updateProjectUI(
    Image mutations
 --------------------------------------------- */
 
-export function addImage(image: ImageSource) {
+export function addImage(image: RuntimeImageSource) {
     images.update(imgs => [...imgs, image]);
 }
 
@@ -179,7 +189,7 @@ export function updateImagePreparation(
 
 export function updateImageByContentHash(
     contentHash: string,
-    updater: (img: ImageSource) => ImageSource
+    updater: (img: RuntimeImageSource) => RuntimeImageSource
 ) {
     images.update((list) => {
         const idx = list.findIndex(
@@ -188,16 +198,29 @@ export function updateImageByContentHash(
 
         if (idx === -1) return list;
 
+        const current = list[idx];
+        const updated = updater(current);
+
+        // 🔁 If runtimeUri changed and old one was a blob, revoke it
+        if (
+            current.runtimeUri &&
+            current.runtimeUri !== updated.runtimeUri &&
+            current.runtimeUri.startsWith('blob:')
+        ) {
+            URL.revokeObjectURL(current.runtimeUri);
+        }
+
         const next = [...list];
-        next[idx] = updater(next[idx]);
+        next[idx] = updated;
+
         return next;
     });
 }
 
 export function upsertImageByContentHash(
     contentHash: string,
-    create: () => ImageSource,
-    update: (img: ImageSource) => ImageSource
+    create: () => RuntimeImageSource,
+    update: (img: RuntimeImageSource) => RuntimeImageSource
 ) {
     images.update((list) => {
         const idx = list.findIndex(
@@ -216,7 +239,7 @@ export function upsertImageByContentHash(
 
 export function findImageByContentHash(
     contentHash: string
-): ImageSource | undefined {
+): RuntimeImageSource | undefined {
     return get(images).find(
         (img) => img.hashes.contentHash === contentHash
     );
@@ -331,7 +354,7 @@ export function replaceAnnotations(next: Project['annotations']) {
 export const linkedImagesByHash = derived(images, ($images) =>
     new Set(
         $images
-            .filter((img) => img.uri && img.uri.length > 0)
+            .filter((img) => img.runtimeUri && img.runtimeUri.length > 0)
             .map((img) => img.hashes.contentHash)
     )
 );

@@ -80,7 +80,7 @@
             "required": [
                 "id",
                 "sourceType",
-                "uri",
+                "source",
                 "hashes",
                 "dimensions",
                 "workflow"
@@ -98,8 +98,19 @@
                         "iiif"
                     ]
                 },
-                "uri": {
-                    "type": "string"
+                "source": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "Canonical source URI (remote URL or IIIF endpoint)"
+                        },
+                        "iiifService": {
+                            "type": "string",
+                            "description": "IIIF base service URL (if sourceType is iiif)"
+                        }
+                    }
                 },
                 "label": {
                     "type": "string"
@@ -149,7 +160,65 @@
                 "workflow": {
                     "$ref": "#/$defs/imageWorkflow"
                 }
-            }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "sourceType": {
+                                "const": "local"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "source": {
+                                "not": {
+                                    "required": [
+                                        "uri"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "sourceType": {
+                                "const": "url"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "source": {
+                                "required": [
+                                    "uri"
+                                ]
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "sourceType": {
+                                "const": "iiif"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "source": {
+                                "required": [
+                                    "iiifService"
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]
         },
         "imageGroup": {
             "type": "object",

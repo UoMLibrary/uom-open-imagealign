@@ -30,7 +30,7 @@
 				// optional: show modal/toast
 			}
 
-			loadProject(migrated);
+			await loadProject(migrated);
 		};
 
 		input.click();

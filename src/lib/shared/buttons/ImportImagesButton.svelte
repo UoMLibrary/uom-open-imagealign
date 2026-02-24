@@ -7,7 +7,6 @@
 	} from '$lib/domain/project/projectStore';
 	import { ensureWorkingImage, ensureThumbnail } from '$lib/domain/image/ImageDerivationStore';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
-	import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
 	import type { ImagePreparation } from '$lib/domain/project/types';
 
 	let ingesting = false;
@@ -70,9 +69,7 @@
 		ingestProgress = 0;
 		ingesting = true;
 
-		const concurrency = 1; // Anything greater than 1 causes race conditions in the current implementation due to shared state mutations. Can be improved with better state management.
-		const queue = [...items]; // clone
-
+		const queue = [...items];
 		let completed = 0;
 
 		async function worker() {
@@ -91,88 +88,67 @@
 			}
 		}
 
-		const workers = Array.from({ length: concurrency }, () => worker());
-
-		await Promise.all(workers);
-
+		await worker();
 		ingesting = false;
 	}
 
 	async function ingestFile(file: File, structuralPath?: string) {
-		// Warn when unsupported file type is encountered, but continue processing other files
 		if (!file.type.match(/^image\/(png|jpeg|jpg|webp)$/)) {
 			console.warn('Unsupported image type:', file.name);
 			return;
 		}
 
-		// 1️⃣ Hash original file bytes
 		const { contentHash } = await hashImageFile(file);
-
 		const existing = findImageByContentHash(contentHash);
-		if (existing) {
-			console.log('Duplicate content hash:', file.name);
-		}
-
 		const objectUrl = URL.createObjectURL(file);
 
 		if (existing) {
-			// 🔁 Relink existing image
-			updateImageByContentHash(contentHash, (img) => {
-				if (img.uri.startsWith('blob:')) {
-					URL.revokeObjectURL(img.uri);
-				}
-
-				return {
-					...img,
-					uri: objectUrl,
-					label: file.name,
-					structuralPath
-				};
-			});
-		} else {
-			// 2️⃣ Create bitmap only for new images
-			const bitmap = await createImageBitmap(file);
-
-			const defaultPreparation: ImagePreparation = {
-				rotation: 0,
-				rect: { x: 0, y: 0, width: 1, height: 1 }
-			};
-
-			// 1️⃣ Build bounded working image
-			await ensureWorkingImage(contentHash, file);
-
-			// 2️⃣ Build thumbnail from working
-			await ensureThumbnail(contentHash);
-
-			// 3️⃣ now add image fully ready
-			addImage({
-				id: crypto.randomUUID(),
-				sourceType: 'local',
-				uri: objectUrl,
+			updateImageByContentHash(contentHash, (img) => ({
+				...img,
+				runtimeUri: objectUrl,
 				label: file.name,
-				structuralPath,
-				hashes: {
-					contentHash,
-					perceptualHash: undefined // will be computed later from normalised image
-				},
-				dimensions: {
-					width: bitmap.width,
-					height: bitmap.height
-				},
-				preparation: defaultPreparation,
-				workflow: {
-					stage: 'ingested',
-					updatedAt: new Date().toISOString()
-				}
-			});
+				structuralPath
+			}));
+			return;
 		}
+
+		const bitmap = await createImageBitmap(file);
+
+		const defaultPreparation: ImagePreparation = {
+			rotation: 0,
+			rect: { x: 0, y: 0, width: 1, height: 1 }
+		};
+
+		await ensureWorkingImage(contentHash, file);
+		await ensureThumbnail(contentHash);
+
+		addImage({
+			id: crypto.randomUUID(),
+			sourceType: 'local',
+			source: {},
+			label: file.name,
+			structuralPath,
+			hashes: { contentHash },
+			dimensions: {
+				width: bitmap.width,
+				height: bitmap.height
+			},
+			preparation: defaultPreparation,
+			workflow: {
+				stage: 'ingested',
+				updatedAt: new Date().toISOString()
+			},
+			runtimeUri: objectUrl
+		});
 	}
 </script>
 
+<!-- 🔘 BUTTON -->
 <button on:click={importImages} disabled={ingesting}>
 	{ingesting ? 'Processing…' : 'Import Images'}
 </button>
 
+<!-- 📊 PROGRESS -->
 {#if ingesting}
 	<div class="progress">
 		Processing {ingestProgress}% ({ingestTotal} images)
@@ -181,6 +157,12 @@
 {/if}
 
 <style>
+	button {
+		padding: 0.4rem 0.8rem;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+
 	.progress {
 		margin-top: 0.75rem;
 		font-size: 0.8rem;

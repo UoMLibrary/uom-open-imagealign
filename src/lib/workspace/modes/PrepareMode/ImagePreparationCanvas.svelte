@@ -125,7 +125,7 @@
 		<!-- IMAGE FRAME (image-sized) -->
 		<div class="image-frame">
 			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
-				<img src={selectedImage.uri} alt="" />
+				<img src={selectedImage.runtimeUri ?? selectedImage.source.uri} alt="" />
 			</div>
 
 			<div class="crop-layer">

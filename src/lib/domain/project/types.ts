@@ -1,5 +1,69 @@
 /* THIS FILE IS AUTO-GENERATED — DO NOT EDIT MANUALLY */
 
+export type ImageSource = {
+  [k: string]: unknown;
+} & {
+  [k: string]: unknown;
+} & {
+  [k: string]: unknown;
+} & {
+  id: string;
+  sourceType: 'local' | 'url' | 'iiif';
+  source: {
+    /**
+     * Canonical source URI (remote URL or IIIF endpoint)
+     */
+    uri?: string;
+    /**
+     * IIIF base service URL (if sourceType is iiif)
+     */
+    iiifService?: string;
+  };
+  label?: string;
+  structuralPath?: string;
+  hashes: {
+    contentHash: string;
+    perceptualHash?: string;
+  };
+  dimensions: {
+    width: number;
+    height: number;
+  };
+  metadata?: {
+    [k: string]: unknown;
+  };
+  preparation?: ImagePreparation;
+  workflow: ImageWorkflow;
+} & {
+  id: string;
+  sourceType: 'local' | 'url' | 'iiif';
+  source: {
+    /**
+     * Canonical source URI (remote URL or IIIF endpoint)
+     */
+    uri?: string;
+    /**
+     * IIIF base service URL (if sourceType is iiif)
+     */
+    iiifService?: string;
+  };
+  label?: string;
+  structuralPath?: string;
+  hashes: {
+    contentHash: string;
+    perceptualHash?: string;
+  };
+  dimensions: {
+    width: number;
+    height: number;
+  };
+  metadata?: {
+    [k: string]: unknown;
+  };
+  preparation?: ImagePreparation;
+  workflow: ImageWorkflow;
+};
+
 export interface ImageAlignmentProject {
   version: string;
   createdAt: string;
@@ -19,26 +83,6 @@ export interface ImageAlignmentProject {
     };
   }[];
   ui?: ProjectUIState;
-}
-export interface ImageSource {
-  id: string;
-  sourceType: 'local' | 'url' | 'iiif';
-  uri: string;
-  label?: string;
-  structuralPath?: string;
-  hashes: {
-    contentHash: string;
-    perceptualHash?: string;
-  };
-  dimensions: {
-    width: number;
-    height: number;
-  };
-  metadata?: {
-    [k: string]: unknown;
-  };
-  preparation?: ImagePreparation;
-  workflow: ImageWorkflow;
 }
 export interface ImagePreparation {
   rect: {
