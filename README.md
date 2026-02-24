@@ -251,3 +251,5 @@ It allows grouping strategies to improve or change without breaking existing pro
 - If importing an image folder and it contains a project.json file, use it
 - Need to be able to order within the group
 - Align mode can infer base image as groupImage[0]
+- Add search filters and sort onto the list panels e.g by filename
+- metadat step in flow or leave to annotation?
