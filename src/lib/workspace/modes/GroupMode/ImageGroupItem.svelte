@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ImageGroup } from '$lib/domain/project/types';
+	import type { ImageGroup } from '$lib/core/types';
 
 	export let group: ImageGroup;
 	export let index: number; // passed from parent

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { groups } from '$lib/domain/project/projectStore';
+	import { groups } from '$lib/core/projectStore';
 
 	export let selectedGroupId: string | null = null;
 

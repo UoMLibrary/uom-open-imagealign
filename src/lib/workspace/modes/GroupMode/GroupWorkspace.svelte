@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { images, groups, project, updateProjectUI } from '$lib/domain/project/projectStore';
+	import { images, groups, project, updateProjectUI } from '$lib/core/projectStore';
 	import { get } from 'svelte/store';
-	import { applyGroupingProposal } from '$lib/domain/project/groupActions';
-	import type { GroupingProposal } from '$lib/domain/grouping/types';
-	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import { initialiseSingleImageProposals } from '$lib/domain/grouping/groupingStore';
+	import { applyGroupingProposal } from '$lib/services/groupService';
+	import type { GroupingProposal } from '$lib/core/types';
+	import { groupingState } from '$lib/core/groupingStore';
+	import { initialiseSingleImageProposals } from '$lib/core/groupingStore';
 
-	import Sidebar from '$lib/app/SidePanel.svelte';
+	import Sidebar from '$lib/ui/app/SidePanel.svelte';
 	import GroupSidebar from './GroupSidebar.svelte';
 	import GroupStrategyPanel from './GroupStrategyPanel.svelte';
 	import GroupProposalList from './GroupProposalList.svelte';
@@ -17,7 +17,7 @@
 	/* ------------------------------------------------
 	   Initialise selection from project.ui
 	------------------------------------------------ */
-	$: console.log('PROPOSALS NOW:', $groupingState.proposals.length);
+	// $: console.log('PROPOSALS NOW:', $groupingState.proposals.length);
 
 	$: {
 		if ($groups.length === 0) {

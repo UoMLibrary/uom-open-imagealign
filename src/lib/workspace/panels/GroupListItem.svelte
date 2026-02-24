@@ -2,7 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import ImageGroupSummary from './GroupSummary.svelte';
 	// import ImageGroupEditor from './GroupEditor.svelte';
-	import type { ImageGroup } from '$lib/domain/project/types';
+	import type { ImageGroup } from '$lib/core/types';
 
 	export let group: ImageGroup;
 	export let selected = false;

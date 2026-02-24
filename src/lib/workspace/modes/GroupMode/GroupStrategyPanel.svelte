@@ -1,9 +1,9 @@
 <script lang="ts">
-	import FilenameGroupingTool from '$lib/features/grouping/tools/FilenameGroupingTool.svelte';
-	import LeafFolderGroupingTool from '$lib/features/grouping/tools/LeafFolderGroupingTool.svelte';
-	import PHashGroupingTool from '$lib/features/grouping/tools/PHashGroupingTool.svelte';
-	import VisualProfileTool from '$lib/features/grouping/tools/VisualProfileTool.svelte';
-	import PanelHeader from '$lib/shared/ui/PanelHeader.svelte';
+	import FilenameGroupingTool from '$lib/ui/features/grouping/tools/FilenameGroupingTool.svelte';
+	import LeafFolderGroupingTool from '$lib/ui/features/grouping/tools/LeafFolderGroupingTool.svelte';
+	import PHashGroupingTool from '$lib/ui/features/grouping/tools/PHashGroupingTool.svelte';
+	import VisualProfileTool from '$lib/ui/features/grouping/tools/VisualProfileTool.svelte';
+	import PanelHeader from '$lib/ui/shared/ui/PanelHeader.svelte';
 
 	let selectedStrategy = 'filename';
 </script>

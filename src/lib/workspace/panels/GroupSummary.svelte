@@ -1,7 +1,7 @@
 <script lang="ts">
-	import ImageThumbnail from '$lib/features/thumbnails/ImageThumbnail.svelte';
-	import { imagesById } from '$lib/domain/project/projectStore';
-	import type { ImageGroup } from '$lib/domain/project/types';
+	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
+	import { imagesById } from '$lib/core/projectStore';
+	import type { ImageGroup } from '$lib/core/types';
 
 	export let group: ImageGroup;
 

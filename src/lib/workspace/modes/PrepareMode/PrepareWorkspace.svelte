@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { images, project, updateProjectUI } from '$lib/domain/project/projectStore';
+	import { images, project, updateProjectUI } from '$lib/core/projectStore';
 	import { get } from 'svelte/store';
-	import Sidebar from '$lib/app/SidePanel.svelte';
+	import Sidebar from '$lib/ui/app/SidePanel.svelte';
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
 
 	// DEBUG
-	console.log('Images in store:', get(images));
+	// console.log('Images in store:', get(images));
 
 	let selectedId: string | null = null;
 	let sidebarOpen = true;

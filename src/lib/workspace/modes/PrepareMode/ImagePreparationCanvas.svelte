@@ -16,13 +16,13 @@
 	import CropRectangle from './CropRectangle.svelte';
 	import CrosshairGuide from './CrosshairGuide.svelte';
 	import RotationControls from './RotationControls.svelte';
-	import { updateImagePreparation } from '$lib/domain/project/projectStore';
+	import { updateImagePreparation } from '$lib/core/projectStore';
 	import {
 		regeneratePreparedWorking,
 		regenerateCanonicalNormalised
-	} from '$lib/domain/image/ImageDerivationStore';
-	import { setImageStage } from '$lib/domain/project/workflow';
-	import { invalidatePrepared } from '$lib/domain/image/ImageDerivationStore';
+	} from '$lib/image/derivation';
+	import { setImageStage } from '$lib/services/prepareService';
+	import { invalidatePrepared } from '$lib/image/derivation';
 
 	export let selectedImage;
 

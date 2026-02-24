@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import ImageThumbnailGrid from '$lib/features/thumbnails/ImageThumbnailGrid.svelte';
-	import type { GroupingProposal } from '$lib/domain/grouping/types';
-	import { addGroups } from '$lib/domain/project/projectStore';
-	import type { ImageGroup } from '$lib/domain/project/types';
+	import { groupingState } from '$lib/core/groupingStore';
+	import ImageThumbnailGrid from '$lib/ui/features/thumbnails/ImageThumbnailGrid.svelte';
+	import type { GroupingProposal } from '$lib/core/types';
+	import { addGroups } from '$lib/core/projectStore';
+	import type { ImageGroup } from '$lib/core/types';
 
 	// 🔑 Explicitly typed locals (this fixes the `never` issue)
 	let proposals: GroupingProposal[] = [];

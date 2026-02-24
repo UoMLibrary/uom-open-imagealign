@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { groupingState } from '$lib/domain/grouping/groupingStore';
-	import { images } from '$lib/domain/project/projectStore';
-	import type { GroupingProposal } from '$lib/domain/grouping/types';
-	import ImageThumbnail from '$lib/features/thumbnails/ImageThumbnail.svelte';
+	import { groupingState } from '$lib/core/groupingStore';
+	import { images } from '$lib/core/projectStore';
+	import type { GroupingProposal } from '$lib/core/types';
+	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
 
 	const dispatch = createEventDispatcher<{
 		confirm: GroupingProposal;

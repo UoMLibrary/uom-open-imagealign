@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { groupingState } from '$lib/domain/grouping/groupingStore';
+	import { groupingState } from '$lib/core/groupingStore';
 
-	import FilenameGroupingTool from '../../features/grouping/tools/FilenameGroupingTool.svelte';
-	import PHashGroupingTool from '../../features/grouping/tools/PHashGroupingTool.svelte';
-	import VisualProfileTool from '../../features/grouping/tools/VisualProfileTool.svelte';
-	import LeafFolderGroupingTool from '../../features/grouping/tools/LeafFolderGroupingTool.svelte';
+	import FilenameGroupingTool from '$lib/ui/features/grouping/tools/FilenameGroupingTool.svelte';
+	import PHashGroupingTool from '$lib/ui/features/grouping/tools/PHashGroupingTool.svelte';
+	import VisualProfileTool from '$lib/ui/features/grouping/tools/VisualProfileTool.svelte';
+	import LeafFolderGroupingTool from '$lib/ui/features/grouping/tools/LeafFolderGroupingTool.svelte';
 
 	import GroupProposalList from './GroupProposalList.svelte';
-	import { ungroupedImageIds } from '$lib/features/thumbnails/imageVisibility';
-	import PanelHeader from '$lib/shared/ui/PanelHeader.svelte';
+	import { ungroupedImageIds } from '$lib/ui/features/thumbnails/imageVisibility';
+	import PanelHeader from '$lib/ui/shared/ui/PanelHeader.svelte';
 
 	type GroupingTool = 'filename' | 'phash' | 'visual-profile' | 'leaf-folder';
 

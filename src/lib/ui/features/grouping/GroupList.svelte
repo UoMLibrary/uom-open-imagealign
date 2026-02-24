@@ -1,26 +1,25 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import ImageGroupItem from './ImageGroupItem.svelte';
+	import ImageGroupItem from '$lib/workspace/panels/GroupListItem.svelte';
 	import type { ImageGroup } from '$lib/core/types';
 
 	export let groups: ImageGroup[] = [];
 	export let selectedGroupId: string | null = null;
 
-	const dispatch = createEventDispatcher();
+	const dispatch = createEventDispatcher<{ select: { id: string } }>();
 
-	function select(id: string) {
+	function dispatchSelect(id: string) {
 		dispatch('select', { id });
 	}
 </script>
 
 <ul class="group-list">
-	{#each groups as group, i (group.id)}
+	{#each groups as group (group.id)}
 		<li>
 			<ImageGroupItem
 				{group}
-				index={i}
 				selected={group.id === selectedGroupId}
-				on:click={() => select(group.id)}
+				on:select={() => dispatchSelect(group.id)}
 			/>
 		</li>
 	{/each}
@@ -29,7 +28,7 @@
 <style>
 	.group-list {
 		list-style: none;
-		padding: 0;
 		margin: 0;
+		padding: 0;
 	}
 </style>
