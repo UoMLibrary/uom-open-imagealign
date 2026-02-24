@@ -253,3 +253,4 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Align mode can infer base image as groupImage[0]
 - Add search filters and sort onto the list panels e.g by filename
 - Some metadata can attach to the file hash so could be added at any step.
+- Add select/unselect all in Group suggestions fixed header along with actions

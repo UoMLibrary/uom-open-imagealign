@@ -4,7 +4,8 @@
  *
  * Responsibility:
  * Deterministically generate and cache derived image artefacts
- * from an original image + confirmed preparation metadata.
+ * from an original image and (where applicable) confirmed
+ * ImagePreparation metadata.
  *
  * Architectural Principles:
  *
@@ -16,11 +17,11 @@
  * 2. Deterministic & Reproducible
  *    Derived artefacts must be rebuildable at any time from:
  *      - Original image file
- *      - Stored ImagePreparation metadata
+ *      - Stored ImagePreparation metadata (if required)
  *      - Versioned derivation constants
  *
- *    This guarantees stability across rebuilds and allows
- *    version invalidation when the pipeline evolves.
+ *    IndexedDB is a disposable cache layer.
+ *    Clearing it must not affect correctness — only rebuild cost.
  *
  * 3. Separation of Concerns
  *    - Prepare stage: Human-in-the-loop geometry definition.
@@ -28,22 +29,28 @@
  *    - Group stage: Uses derived artefacts (e.g. pHash).
  *    - Align stage: May use higher-resolution cropped artefacts.
  *
- * 4. Artefact Layers
+ * 4. Artefact Contracts
  *
  *    a) Thumbnail (v1_256)
- *       - Based on original image.
+ *       - Depends ONLY on original image + THUMB_VERSION.
+ *       - Independent of ImagePreparation.
  *       - Used for UI display.
+ *       - MUST NOT regenerate when rotation or crop changes.
+ *       - Regenerated only if cache is missing or version changes.
  *
  *    b) Canonical Normalised Image (v2_512_gray_trim_pad)
- *       - Rotated + cropped via preparation metadata.
- *       - Scaled to fixed square.
- *       - Grayscale.
+ *       - Depends on original image + ImagePreparation + NORMALISE_VERSION.
+ *       - Rotated and cropped via preparation metadata.
+ *       - Scaled to fixed square and converted to grayscale.
  *       - Used for similarity matching (e.g. pHash).
+ *       - MUST regenerate when preparation changes.
+ *       - Cache key must encode preparation state to ensure correctness.
  *
  *    c) (Optional) High-Resolution Cropped Image
- *       - Rotated + cropped only.
+ *       - Depends on original image + ImagePreparation.
+ *       - Rotated and cropped only (no downscale).
  *       - Preserves detail for alignment and annotation.
- *       - Can be regenerated if not stored.
+ *       - May be generated lazily.
  *
  * 5. Coordinate Reversibility
  *    All transformations (rotate → crop → scale → pad) are
@@ -54,15 +61,15 @@
  *    be mapped back to original image coordinates.
  *
  * Versioning:
- * Each derived artefact is versioned via a key suffix.
+ * Each derived artefact is versioned via key suffixes.
  * Increment version constants if:
  *   - Image size changes
  *   - Padding logic changes
  *   - Grayscale logic changes
- *   - Preparation transform changes
+ *   - Preparation transform logic changes
  *
  * This store is intentionally minimal and stateless:
- * it does not hold project logic — only derived blobs.
+ * it does not hold project logic — only deterministic derived blobs.
  */
 import { get, set } from 'idb-keyval';
 
