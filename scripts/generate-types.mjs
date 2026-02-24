@@ -1,8 +1,8 @@
 import { compileFromFile } from 'json-schema-to-typescript';
 import { writeFile } from 'fs/promises';
 
-const schemaPath = './src/lib/domain/project/schema.json';
-const outPath = './src/lib/domain/project/types.ts';
+const schemaPath = './src/lib/core/schema.json';
+const outPath = './src/lib/core/types.ts';
 
 const ts = await compileFromFile(schemaPath, {
 	bannerComment: '/* THIS FILE IS AUTO-GENERATED — DO NOT EDIT MANUALLY */',
