@@ -252,4 +252,4 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Need to be able to order within the group
 - Align mode can infer base image as groupImage[0]
 - Add search filters and sort onto the list panels e.g by filename
-- metadat step in flow or leave to annotation?
+- Some metadata can attach to the file hash so could be added at any step.
