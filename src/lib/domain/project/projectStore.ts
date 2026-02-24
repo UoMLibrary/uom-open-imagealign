@@ -9,6 +9,13 @@ import type {
 import type { RuntimeImageSource } from './runtimeTypes';
 import { invalidateDownstream } from './workflow';
 import { rehydrateImagesFromCache } from '$lib/domain/image/Rehydration';
+import {
+    invalidatePrepared,
+    regeneratePreparedWorking,
+    regenerateCanonicalNormalised
+} from '$lib/domain/image/ImageDerivationStore';
+
+import { computePHashFromNormalised } from '$lib/domain/image/PerceptualHash';
 
 /* ---------------------------------------------
    Core writable stores (authoritative state)
@@ -165,24 +172,89 @@ export function addImage(image: RuntimeImageSource) {
     images.update(imgs => [...imgs, image]);
 }
 
-export function updateImagePreparation(
+/*
+work::        (already exists)
+prep::        regenerated
+norm::        regenerated
+pHash         recomputed
+workflow      updated
+groups        invalidated
+alignments    invalidated
+*/
+export async function updateImagePreparation(
     imageId: string,
     preparation: ImagePreparation
 ) {
-    images.update((list) =>
-        list.map((img) => {
-            if (img.id !== imageId) return img;
+    const currentImages = get(images);
+    const image = currentImages.find((img) => img.id === imageId);
+    if (!image) return;
 
-            return {
-                ...img,
-                preparation,
-                workflow: {
-                    stage: "prepared",
-                    updatedAt: new Date().toISOString()
+    const contentHash = image.hashes.contentHash;
+
+    /* ---------------------------------------------
+       1️⃣ Update metadata immediately
+    --------------------------------------------- */
+
+    images.update((list) =>
+        list.map((img) =>
+            img.id === imageId
+                ? {
+                    ...img,
+                    preparation,
+                    workflow: {
+                        stage: "prepared",
+                        updatedAt: new Date().toISOString()
+                    }
                 }
-            };
-        })
+                : img
+        )
     );
+
+    /* ---------------------------------------------
+       2️⃣ Invalidate old derived artefacts
+    --------------------------------------------- */
+
+    await invalidatePrepared(contentHash);
+
+    /* ---------------------------------------------
+       3️⃣ Regenerate prepared working image
+    --------------------------------------------- */
+
+    await regeneratePreparedWorking(contentHash, preparation);
+
+    /* ---------------------------------------------
+       4️⃣ Regenerate canonical 512px grayscale
+    --------------------------------------------- */
+
+    await regenerateCanonicalNormalised(contentHash, preparation);
+
+    /* ---------------------------------------------
+       5️⃣ Compute pHash from canonical
+    --------------------------------------------- */
+
+    const perceptualHash = await computePHashFromNormalised(contentHash);
+
+    /* ---------------------------------------------
+       6️⃣ Persist perceptualHash into store
+    --------------------------------------------- */
+
+    images.update((list) =>
+        list.map((img) =>
+            img.hashes.contentHash === contentHash
+                ? {
+                    ...img,
+                    hashes: {
+                        ...img.hashes,
+                        perceptualHash
+                    }
+                }
+                : img
+        )
+    );
+
+    /* ---------------------------------------------
+       7️⃣ Invalidate downstream pipeline
+    --------------------------------------------- */
 
     invalidateDownstream(imageId, "prepared");
 }

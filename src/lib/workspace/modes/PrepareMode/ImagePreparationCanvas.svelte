@@ -100,10 +100,10 @@
 		return { x, y, width, height };
 	}
 
-	function save() {
+	async function save() {
 		if (!selectedImage) return;
 
-		updateImagePreparation(selectedImage.id, {
+		await updateImagePreparation(selectedImage.id, {
 			rect: clampRect(rect),
 			rotation
 		});
