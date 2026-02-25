@@ -427,11 +427,7 @@ export async function updateImagePreparation(
             img.id === imageId
                 ? {
                     ...img,
-                    preparation,
-                    workflow: {
-                        stage: "prepared",
-                        updatedAt: new Date().toISOString()
-                    }
+                    preparation
                 }
                 : img
         )

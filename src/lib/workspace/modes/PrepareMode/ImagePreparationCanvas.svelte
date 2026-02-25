@@ -3,6 +3,7 @@
 	import CrosshairGuide from './CrosshairGuide.svelte';
 	import RotationControls from './RotationControls.svelte';
 
+	import { setImageStage } from '$lib/core/workflow';
 	import { updateImagePreparation } from '$lib/core/projectStore';
 
 	export let selectedImage;
@@ -14,8 +15,6 @@
 	let rotation = 0;
 	let rect = { x: 0, y: 0, width: 1, height: 1 };
 	let crosshair = { x: 0.5, y: 0.5 };
-
-	let isDirty = false;
 
 	/* -------------------------------------------------
 	   Sync UI state when selectedImage changes
@@ -34,8 +33,6 @@
 			rotation = 0;
 			rect = { x: 0, y: 0, width: 1, height: 1 };
 		}
-
-		isDirty = false;
 	}
 
 	/* -------------------------------------------------
@@ -51,14 +48,23 @@
 		return { x, y, width, height };
 	}
 
+	function downgradeIfNeeded() {
+		if (!selectedImage) return;
+
+		// Only downgrade if currently prepared or beyond
+		if (selectedImage.workflow.stage !== 'ingested') {
+			setImageStage(selectedImage.id, 'ingested');
+		}
+	}
+
 	function onRectChange(next) {
 		rect = clampRect(next);
-		isDirty = true;
+		downgradeIfNeeded();
 	}
 
 	function onRotationChange(next) {
 		rotation = next;
-		isDirty = true;
+		downgradeIfNeeded();
 	}
 
 	/* -------------------------------------------------
@@ -75,13 +81,13 @@
 
 		await updateImagePreparation(selectedImage.id, preparation);
 
-		isDirty = false;
+		// Advance stage explicitly
+		setImageStage(selectedImage.id, 'prepared');
 	}
 </script>
 
 <div class="canvas-wrapper">
 	<div class="viewport">
-		<!-- IMAGE FRAME -->
 		<div class="image-frame">
 			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
 				<img src={selectedImage.runtimeUri ?? selectedImage.source.uri} alt="" />
@@ -92,7 +98,6 @@
 			</div>
 		</div>
 
-		<!-- FULL VIEWPORT CROSSHAIR -->
 		<div class="crosshair-layer">
 			<CrosshairGuide
 				fullSize
@@ -103,7 +108,8 @@
 		</div>
 	</div>
 
-	{#if isDirty}
+	<!-- Button controlled by workflow stage -->
+	{#if selectedImage && selectedImage.workflow.stage !== 'prepared'}
 		<button on:click={confirmPreparation}> Confirm Geometry </button>
 	{/if}
 
