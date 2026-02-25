@@ -256,3 +256,4 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Add select/unselect all in Group suggestions fixed header along with actions
 - Summary page of where each Image is in terms of Mode (show ticks versus crosses)
 - Add Tiff support in browser
+- Drive Grouping strategy interface from strategy (build dynamically)
