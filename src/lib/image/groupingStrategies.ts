@@ -17,6 +17,18 @@ export interface GroupingProposal {
 }
 
 /* ============================================================
+   BY INDIVIDUAL IMAGE
+============================================================ */
+
+export function groupByIndividual(images: ImageSource[]): GroupingProposal[] {
+    return images.map((img) => ({
+        id: crypto.randomUUID(),
+        imageIds: [img.id],
+        reason: `Individual: ${img.label || 'Unnamed'}`
+    }));
+}
+
+/* ============================================================
    BY FILENAME
 ============================================================ */
 

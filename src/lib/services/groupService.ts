@@ -26,6 +26,7 @@ import {
     computePHashFromNormalised
 } from '$lib/image/derivation';
 import { 
+    groupByIndividual,
     groupByFilename, 
     groupByLeafFolder, 
     groupByPHash, 
@@ -99,6 +100,14 @@ export function splitGroup(groupId: string): void {
     }));
 
     addGroups([...others, ...singles]);
+}
+
+/**
+ * Run individual grouping strategy (one group per image).
+ */
+export function runIndividualGrouping(): GroupingProposal[] {
+    const $images = get(images);
+    return groupByIndividual($images);
 }
 
 /**
