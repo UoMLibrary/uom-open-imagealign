@@ -1,4 +1,5 @@
 <script lang="ts">
+	// lib/ui/features/thmbnails/ImageThumbnail.svelte
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'idb-keyval';
 	import { NORMALISE_VERSION, THUMB_VERSION, TRIM_VERSION } from '$lib/image/versions';
