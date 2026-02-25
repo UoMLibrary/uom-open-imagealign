@@ -1,14 +1,12 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { groupingState } from '$lib/core/groupingStore';
 	import { images } from '$lib/core/projectStore';
-	import type { GroupingProposal } from '$lib/core/types';
+	import type { GroupingProposal } from '$lib/core/groupingStore';
 	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
 
-	const dispatch = createEventDispatcher<{
-		confirm: GroupingProposal;
-		discard: string;
-	}>();
+	//  Svelte 5 callback props instead of dispatcher
+	export let onConfirm: (proposal: GroupingProposal) => void;
+	export let onDiscard: (id: string) => void;
 
 	// Sort proposals largest first
 	$: sorted = [...$groupingState.proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
@@ -44,9 +42,9 @@
 						{#if imagesById[id]}
 							<ImageThumbnail
 								contentHash={imagesById[id].hashes.contentHash}
-								fallbackSrc={imagesById[id].uri}
+								fallbackSrc={imagesById[id].runtimeUri}
 								label={imagesById[id].label}
-								mode="thumb"
+								mode="normalised"
 								debugCompare={true}
 							/>
 						{/if}
@@ -54,11 +52,9 @@
 				</div>
 
 				<div class="proposal-actions">
-					<button class="confirm" on:click={() => dispatch('confirm', proposal)}> Confirm </button>
+					<button class="confirm" on:click={() => onConfirm?.(proposal)}> Confirm </button>
 
-					<button class="discard" on:click={() => dispatch('discard', proposal.id)}>
-						Discard
-					</button>
+					<button class="discard" on:click={() => onDiscard?.(proposal.id)}> Discard </button>
 				</div>
 			</div>
 		{/each}

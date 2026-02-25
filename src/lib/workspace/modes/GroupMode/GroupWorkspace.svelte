@@ -53,7 +53,7 @@
 		});
 	}
 
-	function confirmProposal(proposal: GroupingProposal) {
+	function handleConfirm(proposal: GroupingProposal) {
 		applyGroupingProposal(proposal);
 
 		groupingState.update((state) => {
@@ -67,6 +67,10 @@
 				selected: new Set()
 			};
 		});
+	}
+
+	function handleDiscard(id: string) {
+		console.log('Discarding proposal', id);
 	}
 </script>
 
@@ -84,7 +88,10 @@
 	<div class="workspace">
 		<div class="suggestions">
 			<div class="panel-title">Group Suggestions</div>
-			<GroupProposalList on:confirm={(e) => confirmProposal(e.detail)} />
+			<GroupProposalList
+				onConfirm={(proposal) => handleConfirm(proposal)}
+				onDiscard={(id) => handleDiscard(id)}
+			/>
 		</div>
 
 		<div class="strategy">

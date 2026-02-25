@@ -1,76 +1,25 @@
-<!-- 
-	Raw Image
-		↓
-	User defines region + rotation
-		↓
-	Normalised Image Generated
-		↓
-	Thumbnail Generated
-		↓
-	pHash Generated
-		↓
-	Visual Profile Generated 
--->
-
 <script lang="ts">
 	import CropRectangle from './CropRectangle.svelte';
 	import CrosshairGuide from './CrosshairGuide.svelte';
 	import RotationControls from './RotationControls.svelte';
+
 	import { updateImagePreparation } from '$lib/core/projectStore';
-	import {
-		regeneratePreparedWorking,
-		regenerateCanonicalNormalised
-	} from '$lib/image/derivation';
-	import { setImageStage } from '$lib/services/prepareService';
-	import { invalidatePrepared } from '$lib/image/derivation';
 
 	export let selectedImage;
+
+	/* -------------------------------------------------
+	   LOCAL UI STATE (not persisted until confirm)
+	------------------------------------------------- */
 
 	let rotation = 0;
 	let rect = { x: 0, y: 0, width: 1, height: 1 };
 	let crosshair = { x: 0.5, y: 0.5 };
 
-	let lastRotation = rotation;
-	let lastRect = JSON.stringify(rect);
+	let isDirty = false;
 
-	// TODO: this is a bit hacky - we want to trigger confirmation when geometry changes, but not on initial load. We can probably improve this logic by tracking "dirty" state or similar.
-	$: {
-		const rectString = JSON.stringify(rect);
-		const geometryChanged = rotation !== lastRotation || rectString !== lastRect;
-
-		if (geometryChanged) {
-			lastRotation = rotation;
-			lastRect = rectString;
-
-			if (selectedImage.workflow?.stage !== 'ingested') {
-				invalidatePrepared(selectedImage.hashes.contentHash);
-				setImageStage(selectedImage.id, 'ingested');
-			}
-		}
-	}
-
-	$: needsConfirmation = selectedImage.workflow?.stage === 'ingested';
-
-	async function confirmPreparation() {
-		const { hashes, preparation } = selectedImage;
-
-		if (!hashes?.contentHash || !preparation) {
-			console.error('Missing data for regeneration');
-			return;
-		}
-
-		// 1️⃣ Generate prepared working image (for Align)
-		await regeneratePreparedWorking(hashes.contentHash, preparation);
-
-		// 2️⃣ Generate canonical (for pHash / grouping)
-		await regenerateCanonicalNormalised(hashes.contentHash, preparation);
-
-		setImageStage(selectedImage.id, 'prepared');
-	}
-
-	/* -----------------------------
-	   Sync from selectedImage
-	----------------------------- */
+	/* -------------------------------------------------
+	   Sync UI state when selectedImage changes
+	------------------------------------------------- */
 
 	$: if (selectedImage) {
 		if (selectedImage.preparation) {
@@ -85,11 +34,13 @@
 			rotation = 0;
 			rect = { x: 0, y: 0, width: 1, height: 1 };
 		}
+
+		isDirty = false;
 	}
 
-	/* -----------------------------
+	/* -------------------------------------------------
 	   Helpers
-	----------------------------- */
+	------------------------------------------------- */
 
 	function clampRect(r) {
 		const x = Math.max(0, Math.min(1, r.x));
@@ -100,29 +51,37 @@
 		return { x, y, width, height };
 	}
 
-	async function save() {
-		if (!selectedImage) return;
-
-		await updateImagePreparation(selectedImage.id, {
-			rect: clampRect(rect),
-			rotation
-		});
-	}
-
 	function onRectChange(next) {
 		rect = clampRect(next);
-		save();
+		isDirty = true;
 	}
 
 	function onRotationChange(next) {
 		rotation = next;
-		save();
+		isDirty = true;
+	}
+
+	/* -------------------------------------------------
+	   Confirm (domain transition)
+	------------------------------------------------- */
+
+	async function confirmPreparation() {
+		if (!selectedImage) return;
+
+		const preparation = {
+			rect: clampRect(rect),
+			rotation
+		};
+
+		await updateImagePreparation(selectedImage.id, preparation);
+
+		isDirty = false;
 	}
 </script>
 
 <div class="canvas-wrapper">
 	<div class="viewport">
-		<!-- IMAGE FRAME (image-sized) -->
+		<!-- IMAGE FRAME -->
 		<div class="image-frame">
 			<div class="rotated-layer" style="transform: rotate({rotation}deg);">
 				<img src={selectedImage.runtimeUri ?? selectedImage.source.uri} alt="" />
@@ -144,7 +103,7 @@
 		</div>
 	</div>
 
-	{#if needsConfirmation}
+	{#if isDirty}
 		<button on:click={confirmPreparation}> Confirm Geometry </button>
 	{/if}
 
@@ -160,7 +119,7 @@
 	}
 
 	.viewport {
-		position: relative; /* important */
+		position: relative;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -185,7 +144,6 @@
 		pointer-events: auto;
 	}
 
-	/* NEW */
 	.crosshair-layer {
 		position: absolute;
 		inset: 0;

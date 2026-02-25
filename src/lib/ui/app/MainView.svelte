@@ -52,49 +52,6 @@
 	<Header on:help={() => (showHelp = true)} on:about={() => (showAbout = true)} />
 
 	<WorkspaceShell />
-	<!-- 
-	<div class="workspace">
-		<SidePanel side="left" bind:open={GroupListPanelOpen}>
-			<PanelHeader inline={true}>
-				<h2 class="panel-title">Grouped Images</h2>
-			</PanelHeader>
-
-			{#if $groups.length > 0}
-				<ImageGroupList
-					groups={$groups}
-					{selectedGroupId}
-					on:select={(e) => (selectedGroupId = e.detail.id)}
-				/>
-			{:else if $images.length > 0}
-				<div class="empty">&nbsp;</div>
-			{:else}
-				<div class="empty">&nbsp;</div>
-			{/if}
-		</SidePanel>
-
-		<div class="main-content">
-			<div class="main-content">
-				<GroupPanel />
-
-				<div>
-					<PanelHeader inline={true}>
-						<h2 class="panel-title">Proposed Image Groups</h2>
-					</PanelHeader>
-					<GroupProposalList />
-				</div>
-
-				
-				{#if $ungroupedImageIds.length > 0}
-					<div>
-						<PanelHeader inline={true}>
-							<h2 class="panel-title">Ungrouped Images</h2>
-						</PanelHeader>
-						<ImageThumbnailGrid visibleImageIds={$ungroupedImageIds} />
-					</div>
-				{/if}
-			</div>
-		</div>
-	</div> -->
 
 	<HelpModal bind:open={showHelp} />
 	<AboutModal bind:open={showAbout} />

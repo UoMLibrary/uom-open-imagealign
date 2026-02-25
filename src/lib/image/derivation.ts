@@ -93,6 +93,9 @@ export async function regeneratePreparedWorking(
     const workKey = `work::${contentHash}::${WORKING_VERSION}`;
     const prepKey = `prep::${contentHash}::${WORKING_VERSION}`;
 
+    console.log("WORK KEY:", workKey);
+    console.log("WORK EXISTS:", await get(workKey));
+
     const workingBlob = await get(workKey);
     if (!workingBlob) throw new Error('Working image missing');
 

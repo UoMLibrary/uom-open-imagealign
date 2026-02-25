@@ -13,6 +13,7 @@
 	}
 </script>
 
+<pre>{JSON.stringify($groups, null, 2)}</pre>
 <div class="group-list">
 	{#if $groups.length === 0}
 		<div class="empty">No groups yet</div>

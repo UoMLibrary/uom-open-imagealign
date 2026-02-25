@@ -414,6 +414,11 @@ export async function updateImagePreparation(
     const image = currentImages.find((img) => img.id === imageId);
     if (!image) return;
 
+    if (!image.runtimeUri) {
+        console.warn("Skipping regeneration - no runtime image yet");
+        return;
+    }
+
     const contentHash = image.hashes.contentHash;
 
     /* Update metadata immediately */
