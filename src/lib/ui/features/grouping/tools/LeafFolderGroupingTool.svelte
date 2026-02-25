@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { images, groups } from '$lib/core/projectStore';
 	import { groupingState } from '$lib/core/groupingStore';
-	import { groupByLeafFolder } from '$lib/image/groupingStrategies';
+	import { groupByLeafFolder } from '$lib/services/grouping';
 	import { get } from 'svelte/store';
 
 	let running = false;

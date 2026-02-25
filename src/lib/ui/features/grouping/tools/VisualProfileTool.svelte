@@ -4,7 +4,7 @@
 
 	import { images, groups } from '$lib/core/projectStore';
 	import { groupingState } from '$lib/core/groupingStore';
-	import { groupByVisualProfile } from '$lib/image/groupingStrategies';
+	import { groupByVisualProfile } from '$lib/services/grouping';
 	import { extractVisualProfile } from '$lib/image/visualProfile';
 
 	let threshold = 0.9;

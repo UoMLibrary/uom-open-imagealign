@@ -32,7 +32,7 @@ import {
     groupByPHash, 
     groupByVisualProfile,
     type GroupingProposal
-} from '$lib/image/groupingStrategies';
+} from '$lib/services/grouping';
 import type { ImageGroup, ImagePreparation } from '$lib/core/types';
 
 /**
