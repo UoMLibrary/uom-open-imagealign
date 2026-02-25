@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'idb-keyval';
+	import { NORMALISE_VERSION, THUMB_VERSION, TRIM_VERSION } from '$lib/image/versions';
 
 	export let contentHash: string;
 	export let fallbackSrc: string;
@@ -11,10 +12,6 @@
 
 	// Debug: show original + trimmed side by side
 	export let debugCompare: boolean = false;
-
-	const NORMALISE_VERSION = 'v2_512_gray_trim_pad';
-	const THUMB_VERSION = 'v1_256';
-	const TRIM_VERSION = 'v1_raw_trim';
 
 	const versionMap = {
 		thumb: THUMB_VERSION,

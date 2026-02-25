@@ -23,9 +23,7 @@ import type { RuntimeImageSource } from '$lib/core/runtimeTypes';
    VERSIONING & POLICY
 ============================================================ */
 
-const WORKING_VERSION = 'v1_2048';
-const NORMALISE_VERSION = 'v3_from_working';
-const THUMB_VERSION = 'v2_from_working';
+import { NORMALISE_VERSION, WORKING_VERSION, THUMB_VERSION } from '$lib/image/versions';
 
 const MAX_WORKING_DIMENSION = 2048;
 
