@@ -22,9 +22,9 @@
 		{#each sorted as proposal (proposal.id)}
 			<div class="proposal-card">
 				<div class="proposal-header">
-					<div class="proposal-title">
+					<!-- <div class="proposal-title">
 						Proposed Group ({proposal.imageIds.length})
-					</div>
+					</div> -->
 
 					{#if proposal.confidence != null}
 						<div class="confidence">
