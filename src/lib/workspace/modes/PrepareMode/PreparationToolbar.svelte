@@ -23,9 +23,7 @@
 
 	<div class="meta-item">
 		<span class="label">Hash</span>
-		<span class="value hash"
-			>{selectedImage?.hashes?.contentHash?.slice(0, 5).toUpperCase() ?? ''}</span
-		>
+		<span class="value">{selectedImage?.hashes?.contentHash?.slice(0, 5).toUpperCase() ?? ''}</span>
 	</div>
 
 	<div class="meta-item">
@@ -58,7 +56,7 @@
 
 		font-size: 0.78rem;
 		line-height: 1; /* important */
-		height: 40px; /* gives consistent vertical centering */
+		height: 27px; /* gives consistent vertical centering */
 		box-sizing: border-box;
 	}
 
@@ -86,12 +84,6 @@
 		display: flex;
 		align-items: center;
 		line-height: 1;
-	}
-
-	.hash {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-weight: 600;
-		letter-spacing: 0.03em;
 	}
 
 	.filename {

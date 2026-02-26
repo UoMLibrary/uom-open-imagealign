@@ -247,7 +247,9 @@ It allows grouping strategies to improve or change without breaking existing pro
 - #### INGEST
 - If importing an image folder and it contains a project.json file, use it
 - #### PREPARE
+- Show summary at bottomm of sidebar with 'x of y confirmed'
 - Make confirm buttom top right not in the flow
+- Add an invalidate button that resets the preparation to the oute bounds
 - Add select All at bottom of sidebar (as control) with tick and cross actions to apply to all
 - #### GROUP
 - Fix adding a confirmed item to the group
@@ -263,6 +265,8 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Get something in place even if it just passes te images along for the moment
 - #### ANNOTATE
 - Copy in Annotate mode from existing app
+- #### DERIVATIONCACHE
+- Refactor derivation cache so prep and norm are keyed by imageId (instance-based) rather than contentHash, to prevent duplicate images overwriting each other’s preparation.
 
 - Add search filters and sort onto the list panels e.g by filename (add to bottom)
 - Some metadata can attach to the file hash so could be added at any step.

@@ -28,6 +28,10 @@
 	   Derive selected image
 	------------------------------------------------ */
 
+	$: totalCount = $images.length;
+
+	$: confirmedCount = $images.filter(isConfirmed).length;
+
 	function getSelectedImage(images: typeof $images, id: string | null) {
 		if (!id) return null;
 		return images.find((img) => img.id === id) ?? null;
@@ -108,15 +112,24 @@
 			</div>
 		</svelte:fragment>
 
-		<div class="image-list">
-			{#each filteredImages as img}
-				<PrepareItemCell
-					image={img}
-					selected={img.id === selectedId}
-					confirmed={isConfirmed(img)}
-					onSelect={() => selectImage(img.id)}
-				/>
-			{/each}
+		<div class="panel-body">
+			<div class="image-list">
+				{#each filteredImages as img}
+					<PrepareItemCell
+						image={img}
+						selected={img.id === selectedId}
+						confirmed={isConfirmed(img)}
+						onSelect={() => selectImage(img.id)}
+					/>
+				{/each}
+			</div>
+
+			<div class="panel-footer {confirmedCount === totalCount && totalCount > 0 ? 'complete' : ''}">
+				<span class="footer-label">Prepared</span>
+				<span class="footer-count">
+					{confirmedCount} / {totalCount}
+				</span>
+			</div>
 		</div>
 	</Sidebar>
 
@@ -170,11 +183,47 @@
 		color: #6b7280;
 	}
 
+	.panel-body {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+	}
+
 	.image-list {
+		flex: 1;
 		padding: 0.5rem;
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
 		overflow-y: auto;
+	}
+
+	/* Footer styled to match header */
+	.panel-footer {
+		padding: 0.4rem 0.75rem;
+		border-top: 1px solid rgba(0, 0, 0, 0.06);
+		font-size: 0.72rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		color: #6b7280;
+		background: #fafafa;
+	}
+
+	.panel-footer.complete {
+		color: #16a34a; /* green when complete */
+		font-weight: 600;
+	}
+
+	.footer-label {
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-weight: 600;
+		opacity: 0.85;
+	}
+
+	.footer-count {
+		font-variant-numeric: tabular-nums;
 	}
 </style>
