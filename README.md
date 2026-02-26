@@ -244,7 +244,6 @@ It allows grouping strategies to improve or change without breaking existing pro
 
 ## TODO
 
-- Add 5 digit hash into Prepare cell
 - Make confirm buttom top right not in the flow
 - Fix prep sidebar header
 - Add selecct All at bottom of sidebar (as control) with tick and cross actions to apply to all
@@ -264,3 +263,5 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Summary page of where each Image is in terms of Mode (show ticks versus crosses)
 - Add Tiff support in browser
 - Drive Grouping strategy interface from strategy (build dynamically)
+
+- DONE: Add 5 digit hash into Prepare cell

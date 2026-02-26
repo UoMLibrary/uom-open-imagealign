@@ -44,7 +44,7 @@
 		</div>
 
 		<div class="hash">
-			{shortHash}
+			{shortHash.toUpperCase()}
 		</div>
 	</div>
 </div>
@@ -70,7 +70,7 @@
 	.cell {
 		display: flex;
 		align-items: stretch; /* makes image fill full height */
-		padding: 0.45rem 0.6rem 0.45rem 0; /* no left padding */
+		padding: 0.4rem 0.6rem 0.4rem 0.6rem; /* no left padding */
 		border-radius: 8px;
 		cursor: pointer;
 		transition: background 0.15s ease;
@@ -104,7 +104,7 @@
 	.thumb :global(.image-frame) {
 		height: 100%;
 		padding: 0;
-		border-radius: 0; /* flush */
+		border-radius: 4px; /* flush */
 		border: none;
 		background: #f9fafb;
 	}
@@ -190,7 +190,7 @@
 		bottom: 0;
 		font-size: 0.65rem;
 		font-weight: 700;
-		color: #6b7280;
+		color: #111827;
 		letter-spacing: 0.03em;
 	}
 </style>

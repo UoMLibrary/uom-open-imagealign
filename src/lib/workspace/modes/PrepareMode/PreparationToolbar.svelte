@@ -3,7 +3,7 @@
 </script>
 
 <div class="toolbar">
-	<span>Editing: {selectedImage.id}</span>
+	<span>Editing ID: {selectedImage.id}</span>
 </div>
 
 <style>
