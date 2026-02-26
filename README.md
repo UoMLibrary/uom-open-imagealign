@@ -244,6 +244,13 @@ It allows grouping strategies to improve or change without breaking existing pro
 
 ## TODO
 
+- Add 5 digit hash into Prepare cell
+- Make confirm buttom top right not in the flow
+- Fix prep sidebar header
+- Add selecct All at bottom of sidebar (as control) with tick and cross actions to apply to all
+- Show full hash at bottom if Editing is clicked (toggle between long and short)
+- SHow Dimensions, source and filename at bottom as well
+- Prepare sidebar always reserve space (narrowed) for scroll bar on y
 - Update in Image prepare needs to regenerate the normalised image
 - Strategy return matches, they need to also return unmatched as groups of 1
 - Lots of wasted screen real estate with group suggestions, use grid?
