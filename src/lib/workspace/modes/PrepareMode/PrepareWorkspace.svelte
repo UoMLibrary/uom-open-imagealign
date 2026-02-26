@@ -5,6 +5,13 @@
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
 	import PrepareItemCell from './PrepareItemCell.svelte';
+	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
+
+	const filterOptions = [
+		{ value: 'all', label: 'All' },
+		{ value: 'confirmed', label: '✓' },
+		{ value: 'unconfirmed', label: '✕' }
+	];
 
 	type FilterMode = 'all' | 'confirmed' | 'unconfirmed';
 	let filter: FilterMode = 'all';
@@ -74,21 +81,14 @@
 	<Sidebar side="left" bind:open={sidebarOpen} width={280}>
 		<svelte:fragment slot="header">
 			<div class="panel-header">
-				<div class="panel-title">Images</div>
+				<div class="header-row">
+					<div class="panel-title">Images</div>
 
-				<div class="filter">
-					<button class:selected={filter === 'all'} on:click={() => (filter = 'all')}> All </button>
-
-					<button class:selected={filter === 'confirmed'} on:click={() => (filter = 'confirmed')}>
-						Confirmed
-					</button>
-
-					<button
-						class:selected={filter === 'unconfirmed'}
-						on:click={() => (filter = 'unconfirmed')}
-					>
-						Unconfirmed
-					</button>
+					<FilterSegment
+						options={filterOptions}
+						value={filter}
+						onChange={(v) => (filter = v as FilterMode)}
+					/>
 				</div>
 			</div>
 		</svelte:fragment>
@@ -129,26 +129,6 @@
 		min-width: 0; /* prevents overflow issues */
 	}
 
-	button {
-		all: unset;
-		display: block;
-		padding: 0.5rem 0.75rem;
-		cursor: pointer;
-		border-radius: 4px;
-		font-size: 0.8rem;
-		color: #374151;
-	}
-
-	button:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	button.selected {
-		background: rgba(0, 0, 0, 0.06);
-		font-weight: 600;
-		color: #111827;
-	}
-
 	.panel-title {
 		font-size: 0.75rem;
 		font-weight: 700;
@@ -156,6 +136,12 @@
 		text-transform: uppercase;
 		color: #6b7280;
 		padding: 0.5rem 0.75rem;
+	}
+
+	.header-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 	}
 
 	.placeholder {
@@ -176,121 +162,11 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.filter {
-		display: flex;
-		gap: 0.25rem;
-		background: #f3f4f6;
-		padding: 0.25rem;
-		border-radius: 8px;
-	}
-
-	.filter button {
-		all: unset;
-		flex: 1;
-		text-align: center;
-		font-size: 0.7rem;
-		padding: 0.35rem 0;
-		border-radius: 6px;
-		cursor: pointer;
-		color: #6b7280;
-	}
-
-	.filter button.selected {
-		background: white;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-		color: #111827;
-		font-weight: 600;
-	}
-
 	.image-list {
 		padding: 0.5rem;
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
 		overflow-y: auto;
-	}
-
-	.image-card {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem;
-		border-radius: 8px;
-		cursor: pointer;
-		position: relative;
-		transition: background 0.15s ease;
-	}
-
-	.image-card:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	.image-card.selected {
-		background: rgba(0, 0, 0, 0.06);
-	}
-
-	.thumb-wrapper {
-		width: 56px;
-		height: 56px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-	}
-
-	.thumb-wrapper :global(.thumb) {
-		width: 100%;
-		height: 100%;
-	}
-
-	.thumb-wrapper :global(.image-frame) {
-		height: 100%;
-		padding: 0;
-		border-radius: 6px;
-		border: 1px solid rgba(0, 0, 0, 0.06);
-		background: #f9fafb;
-	}
-
-	.thumb-wrapper :global(img) {
-		object-fit: cover;
-	}
-
-	.meta {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.name {
-		font-size: 0.8rem;
-		font-weight: 600;
-		color: #111827;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.details {
-		font-size: 0.7rem;
-		color: #6b7280;
-	}
-
-	.details.muted {
-		opacity: 0.7;
-	}
-
-	.badge {
-		position: absolute;
-		right: 8px;
-		top: 8px;
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: #22c55e;
-		color: white;
-		font-size: 0.7rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 </style>
