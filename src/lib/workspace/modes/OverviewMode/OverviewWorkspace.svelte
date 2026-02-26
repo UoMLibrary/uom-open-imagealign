@@ -9,13 +9,16 @@
 	   Filter Setup
 	------------------------------------------------- */
 
+	type FilterMode = 'all' | WorkflowStage;
+
 	const filterOptions = [
 		{ value: 'all', label: 'All' },
-		{ value: 'complete', label: 'Complete' },
-		{ value: 'incomplete', label: 'Incomplete' }
+		...STAGE_ORDER.map((stage) => ({
+			value: stage,
+			label: stage.charAt(0).toUpperCase() + stage.slice(1)
+		}))
 	];
 
-	type FilterMode = 'all' | 'complete' | 'incomplete';
 	let filter: FilterMode = 'all';
 
 	/* -------------------------------------------------
@@ -41,20 +44,9 @@
 	$: filteredList = filterImages(list, filter);
 
 	function filterImages(images: typeof list, mode: FilterMode) {
-		switch (mode) {
-			case 'all':
-				return images;
+		if (mode === 'all') return images;
 
-			case 'complete':
-				return images.filter((img) =>
-					isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', 'annotated')
-				);
-
-			case 'incomplete':
-				return images.filter(
-					(img) => !isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', 'annotated')
-				);
-		}
+		return images.filter((img) => isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', mode));
 	}
 
 	function shortHash(hash?: string) {
@@ -67,10 +59,6 @@
 </script>
 
 <section class="overview">
-	<!-- =========================================
-	     Header
-	========================================= -->
-
 	<div class="header-row">
 		<h2>Workflow Overview</h2>
 
@@ -81,10 +69,6 @@
 		/>
 	</div>
 
-	<!-- =========================================
-	     Table
-	========================================= -->
-
 	<div class="table-wrapper">
 		<table>
 			<thead>
@@ -93,7 +77,6 @@
 					<th class="thumb-col">Normalised</th>
 					<th class="file-col">Filename</th>
 					<th class="hash-col">ID</th>
-					<!-- <th class="hash-col">Hash</th> -->
 
 					{#each STAGE_ORDER as stage}
 						<th class="stage-header">
@@ -136,10 +119,6 @@
 						<td class="hash-cell">
 							{shortID(image.id)}
 						</td>
-
-						<!-- <td class="hash-cell">
-							{shortHash(image.hashes?.contentHash)}
-						</td> -->
 
 						{#each STAGE_ORDER as stage}
 							<td class="stage-cell">
