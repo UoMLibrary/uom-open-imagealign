@@ -9,10 +9,9 @@
 	------------------------------------------------- */
 
 	$: list = $images;
-
 	$: total = list.length;
 
-	// Stage completion counts
+	// Count how many images are at or beyond each stage
 	$: stageCounts = STAGE_ORDER.reduce(
 		(acc, stage) => {
 			acc[stage] = list.filter((img) =>
@@ -29,62 +28,54 @@
 </script>
 
 <section class="overview">
-	<!-- =========================================
-	     Summary Header
-	========================================= -->
-
-	<header class="summary">
-		<h2>Workflow Overview</h2>
-
-		<div class="stats">
-			{#each STAGE_ORDER as stage}
-				<div class="stat">
-					<div class="count">
-						{stageCounts[stage]} / {total}
-					</div>
-					<div class="label">{stage}</div>
-				</div>
-			{/each}
-		</div>
-	</header>
-
-	<!-- =========================================
-	     Stage Matrix Table
-	========================================= -->
+	<h2>Workflow Overview</h2>
 
 	<div class="table-wrapper">
 		<table>
+			<!-- =========================================
+			     Header
+			========================================= -->
+
 			<thead>
 				<tr>
-					<th class="image-col">Image</th>
+					<th class="thumb-col">Thumbnail</th>
+					<th class="file-col">Filename</th>
+					<th class="hash-col">Hash</th>
+
 					{#each STAGE_ORDER as stage}
-						<th>{stage}</th>
+						<th class="stage-header">
+							<div class="stage-title">
+								{stage}
+							</div>
+							<div class="stage-count">
+								{stageCounts[stage]} of {total}
+							</div>
+						</th>
 					{/each}
 				</tr>
 			</thead>
 
+			<!-- =========================================
+			     Body
+			========================================= -->
+
 			<tbody>
 				{#each list as image}
 					<tr>
-						<td class="image-cell">
-							<div class="image-info">
-								<div class="thumb">
-									<ImageThumbnail
-										contentHash={image.hashes?.contentHash}
-										fallbackSrc={image.runtimeUri}
-										mode="thumb"
-									/>
-								</div>
+						<td class="thumb-cell">
+							<ImageThumbnail
+								contentHash={image.hashes?.contentHash}
+								fallbackSrc={image.runtimeUri}
+								mode="thumb"
+							/>
+						</td>
 
-								<div class="meta">
-									<div class="label">
-										{image.label ?? image.id}
-									</div>
-									<div class="hash">
-										{shortHash(image.hashes?.contentHash)}
-									</div>
-								</div>
-							</div>
+						<td class="file-cell">
+							{image.label ?? image.id}
+						</td>
+
+						<td class="hash-cell">
+							{shortHash(image.hashes?.contentHash)}
 						</td>
 
 						{#each STAGE_ORDER as stage}
@@ -108,46 +99,14 @@
 		padding: 1.5rem;
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: 1rem;
 	}
 
-	/* =========================================
-	   Summary
-	========================================= */
-
-	.summary h2 {
-		font-size: 1.25rem;
-		font-weight: 600;
+	h2 {
 		margin: 0;
-	}
-
-	.stats {
-		display: flex;
-		gap: 1.25rem;
-		margin-top: 0.75rem;
-		flex-wrap: wrap;
-	}
-
-	.stat {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-	}
-
-	.count {
+		font-size: 1.2rem;
 		font-weight: 600;
-		font-size: 0.9rem;
 	}
-
-	.label {
-		font-size: 0.7rem;
-		color: #6b7280;
-		text-transform: capitalize;
-	}
-
-	/* =========================================
-	   Table
-	========================================= */
 
 	.table-wrapper {
 		overflow-x: auto;
@@ -160,66 +119,66 @@
 	}
 
 	thead th {
-		text-align: left;
-		font-weight: 600;
-		padding: 0.5rem 0.75rem;
 		border-bottom: 1px solid #e5e7eb;
-		text-transform: capitalize;
+		padding: 0.75rem 0.75rem;
+		vertical-align: bottom;
 	}
 
 	tbody td {
-		padding: 0.6rem 0.75rem;
 		border-bottom: 1px solid #f3f4f6;
+		padding: 0.6rem 0.75rem;
 		vertical-align: middle;
 	}
 
-	/* =========================================
-	   Image Cell
-	========================================= */
+	/* -----------------------------------------
+	   Column widths
+	----------------------------------------- */
 
-	.image-col {
-		min-width: 240px;
+	.thumb-col {
+		width: 72px;
+	}
+	.hash-col {
+		width: 80px;
 	}
 
-	.image-cell {
-		width: 260px;
+	/* -----------------------------------------
+	   Thumbnail
+	----------------------------------------- */
+
+	.thumb-cell {
+		width: 64px;
 	}
 
-	.image-info {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-	}
-
-	.thumb {
+	.thumb-cell :global(img) {
 		width: 48px;
 		height: 48px;
-		flex-shrink: 0;
-	}
-
-	.thumb :global(img) {
 		object-fit: cover;
-		width: 100%;
-		height: 100%;
 		border-radius: 4px;
 	}
 
-	.meta {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
+	/* -----------------------------------------
+	   Stage Header
+	----------------------------------------- */
+
+	.stage-header {
+		text-align: center;
+		min-width: 90px;
 	}
 
-	.hash {
-		font-size: 0.65rem;
-		color: #6b7280;
+	.stage-title {
 		font-weight: 600;
-		letter-spacing: 0.03em;
+		text-transform: capitalize;
 	}
 
-	/* =========================================
+	.stage-count {
+		font-size: 0.65rem;
+		color: #9ca3af;
+		margin-top: 0.2rem;
+	}
+
+	/* -----------------------------------------
 	   Stage Cells
-	========================================= */
+	----------------------------------------- */
 
 	.stage-cell {
 		text-align: center;
@@ -232,5 +191,25 @@
 
 	.cross {
 		color: #9ca3af;
+		font-weight: 600;
+	}
+
+	/* -----------------------------------------
+	   Filename / Hash
+	----------------------------------------- */
+
+	.file-cell {
+		font-weight: 500;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 220px;
+	}
+
+	.hash-cell {
+		font-family: ui-monospace, monospace;
+		font-size: 0.75rem;
+		color: #374151;
+		letter-spacing: 0.05em;
 	}
 </style>
