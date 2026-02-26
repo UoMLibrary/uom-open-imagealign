@@ -99,7 +99,6 @@
 			<div class="panel-header">
 				<div class="header-row">
 					<div class="panel-title">Images</div>
-
 					<FilterSegment
 						options={filterOptions}
 						value={filter}
@@ -145,13 +144,9 @@
 		min-width: 0; /* prevents overflow issues */
 	}
 
-	.panel-title {
-		font-size: 0.75rem;
-		font-weight: 700;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: #6b7280;
-		padding: 0.5rem 0.75rem;
+	.panel-header {
+		padding: 0.4rem 0.75rem 0.4rem 0.75rem;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 	}
 
 	.header-row {
@@ -160,22 +155,19 @@
 		justify-content: space-between;
 	}
 
-	.placeholder {
-		padding: 2rem;
-		color: #6b7280;
-	}
-	.panel-header {
-		padding: 0.1rem;
-		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-	}
-
 	.panel-title {
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: #6b7280;
-		margin-bottom: 0.5rem;
+		line-height: 1; /* prevents vertical drift */
+		margin: 0; /* remove bottom spacing */
+	}
+
+	.placeholder {
+		padding: 2rem;
+		color: #6b7280;
 	}
 
 	.image-list {

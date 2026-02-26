@@ -244,23 +244,33 @@ It allows grouping strategies to improve or change without breaking existing pro
 
 ## TODO
 
-- Fix prep sidebar header
+- #### INGEST
+- If importing an image folder and it contains a project.json file, use it
+- #### PREPARE
 - Make confirm buttom top right not in the flow
-- Add selecct All at bottom of sidebar (as control) with tick and cross actions to apply to all
-- Prepare sidebar always reserve space (narrowed) for scroll bar on y
-- Update in Image prepare needs to regenerate the normalised image
+- Add select All at bottom of sidebar (as control) with tick and cross actions to apply to all
+- #### GROUP
+- Fix adding a confirmed item to the group
+- Redesign awful looking grouping strategy component
 - Strategy return matches, they need to also return unmatched as groups of 1
 - Lots of wasted screen real estate with group suggestions, use grid?
 - Need visual component for Group > Sidebar > item
-- If importing an image folder and it contains a project.json file, use it
 - Need to be able to order within the group
-- Align mode can infer base image as groupImage[0]
-- Add search filters and sort onto the list panels e.g by filename
-- Some metadata can attach to the file hash so could be added at any step.
 - Add select/unselect all in Group suggestions fixed header along with actions
+- Align mode can infer base image as groupImage[0]
+- Drive Grouping strategy interface from strategy (build dynamically)
+- #### ALIGNMENT
+- Get something in place even if it just passes te images along for the moment
+- #### ANNOTATE
+- Copy in Annotate mode from existing app
+
+- Add search filters and sort onto the list panels e.g by filename (add to bottom)
+- Some metadata can attach to the file hash so could be added at any step.
 - Summary page of where each Image is in terms of Mode (show ticks versus crosses)
 - Add Tiff support in browser
-- Drive Grouping strategy interface from strategy (build dynamically)
 
+- DONE: Update in Image prepare needs to regenerate the normalised image
+- DONE: Prepare sidebar always reserve space (narrowed) for scroll bar on y
+- DONE: Fix prep sidebar header
 - DONE: Add 5 digit hash into Prepare cell
 - DONE: SHow Dimensions, source and filename at bottom as well

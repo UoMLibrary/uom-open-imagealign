@@ -21,7 +21,7 @@
 		display: flex;
 		align-items: flex-end;
 
-		padding: 0.5rem 1rem 0 1rem; /* add breathing space above */
+		padding: 0.2rem 1rem 0 1rem; /* add breathing space above */
 		background: rgba(255, 255, 255, 0.97);
 
 		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
