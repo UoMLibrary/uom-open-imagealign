@@ -22,10 +22,6 @@
 		{#each sorted as proposal (proposal.id)}
 			<div class="proposal-card">
 				<div class="proposal-header">
-					<!-- <div class="proposal-title">
-						Proposed Group ({proposal.imageIds.length})
-					</div> -->
-
 					{#if proposal.confidence != null}
 						<div class="confidence">
 							{Math.round(proposal.confidence * 100)}%
@@ -40,13 +36,15 @@
 				<div class="proposal-images">
 					{#each proposal.imageIds as id}
 						{#if imagesById[id]}
-							<ImageThumbnail
-								contentHash={imagesById[id].hashes.contentHash}
-								fallbackSrc={imagesById[id].runtimeUri}
-								label={imagesById[id].label}
-								mode="normalised"
-								debugCompare={true}
-							/>
+							<div style="height: 80px; width: 80px;">
+								<ImageThumbnail
+									contentHash={imagesById[id].hashes.contentHash}
+									fallbackSrc={imagesById[id].runtimeUri}
+									label={imagesById[id].label}
+									mode="normalised"
+									debugCompare={true}
+								/>
+							</div>
 						{/if}
 					{/each}
 				</div>

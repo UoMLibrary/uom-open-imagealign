@@ -1,8 +1,22 @@
 <script lang="ts">
 	import { images } from '$lib/core/projectStore';
-	import { STAGE_ORDER, isStageAtOrBeyond } from '$lib/core/workflow';
+	import { STAGE_ORDER, isStageAtOrBeyond, type WorkflowStage } from '$lib/core/workflow';
+
 	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
-	import type { WorkflowStage } from '$lib/core/workflow';
+	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
+
+	/* -------------------------------------------------
+	   Filter Setup
+	------------------------------------------------- */
+
+	const filterOptions = [
+		{ value: 'all', label: 'All' },
+		{ value: 'complete', label: 'Complete' },
+		{ value: 'incomplete', label: 'Incomplete' }
+	];
+
+	type FilterMode = 'all' | 'complete' | 'incomplete';
+	let filter: FilterMode = 'all';
 
 	/* -------------------------------------------------
 	   Derived Data
@@ -17,30 +31,69 @@
 			acc[stage] = list.filter((img) =>
 				isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', stage)
 			).length;
+
 			return acc;
 		},
 		{} as Record<WorkflowStage, number>
 	);
 
+	// Apply filter
+	$: filteredList = filterImages(list, filter);
+
+	function filterImages(images: typeof list, mode: FilterMode) {
+		switch (mode) {
+			case 'all':
+				return images;
+
+			case 'complete':
+				return images.filter((img) =>
+					isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', 'annotated')
+				);
+
+			case 'incomplete':
+				return images.filter(
+					(img) => !isStageAtOrBeyond(img.workflow?.stage ?? 'ingested', 'annotated')
+				);
+		}
+	}
+
 	function shortHash(hash?: string) {
 		return hash?.slice(0, 5).toUpperCase() ?? '';
+	}
+
+	function shortID(id?: string) {
+		return id?.slice(0, 5) ?? '';
 	}
 </script>
 
 <section class="overview">
-	<h2>Workflow Overview</h2>
+	<!-- =========================================
+	     Header
+	========================================= -->
+
+	<div class="header-row">
+		<h2>Workflow Overview</h2>
+
+		<FilterSegment
+			options={filterOptions}
+			value={filter}
+			onChange={(v) => (filter = v as FilterMode)}
+		/>
+	</div>
+
+	<!-- =========================================
+	     Table
+	========================================= -->
 
 	<div class="table-wrapper">
 		<table>
-			<!-- =========================================
-			     Header
-			========================================= -->
-
 			<thead>
 				<tr>
 					<th class="thumb-col">Thumbnail</th>
+					<th class="thumb-col">Normalised</th>
 					<th class="file-col">Filename</th>
-					<th class="hash-col">Hash</th>
+					<th class="hash-col">ID</th>
+					<!-- <th class="hash-col">Hash</th> -->
 
 					{#each STAGE_ORDER as stage}
 						<th class="stage-header">
@@ -55,18 +108,24 @@
 				</tr>
 			</thead>
 
-			<!-- =========================================
-			     Body
-			========================================= -->
-
 			<tbody>
-				{#each list as image}
+				{#each filteredList as image}
 					<tr>
 						<td class="thumb-cell">
 							<ImageThumbnail
 								contentHash={image.hashes?.contentHash}
 								fallbackSrc={image.runtimeUri}
 								mode="thumb"
+								debugCompare={true}
+							/>
+						</td>
+
+						<td class="thumb-cell">
+							<ImageThumbnail
+								contentHash={image.hashes?.contentHash}
+								fallbackSrc={image.runtimeUri}
+								mode="normalised"
+								debugCompare={true}
 							/>
 						</td>
 
@@ -75,8 +134,12 @@
 						</td>
 
 						<td class="hash-cell">
-							{shortHash(image.hashes?.contentHash)}
+							{shortID(image.id)}
 						</td>
+
+						<!-- <td class="hash-cell">
+							{shortHash(image.hashes?.contentHash)}
+						</td> -->
 
 						{#each STAGE_ORDER as stage}
 							<td class="stage-cell">
@@ -95,10 +158,25 @@
 </section>
 
 <style>
+	/* ==================================================
+	   Layout & Scrolling
+	================================================== */
+
 	.overview {
 		padding: 1.5rem;
 		display: flex;
 		flex-direction: column;
+		gap: 1rem;
+
+		flex: 1;
+		min-height: 0; /* critical in flex layouts */
+		overflow-y: auto; /* enables scrolling */
+	}
+
+	.header-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		gap: 1rem;
 	}
 
@@ -130,35 +208,54 @@
 		vertical-align: middle;
 	}
 
-	/* -----------------------------------------
-	   Column widths
-	----------------------------------------- */
+	/* ==================================================
+	   Column Widths
+	================================================== */
 
 	.thumb-col {
-		width: 72px;
+		width: 24px; /* exact fit for thumbnail */
 	}
 	.hash-col {
 		width: 80px;
 	}
 
-	/* -----------------------------------------
-	   Thumbnail
-	----------------------------------------- */
+	/* ==================================================
+	   Thumbnail Fix (removes padding)
+	================================================== */
 
 	.thumb-cell {
-		width: 64px;
+		width: 24px;
+		height: 24px;
 	}
 
-	.thumb-cell :global(img) {
-		width: 48px;
-		height: 48px;
-		object-fit: cover;
-		border-radius: 4px;
+	.thumb-cell :global(.image-frame) {
+		padding: 0;
+		border: none;
+		background: transparent;
 	}
 
-	/* -----------------------------------------
-	   Stage Header
-	----------------------------------------- */
+	/* ==================================================
+	   Filename & Hash
+	================================================== */
+
+	.file-cell {
+		font-weight: 500;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 260px;
+	}
+
+	.hash-cell {
+		font-family: ui-monospace, monospace;
+		font-size: 0.75rem;
+		color: #374151;
+		letter-spacing: 0.05em;
+	}
+
+	/* ==================================================
+	   Stage Headers
+	================================================== */
 
 	.stage-header {
 		text-align: center;
@@ -176,9 +273,9 @@
 		margin-top: 0.2rem;
 	}
 
-	/* -----------------------------------------
+	/* ==================================================
 	   Stage Cells
-	----------------------------------------- */
+	================================================== */
 
 	.stage-cell {
 		text-align: center;
@@ -192,24 +289,5 @@
 	.cross {
 		color: #9ca3af;
 		font-weight: 600;
-	}
-
-	/* -----------------------------------------
-	   Filename / Hash
-	----------------------------------------- */
-
-	.file-cell {
-		font-weight: 500;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 220px;
-	}
-
-	.hash-cell {
-		font-family: ui-monospace, monospace;
-		font-size: 0.75rem;
-		color: #374151;
-		letter-spacing: 0.05em;
 	}
 </style>

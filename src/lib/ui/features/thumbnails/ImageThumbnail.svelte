@@ -121,12 +121,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
-		width: 120px;
+		width: 100%; /* fill parent */
 	}
 
 	.image-frame {
 		width: 100%;
-		height: 120px;
+		aspect-ratio: 1 / 1; /* stay square */
 		border-radius: 6px;
 		background: white;
 		border: 1px solid #ddd;
