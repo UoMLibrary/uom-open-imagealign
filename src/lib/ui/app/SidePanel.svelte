@@ -89,14 +89,15 @@
 
 	.panel-content {
 		flex: 1;
-		overflow-y: auto;
-
-		/* Prevent layout jump */
-		scrollbar-gutter: stable;
+		overflow-y: scroll;
 
 		/* Firefox */
 		scrollbar-width: thin;
 		scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+
+		/* Fake edge flush by slightly shifting content: */
+		margin-right: -16px;
+		padding-right: 8px;
 	}
 
 	/* WebKit (Chrome, Edge, Safari) */
