@@ -70,7 +70,7 @@
 	.cell {
 		display: flex;
 		align-items: stretch; /* makes image fill full height */
-		padding: 0.4rem 0.6rem 0.4rem 0.6rem; /* no left padding */
+		padding: 0.4rem 0.6rem 0.4rem 0.6rem;
 		border-radius: 8px;
 		cursor: pointer;
 		transition: background 0.15s ease;
@@ -159,8 +159,8 @@
 	================================================ */
 
 	.badge {
-		width: 18px;
-		height: 18px;
+		width: 16px;
+		height: 16px;
 		border-radius: 50%;
 		font-size: 0.65rem;
 		display: flex;
