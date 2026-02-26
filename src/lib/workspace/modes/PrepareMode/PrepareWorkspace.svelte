@@ -4,7 +4,7 @@
 	import Sidebar from '$lib/ui/app/SidePanel.svelte';
 	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
 	import PreparationToolbar from './PreparationToolbar.svelte';
-	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
+	import PrepareItemCell from './PrepareItemCell.svelte';
 
 	type FilterMode = 'all' | 'confirmed' | 'unconfirmed';
 	let filter: FilterMode = 'all';
@@ -95,38 +95,12 @@
 
 		<div class="image-list">
 			{#each filteredImages as img}
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<div
-					class="image-card {img.id === selectedId ? 'selected' : ''}"
-					on:click={() => selectImage(img.id)}
-				>
-					<div class="thumb-wrapper">
-						<ImageThumbnail
-							contentHash={img.hashes?.contentHash}
-							fallbackSrc={img.runtimeUri}
-							label={undefined}
-							mode="thumb"
-						/>
-					</div>
-
-					<div class="meta">
-						<div class="name">
-							{img.label ?? img.id}
-						</div>
-
-						<div class="details">
-							{img.dimensions?.width} × {img.dimensions?.height}
-						</div>
-
-						<div class="details muted">
-							{img.sourceType}
-						</div>
-					</div>
-
-					{#if isConfirmed(img)}
-						<div class="badge">✓</div>
-					{/if}
-				</div>
+				<PrepareItemCell
+					image={img}
+					selected={img.id === selectedId}
+					confirmed={isConfirmed(img)}
+					onSelect={() => selectImage(img.id)}
+				/>
 			{/each}
 		</div>
 	</Sidebar>
