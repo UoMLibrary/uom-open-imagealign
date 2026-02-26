@@ -18,15 +18,13 @@
 			return;
 		}
 
-		// Left panel: Tab
-		// if (side === 'left' && !e.shiftKey) {
+		// Left panel toggle
 		if (side === 'left' && e.key === '[') {
 			e.preventDefault();
 			toggle();
 		}
 
-		// Right panel: Shift + Tab
-		//if (side === 'right' && e.shiftKey) {
+		// Right panel toggle
 		if (side === 'right' && e.key === ']') {
 			e.preventDefault();
 			toggle();
@@ -82,7 +80,7 @@
 
 	.side-panel,
 	.viewer {
-		min-height: 0; /*  allows scrolling instead of growth */
+		min-height: 0; /* allows scrolling instead of growth */
 	}
 
 	.collapsed aside {
@@ -92,6 +90,31 @@
 	.panel-content {
 		flex: 1;
 		overflow-y: auto;
+
+		/* Prevent layout jump */
+		scrollbar-gutter: stable;
+
+		/* Firefox */
+		scrollbar-width: thin;
+		scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+	}
+
+	/* WebKit (Chrome, Edge, Safari) */
+	.panel-content::-webkit-scrollbar {
+		width: 8px;
+	}
+
+	.panel-content::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.panel-content::-webkit-scrollbar-thumb {
+		background-color: rgba(0, 0, 0, 0.25);
+		border-radius: 6px;
+	}
+
+	.panel-content::-webkit-scrollbar-thumb:hover {
+		background-color: rgba(0, 0, 0, 0.35);
 	}
 
 	.toggle {
