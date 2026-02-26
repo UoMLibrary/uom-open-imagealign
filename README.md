@@ -245,7 +245,7 @@ It allows grouping strategies to improve or change without breaking existing pro
 ## TODO
 
 - #### ALL
-- Show breadcrumb trail of where the image currently is in the workflow
+- Show breadcrumb trail of where the image currently is in the workflow (need to think this through as images are grouped in later stages)
 - #### INGEST
 - If importing an image folder and it contains a project.json file, use it
 - #### PREPARE

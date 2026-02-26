@@ -5,6 +5,7 @@
 	import AlignWorkspace from './modes/AlignMode/AlignWorkspace.svelte';
 	import GroupWorkspace from './modes/GroupMode/GroupWorkspace.svelte';
 	import AnnotateWorkspace from './modes/AnnotateMode/AnnotateWorkspace.svelte';
+	import OverviewWorkspace from './modes/OverviewMode/OverviewWorkspace.svelte';
 </script>
 
 {#if $currentMode === 'prepare'}
@@ -15,4 +16,6 @@
 	<GroupWorkspace />
 {:else if $currentMode === 'annotate'}
 	<AnnotateWorkspace />
+{:else if $currentMode === 'overview'}
+	<OverviewWorkspace />
 {/if}

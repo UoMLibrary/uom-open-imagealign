@@ -1,11 +1,15 @@
 // src/lib/workspace/workspaceStore.ts
 import { writable } from 'svelte/store';
 
-export type WorkspaceMode =
-    | 'prepare'
-    | 'group'
-    | 'align'
-    | 'annotate';
+export const WORKSPACE_MODES = [
+    { key: 'prepare', label: 'Prepare' },
+    { key: 'group', label: 'Group' },
+    { key: 'align', label: 'Align' },
+    { key: 'annotate', label: 'Annotate' },
+    { key: 'overview', label: 'Overview' }
+] as const;
+
+export type WorkspaceMode = typeof WORKSPACE_MODES[number]['key'];
 
 function createWorkspaceStore() {
     const { subscribe, set } = writable<WorkspaceMode>('prepare');

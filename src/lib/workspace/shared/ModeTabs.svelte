@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { currentMode, type WorkspaceMode } from '$lib/workspace/workspaceStore';
-
-	const modes: WorkspaceMode[] = ['prepare', 'group', 'align', 'annotate'];
+	import { WORKSPACE_MODES, currentMode, type WorkspaceMode } from '$lib/workspace/workspaceStore';
 
 	function setMode(mode: WorkspaceMode) {
 		currentMode.set(mode);
@@ -9,9 +7,9 @@
 </script>
 
 <nav class="mode-tabs">
-	{#each modes as mode}
-		<button class:selected={$currentMode === mode} on:click={() => setMode(mode)}>
-			{mode[0].toUpperCase() + mode.slice(1)}
+	{#each WORKSPACE_MODES as mode}
+		<button class:selected={$currentMode === mode.key} on:click={() => setMode(mode.key)}>
+			{mode.label}
 		</button>
 	{/each}
 </nav>
