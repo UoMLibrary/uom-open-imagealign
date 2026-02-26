@@ -84,6 +84,25 @@
 		// Advance stage explicitly
 		setImageStage(selectedImage.id, 'prepared');
 	}
+
+	async function resetPreparation() {
+		if (!selectedImage) return;
+
+		let prep = {
+			rect: { x: 0, y: 0, width: 1, height: 1 },
+			rotation: 0
+		};
+
+		// Clear persisted preparation
+		await updateImagePreparation(selectedImage.id, prep);
+
+		// Downgrade workflow stage
+		setImageStage(selectedImage.id, 'ingested');
+
+		// Reset local UI state
+		rotation = prep.rotation;
+		rect = prep.rect;
+	}
 </script>
 
 <div class="canvas-wrapper">
@@ -106,12 +125,18 @@
 				on:change={(e) => (crosshair = e.detail)}
 			/>
 		</div>
-	</div>
 
-	<!-- Button controlled by workflow stage -->
-	{#if selectedImage && selectedImage.workflow.stage !== 'prepared'}
-		<button on:click={confirmPreparation}> Confirm Geometry </button>
-	{/if}
+		<!-- Button controlled by workflow stage -->
+		{#if selectedImage}
+			<div class="cta-layer">
+				{#if selectedImage.workflow.stage !== 'prepared'}
+					<button class="cta confirm" on:click={confirmPreparation}> Confirm Geometry </button>
+				{:else}
+					<button class="cta reset" on:click={resetPreparation}> Reset Geometry </button>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
 	<RotationControls {rotation} on:change={(e) => onRotationChange(e.detail)} />
 </div>
@@ -168,5 +193,44 @@
 		max-width: 80vw;
 		max-height: 70vh;
 		user-select: none;
+	}
+
+	/* CTA button layer (workflow dependent) */
+	.cta-layer {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		z-index: 20;
+		display: flex;
+	}
+
+	.cta {
+		padding: 0.6rem 1.2rem;
+		border-radius: 6px;
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		border: none;
+		transition: all 0.15s ease;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+
+	.cta.confirm {
+		background: #2563eb;
+		color: white;
+	}
+
+	.cta.confirm:hover {
+		background: #1e4fd6;
+	}
+
+	.cta.reset {
+		background: #f3f4f6;
+		color: #333;
+		border: 1px solid #d1d5db;
+	}
+
+	.cta.reset:hover {
+		background: #e5e7eb;
 	}
 </style>
