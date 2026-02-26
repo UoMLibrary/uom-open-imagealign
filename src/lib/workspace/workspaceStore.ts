@@ -1,3 +1,4 @@
+// src/lib/workspace/workspaceStore.ts
 import { writable } from 'svelte/store';
 
 export type WorkspaceMode =

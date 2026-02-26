@@ -6,6 +6,8 @@
 	import PreparationToolbar from './PreparationToolbar.svelte';
 	import PrepareItemCell from './PrepareItemCell.svelte';
 	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
+	import { isStageAtOrBeyond } from '$lib/core/workflow';
+	import type { WorkflowStage } from '$lib/core/workflow';
 
 	const filterOptions = [
 		{ value: 'all', label: 'All' },
@@ -71,9 +73,11 @@
 				: $images.filter((img) => !isConfirmed(img));
 
 	function isConfirmed(image: (typeof $images)[0]) {
-		// Placeholder logic for determining if an image is confirmed
-		// Replace with actual logic based on your application's needs
-		return true; // Assume all images are confirmed for now
+		const stage = image.workflow?.stage as WorkflowStage | undefined;
+
+		if (!stage) return false;
+
+		return isStageAtOrBeyond(stage, 'prepared');
 	}
 </script>
 
@@ -149,7 +153,7 @@
 		color: #6b7280;
 	}
 	.panel-header {
-		padding: 0.75rem;
+		padding: 0.1rem;
 		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 	}
 

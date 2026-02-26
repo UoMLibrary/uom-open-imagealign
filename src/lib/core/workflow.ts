@@ -7,15 +7,35 @@ import {
     removeAnnotationsForImage
 } from './projectStore';
 
-export const STAGES = [
+import type { ImageSource } from './types'; // <-- generated from schema
+
+/* -------------------------------------------------
+   Workflow Stage Type (Derived from Schema)
+------------------------------------------------- */
+
+// image.workflow.stage from schema
+export type WorkflowStage = NonNullable<
+    ImageSource['workflow']
+>['stage'];
+
+/* -------------------------------------------------
+   Stage Order (Domain Logic – Not Schema)
+------------------------------------------------- */
+
+// Order matters for progression logic.
+// Schema defines allowed values.
+// This defines progression semantics.
+export const STAGE_ORDER: WorkflowStage[] = [
     'ingested',
     'prepared',
     'grouped',
     'aligned',
     'annotated'
-] as const;
+];
 
-export type WorkflowStage = typeof STAGES[number];
+/* -------------------------------------------------
+   Stage Update
+------------------------------------------------- */
 
 export function setImageStage(
     imageId: string,
@@ -38,27 +58,44 @@ export function setImageStage(
     invalidateDownstream(imageId, newStage);
 }
 
+/* -------------------------------------------------
+   Invalidation Logic
+------------------------------------------------- */
+
 function invalidateDownstream(
     imageId: string,
     stage: WorkflowStage
 ) {
-    const index = STAGES.indexOf(stage);
+    const index = STAGE_ORDER.indexOf(stage);
 
-    // Dropping to ingested or prepared removes everything downstream
-    if (index <= STAGES.indexOf('prepared')) {
+    if (index <= STAGE_ORDER.indexOf('prepared')) {
         removeFromAllGroups(imageId);
         removeAlignmentsForImage(imageId);
         removeAnnotationsForImage(imageId);
         return;
     }
 
-    if (index <= STAGES.indexOf('grouped')) {
+    if (index <= STAGE_ORDER.indexOf('grouped')) {
         removeAlignmentsForImage(imageId);
         removeAnnotationsForImage(imageId);
         return;
     }
 
-    if (index <= STAGES.indexOf('aligned')) {
+    if (index <= STAGE_ORDER.indexOf('aligned')) {
         removeAnnotationsForImage(imageId);
     }
+}
+
+/* -------------------------------------------------
+   Stage Comparison Helpers
+------------------------------------------------- */
+
+export function isStageAtOrBeyond(
+    imageStage: WorkflowStage,
+    requiredStage: WorkflowStage
+): boolean {
+    return (
+        STAGE_ORDER.indexOf(imageStage) >=
+        STAGE_ORDER.indexOf(requiredStage)
+    );
 }
