@@ -28,7 +28,12 @@
 	   Derive selected image
 	------------------------------------------------ */
 
-	$: selectedImage = $images.find((img) => img.id === selectedId) ?? null;
+	function getSelectedImage(images: typeof $images, id: string | null) {
+		if (!id) return null;
+		return images.find((img) => img.id === id) ?? null;
+	}
+
+	$: selectedImage = getSelectedImage($images, selectedId);
 
 	/* ------------------------------------------------
 	   Initialise from project.ui or fallback
@@ -64,13 +69,20 @@
  		Filtering logic for preparation status 
 		(placeholder, replace with actual logic)
 	------------------------------------------------ */
+	$: filteredImages = filterImages($images, filter);
 
-	$: filteredImages =
-		filter === 'all'
-			? $images
-			: filter === 'confirmed'
-				? $images.filter(isConfirmed)
-				: $images.filter((img) => !isConfirmed(img));
+	function filterImages(images: typeof $images, mode: FilterMode) {
+		switch (mode) {
+			case 'all':
+				return images;
+
+			case 'confirmed':
+				return images.filter(isConfirmed);
+
+			case 'unconfirmed':
+				return images.filter((img) => !isConfirmed(img));
+		}
+	}
 
 	function isConfirmed(image: (typeof $images)[0]) {
 		const stage = image.workflow?.stage as WorkflowStage | undefined;
