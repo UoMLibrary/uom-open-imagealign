@@ -25,13 +25,13 @@
 			minZoomLevel: 0.1,
 			maxZoomLevel: 20,
 
-			// 🔴 THIS is the key one
+			// THIS is the key one
 			maxZoomPixelRatio: 5,
 
-			// 🔴 IMPORTANT
+			// IMPORTANT
 			keyboardNavEnabled: false,
 
-			// 🔴 THIS is the missing piece
+			// THIS is the missing piece
 			gestureSettingsKeyboard: {
 				rotate: false
 			},

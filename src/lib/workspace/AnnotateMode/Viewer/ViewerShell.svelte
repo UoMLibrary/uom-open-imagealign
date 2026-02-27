@@ -2,8 +2,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import OpenSeaDragonViewer from './OpenSeaDragonViewer.svelte';
 	import AnnotationLayer from './AnnotationLayer.svelte';
-	// import AnnotationsList from './AnnotationsList.svelte';
-	// import AnnotationPanel from './AnnotationPanel.svelte';
 	import Toolbar from './Toolbar.svelte';
 
 	export let imageA;

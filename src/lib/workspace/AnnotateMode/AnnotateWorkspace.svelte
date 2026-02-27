@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
+	import ViewerShell from './Viewer/ViewerShell.svelte';
 
 	let LeftPanelOpen = true;
 	let RightPanelOpen = true;
@@ -7,7 +8,14 @@
 
 <div class="prepare-layout">
 	<SidePanel side="left" bind:open={LeftPanelOpen}>side panel content</SidePanel>
-	<div class="viewer">sasa</div>
+	<div class="viewer">
+		<!-- {#if $activePair} -->
+		<!-- {#key $activePair.id} -->
+		<!-- <ViewerShell imageA={$activePair.imageAUrl} imageB={$activePair.imageBUrl} {session} /> -->
+		<ViewerShell />
+		<!-- {/key} -->
+		<!-- {/if} -->
+	</div>
 	<SidePanel side="right" bind:open={RightPanelOpen}>side panel content</SidePanel>
 </div>
 

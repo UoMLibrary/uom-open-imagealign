@@ -10,7 +10,7 @@ export function createImagePairSession(initial = {}) {
 		zoom: initial.zoom ?? null
 	});
 
-	// 🔑 session metadata (not document data)
+	//  session metadata (not document data)
 	const meta = writable({
 		initialAnnotationCount: initial.annotations?.length ?? 0
 	});

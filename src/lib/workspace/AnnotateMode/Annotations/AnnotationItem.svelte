@@ -1,9 +1,9 @@
 <script>
 	import { createEventDispatcher } from 'svelte';
-	import AudioNote from '$lib/AudioNote.svelte';
-	import SpeechToText from '$lib/viewer/SpeechToText.svelte';
-	import PageLockItemToggle from '$lib/viewer/PageLockItemToggle.svelte';
-	import Bin from '$lib/controls/Bin.svelte';
+	import AudioNote from './AudioNote.svelte';
+	import SpeechToText from './SpeechToText.svelte';
+	import PageLockItemToggle from './PageLockItemToggle.svelte';
+	import BinButton from '$lib/ui/shared/buttons/BinButton.svelte';
 
 	export let annotation;
 	export let selected = false;
@@ -92,6 +92,8 @@
 	}
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="annotation-item" class:selected on:click={() => dispatch('select', annotation.id)}>
 	<!-- ---------- Header ---------- -->
 	<header>
@@ -105,11 +107,12 @@
 		/>
 		<SpeechToText on:final={handleSpeechTitleFinal} on:interim={handleSpeechTitleInterim} />
 
-		<Bin title="Delete annotation" on:click={() => dispatch('delete', annotation.id)} />
+		<BinButton title="Delete annotation" on:click={() => dispatch('delete', annotation.id)} />
 	</header>
 
 	<!-- ---------- Text area + dictate ---------- -->
 	<div class="text-wrap">
+		<!-- svelte-ignore element_invalid_self_closing_tag -->
 		<textarea
 			class="body"
 			rows="3"

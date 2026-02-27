@@ -1,5 +1,5 @@
 <script>
-	import PadlockToggle from '$lib/viewer/PadlockToggle.svelte';
+	import PadlockToggleButton from '$lib/ui/shared/buttons/PadlockToggleButton.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	// TODO: This does not belong here
@@ -65,7 +65,7 @@
 	</div>
 
 	<!-- Lock segment -->
-	<div><PadlockToggle {locked} on:change={handleLockChange} /></div>
+	<div><PadlockToggleButton {locked} on:change={handleLockChange} /></div>
 </div>
 
 <style>
