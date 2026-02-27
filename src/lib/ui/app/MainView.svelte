@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Header from '$lib/ui/app/Header.svelte';
 	import WorkspaceShell from '$lib/ui/app/WorkspaceShell.svelte';
-	import Toast from '$lib/ui/shared/ui/Toast.svelte';
+	import Toast from '$lib/ui/shared/Toast.svelte';
 	import HelpModal from '$lib/ui/app/modals/HelpModal.svelte';
 	import AboutModal from '$lib/ui/app/modals/AboutModal.svelte';
 

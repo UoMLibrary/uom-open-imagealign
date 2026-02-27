@@ -6,7 +6,7 @@
 	import { groupingState } from '$lib/core/groupingStore';
 	import { initialiseSingleImageProposals } from '$lib/core/groupingStore';
 
-	import SidePanel from '$lib/ui/shared/ui/SidePanel.svelte';
+	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 	import ConfirmedGroupList from './ConfirmedGroupList.svelte';
 	import GroupStrategyPanel from './GroupStrategyPanel.svelte';
 	import GroupProposalList from './GroupProposalList.svelte';

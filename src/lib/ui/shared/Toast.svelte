@@ -1,5 +1,5 @@
 <script>
-	import { toast } from './toast';
+	import { toast } from '$lib/ui/shared/toast';
 </script>
 
 {#if $toast}
