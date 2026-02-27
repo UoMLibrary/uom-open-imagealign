@@ -4,15 +4,12 @@
 	import LeafFolderGroupingTool from '$lib/ui/features/grouping/tools/LeafFolderGroupingTool.svelte';
 	import PHashGroupingTool from '$lib/ui/features/grouping/tools/PHashGroupingTool.svelte';
 	import VisualProfileTool from '$lib/ui/features/grouping/tools/VisualProfileTool.svelte';
-	import PanelHeader from '$lib/ui/shared/ui/PanelHeader.svelte';
 
 	let selectedStrategy = 'individual';
 </script>
 
 <section>
-	<PanelHeader inline>
-		<h2 class="panel-title">Grouping Strategy</h2>
-	</PanelHeader>
+	<h3 class="panel-title">Grouping Strategy</h3>
 
 	<select bind:value={selectedStrategy}>
 		<option value="individual">Individual Images</option>
