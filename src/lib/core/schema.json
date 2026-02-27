@@ -281,6 +281,10 @@
                 "method": {
                     "type": "string"
                 },
+                "methodData": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "transform": {
                     "type": "object",
                     "required": [

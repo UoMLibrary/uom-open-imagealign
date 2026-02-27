@@ -113,6 +113,9 @@ export interface ImageAlignment {
   targetContentHash: string;
   confidence: number;
   method: string;
+  methodData?: {
+    [k: string]: unknown;
+  };
   transform: {
     type: 'affine' | 'homography';
     /**

@@ -3,29 +3,19 @@
 	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
 
 	import { groups, imagesById, alignments } from '$lib/core/projectStore';
+	import { upsertAlignment } from '$lib/core/projectStore';
+	import type { ImageAlignment } from '$lib/core/types';
+
+	import AlignToolbar, { type AlignStrategy } from './AlignToolbar.svelte';
+	import ManualAlignTool from './tools/ManualAlignTool.svelte';
 
 	let LeftPanelOpen = true;
 
-	/* -------------------------------------------------
-	   Strategy toolbar scaffold
-	------------------------------------------------- */
-
-	type AlignStrategy = 'manual' | 'keypoints' | 'affine';
-
-	const STRATEGIES: { id: AlignStrategy; label: string; hint: string }[] = [
-		{ id: 'manual', label: 'Manual', hint: 'Drag / nudge into place' },
-		{ id: 'keypoints', label: 'Keypoints', hint: 'Auto match features (later)' },
-		{ id: 'affine', label: 'Affine', hint: 'Corner/warp (later)' }
-	];
-
 	let strategy: AlignStrategy = 'manual';
-
-	/* -------------------------------------------------
-	   Group selection
-	------------------------------------------------- */
 
 	let selectedGroupId: string | null = null;
 
+	// Default selection to first group
 	$: {
 		const list = $groups;
 
@@ -43,9 +33,10 @@
 	}
 
 	/* -------------------------------------------------
-	   Active alignment pair (target = base image)
-	   For now we align "work images" (runtimeUri).
-------------------------------------------------- */
+	   Active pair
+	   target = baseImageId
+	   source = first non-base, else base (single-image group)
+	------------------------------------------------- */
 
 	type ActivePair = {
 		groupId: string;
@@ -53,6 +44,8 @@
 		sourceImageId: string;
 		targetUrl: string;
 		sourceUrl: string;
+		targetContentHash: string;
+		sourceContentHash: string;
 	};
 
 	let activePair: ActivePair | null = null;
@@ -62,69 +55,66 @@
 			activePair = null;
 		} else {
 			const targetImageId = selectedGroup.baseImageId ?? selectedGroup.imageIds[0];
-
-			// Pick a "source" that isn't the base if possible
-			const firstNonBase =
+			const sourceImageId =
 				selectedGroup.imageIds.find((id) => id !== targetImageId) ?? targetImageId;
 
-			const targetUrl = $imagesById[targetImageId]?.runtimeUri ?? '';
-			const sourceUrl = $imagesById[firstNonBase]?.runtimeUri ?? '';
+			const target = $imagesById[targetImageId];
+			const source = $imagesById[sourceImageId];
+
+			const targetUrl = target?.runtimeUri ?? '';
+			const sourceUrl = source?.runtimeUri ?? '';
+
+			const targetContentHash = target?.hashes?.contentHash ?? '';
+			const sourceContentHash = source?.hashes?.contentHash ?? '';
 
 			activePair =
-				targetUrl && sourceUrl
+				targetUrl && sourceUrl && targetContentHash && sourceContentHash
 					? {
 							groupId: selectedGroup.id,
 							targetImageId,
-							sourceImageId: firstNonBase,
+							sourceImageId,
 							targetUrl,
-							sourceUrl
+							sourceUrl,
+							targetContentHash,
+							sourceContentHash
 						}
 					: null;
 		}
 	}
 
-	/* -------------------------------------------------
-	   Alignment persistence scaffold
-	   Upsert by (sourceImageId, targetImageId)
-------------------------------------------------- */
-
-	function saveAlignment(data: unknown) {
-		if (!activePair) return;
-
-		const { sourceImageId, targetImageId } = activePair;
-
-		alignments.update((list) => {
-			const idx = list.findIndex(
-				(a: any) => a.sourceImageId === sourceImageId && a.targetImageId === targetImageId
-			);
-
-			const nextAlignment = {
-				// These two fields definitely exist (used elsewhere in projectStore)
-				sourceImageId,
-				targetImageId,
-
-				// Everything else is scaffold / flexible until your ImageAlignment type is final
-				strategy,
-				data,
-				updatedAt: Date.now()
-			} as any;
-
-			if (idx !== -1) {
-				const next = [...(list as any[])];
-				next[idx] = { ...(next[idx] as any), ...nextAlignment };
-				return next as any;
-			}
-
-			return [...(list as any[]), nextAlignment] as any;
-		});
-	}
-
 	$: existingAlignment =
 		activePair &&
-		($alignments as any[]).find(
+		($alignments as ImageAlignment[]).find(
 			(a) =>
 				a.sourceImageId === activePair.sourceImageId && a.targetImageId === activePair.targetImageId
 		);
+
+	/* -------------------------------------------------
+	   Save from tools
+	   method = strategy (records which approach produced the transform)
+	------------------------------------------------- */
+
+	function saveFromTool(draft: {
+		confidence?: number;
+		transform: ImageAlignment['transform'];
+		methodData?: Record<string, any>;
+	}) {
+		if (!activePair) return;
+
+		const next: ImageAlignment = {
+			sourceImageId: activePair.sourceImageId,
+			targetImageId: activePair.targetImageId,
+			sourceContentHash: activePair.sourceContentHash,
+			targetContentHash: activePair.targetContentHash,
+			confidence: draft.confidence ?? 0.8,
+			method: strategy,
+			transform: draft.transform
+			// If you add methodData to schema + types, include it here:
+			// methodData: draft.methodData
+		} as any;
+
+		upsertAlignment(next);
+	}
 </script>
 
 <div class="align-layout">
@@ -175,86 +165,37 @@
 	</SidePanel>
 
 	<div class="workspace">
-		<!-- Toolbar (strategy selection) -->
-		<div class="toolbar">
-			<div class="toolbar-left">
-				<div class="toolbar-title">Alignment</div>
-				<div class="segmented">
-					{#each STRATEGIES as s (s.id)}
-						<button
-							type="button"
-							class="seg-btn"
-							class:active={strategy === s.id}
-							title={s.hint}
-							on:click={() => (strategy = s.id)}
-						>
-							{s.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-
-			<div class="toolbar-right">
+		<AlignToolbar {strategy} onChange={(s) => (strategy = s)}>
+			<svelte:fragment slot="right">
 				{#if activePair}
 					<div class="pair-meta">
 						<span class="pill">target: {activePair.targetImageId.slice(0, 8)}</span>
 						<span class="pill">source: {activePair.sourceImageId.slice(0, 8)}</span>
+						<span class="pill">method: {strategy}</span>
 					</div>
 				{/if}
-			</div>
-		</div>
+			</svelte:fragment>
+		</AlignToolbar>
 
-		<!-- Tool area -->
 		<div class="tool-area">
 			{#if !activePair}
 				<div class="empty-main">Select a group to start aligning</div>
-			{:else if strategy === 'manual'}
-				<div class="tool-shell">
-					<div class="tool-header">
-						<div class="tool-name">Manual alignment (placeholder)</div>
-						<button
-							type="button"
-							class="save-btn"
-							on:click={() =>
-								saveAlignment({
-									kind: 'placeholder',
-									note: 'Saved from manual tool scaffold',
-									// Example: identity transform placeholder
-									transform: { type: 'identity' }
-								})}
-						>
-							Save alignment
-						</button>
-					</div>
-
-					<div class="tool-content">
-						<div class="img-pane">
-							<div class="pane-title">Target (base)</div>
-							<img src={activePair.targetUrl} alt="Target image" />
-						</div>
-
-						<div class="img-pane">
-							<div class="pane-title">Source (to align)</div>
-							<img src={activePair.sourceUrl} alt="Source image" />
-						</div>
-					</div>
-
-					{#if existingAlignment}
-						<details class="debug">
-							<summary>Existing alignment (debug)</summary>
-							<pre>{JSON.stringify(existingAlignment, null, 2)}</pre>
-						</details>
-					{/if}
-				</div>
 			{:else}
-				<div class="tool-shell">
-					<div class="tool-header">
-						<div class="tool-name">{STRATEGIES.find((s) => s.id === strategy)?.label} (stub)</div>
-					</div>
-					<div class="empty-main">
-						This tool isn’t implemented yet — but the workspace structure is ready.
-					</div>
-				</div>
+				{#key `${activePair.sourceImageId}:${activePair.targetImageId}:${strategy}`}
+					{#if strategy === 'manual'}
+						<ManualAlignTool
+							targetUrl={activePair.targetUrl}
+							sourceUrl={activePair.sourceUrl}
+							existingAlignment={existingAlignment ?? null}
+							onSave={saveFromTool}
+						/>
+					{:else}
+						<div class="tool-stub">
+							<div class="stub-title">{strategy} tool</div>
+							<div class="stub-body">Not implemented yet — the workspace is wired and ready.</div>
+						</div>
+					{/if}
+				{/key}
 			{/if}
 		</div>
 	</div>
@@ -385,152 +326,11 @@
 		background: #eee;
 	}
 
-	.toolbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.55rem 0.75rem;
-		background: rgba(255, 255, 255, 0.97);
-		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-	}
-
-	.toolbar-left {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		min-width: 0;
-	}
-
-	.toolbar-title {
-		font-weight: 700;
-		color: #111827;
-		font-size: 0.9rem;
-	}
-
-	.segmented {
-		display: inline-flex;
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		border-radius: 10px;
-		overflow: hidden;
-		background: white;
-	}
-
-	.seg-btn {
-		all: unset;
-		cursor: pointer;
-		padding: 0.35rem 0.6rem;
-		font-size: 0.8rem;
-		color: #0f172a;
-	}
-
-	.seg-btn:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	.seg-btn.active {
-		background: rgba(0, 0, 0, 0.08);
-		font-weight: 700;
-	}
-
-	.toolbar-right {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.pair-meta {
-		display: flex;
-		gap: 0.35rem;
-	}
-
-	.pill {
-		font-size: 0.72rem;
-		color: #334155;
-		background: rgba(0, 0, 0, 0.06);
-		padding: 0.15rem 0.45rem;
-		border-radius: 999px;
-	}
-
 	.tool-area {
 		flex: 1;
 		min-height: 0;
 		padding: 0.75rem;
 		overflow: auto;
-	}
-
-	.tool-shell {
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 12px;
-		padding: 0.75rem;
-		min-height: 240px;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.tool-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	.tool-name {
-		font-weight: 700;
-		color: #111827;
-		font-size: 0.9rem;
-	}
-
-	.save-btn {
-		all: unset;
-		cursor: pointer;
-		padding: 0.35rem 0.65rem;
-		font-size: 0.8rem;
-		border-radius: 8px;
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		background: #d1fae5;
-		color: #065f46;
-		font-weight: 700;
-	}
-
-	.save-btn:hover {
-		background: #a7f3d0;
-	}
-
-	.tool-content {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
-		min-height: 0;
-	}
-
-	.img-pane {
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 10px;
-		background: white;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-	}
-
-	.pane-title {
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: #6b7280;
-		padding: 0.45rem 0.6rem;
-		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-	}
-
-	.img-pane img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		background: #f3f4f6;
 	}
 
 	.empty-main {
@@ -543,17 +343,40 @@
 		text-align: center;
 	}
 
-	.debug {
-		font-size: 0.8rem;
-		color: #334155;
+	.pair-meta {
+		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+		justify-content: flex-end;
 	}
 
-	.debug pre {
-		margin: 0.5rem 0 0;
-		background: rgba(0, 0, 0, 0.04);
-		padding: 0.5rem;
-		border-radius: 8px;
-		overflow: auto;
-		max-height: 220px;
+	.pill {
+		font-size: 0.72rem;
+		color: #334155;
+		background: rgba(0, 0, 0, 0.06);
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+	}
+
+	.tool-stub {
+		background: rgba(255, 255, 255, 0.92);
+		border: 1px solid rgba(0, 0, 0, 0.08);
+		border-radius: 12px;
+		padding: 0.75rem;
+		min-height: 240px;
+		display: grid;
+		place-items: center;
+		gap: 0.25rem;
+	}
+
+	.stub-title {
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.stub-body {
+		color: #6b7280;
+		font-size: 0.9rem;
+		text-align: center;
 	}
 </style>

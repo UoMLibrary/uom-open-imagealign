@@ -388,6 +388,23 @@ export function removeAlignmentsForImage(imageId: string) {
     );
 }
 
+// This makes the align workspace “save” button safe and deterministic.
+export function upsertAlignment(next: ImageAlignment) {
+    alignments.update((list) => {
+        const idx = list.findIndex(
+            (a) => a.sourceImageId === next.sourceImageId && a.targetImageId === next.targetImageId
+        );
+
+        if (idx !== -1) {
+            const updated = [...list];
+            updated[idx] = next;
+            return updated;
+        }
+
+        return [...list, next];
+    });
+}
+
 /* ============================================================
    ANNOTATION MUTATIONS
 ============================================================ */
