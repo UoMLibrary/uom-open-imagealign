@@ -1,18 +1,41 @@
 <script lang="ts">
-	import { groupingState } from '$lib/core/groupingStore';
-	import { images } from '$lib/core/projectStore';
+	import {
+		groupingState,
+		ungroupImageFromProposal,
+		discardProposal,
+		confirmProposalAsGroup
+	} from '$lib/core/groupingStore';
+	import { imagesById } from '$lib/core/projectStore';
 	import type { GroupingProposal } from '$lib/core/groupingStore';
+
 	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
 
-	//  Svelte 5 callback props instead of dispatcher
-	export let onConfirm: (proposal: GroupingProposal) => void;
-	export let onDiscard: (id: string) => void;
+	// Svelte 5 callback props (optional; store fallbacks provided)
+	export let onConfirmGroup: ((proposal: GroupingProposal) => void) | undefined;
+	export let onDiscardProposal: ((proposalId: string) => void) | undefined;
+	export let onUngroupImage: ((proposalId: string, imageId: string) => void) | undefined;
+
+	// Back-compat aliases (if you’re still using the old prop names somewhere)
+	export let onConfirm: ((proposal: GroupingProposal) => void) | undefined;
+	export let onDiscard: ((proposalId: string) => void) | undefined;
+
+	$: proposals = $groupingState.proposals;
 
 	// Sort proposals largest first
-	$: sorted = [...$groupingState.proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
+	$: sorted = [...proposals].sort((a, b) => b.imageIds.length - a.imageIds.length);
 
-	// Image lookup map
-	$: imagesById = Object.fromEntries($images.map((img) => [img.id, img]));
+	function handleConfirm(proposal: GroupingProposal) {
+		// Prefer new prop, then legacy prop, then store helper
+		(onConfirmGroup ?? onConfirm)?.(proposal) ?? confirmProposalAsGroup(proposal.id);
+	}
+
+	function handleDiscard(proposalId: string) {
+		(onDiscardProposal ?? onDiscard)?.(proposalId) ?? discardProposal(proposalId);
+	}
+
+	function handleUngroup(proposalId: string, imageId: string) {
+		onUngroupImage?.(proposalId, imageId) ?? ungroupImageFromProposal(proposalId, imageId);
+	}
 </script>
 
 {#if sorted.length === 0}
@@ -22,11 +45,17 @@
 		{#each sorted as proposal (proposal.id)}
 			<div class="proposal-card">
 				<div class="proposal-header">
-					{#if proposal.confidence != null}
-						<div class="confidence">
-							{Math.round(proposal.confidence * 100)}%
-						</div>
-					{/if}
+					<div class="meta">
+						<div class="count">{proposal.imageIds.length} images</div>
+
+						{#if proposal.confidence != null}
+							<div class="confidence">{Math.round(proposal.confidence * 100)}%</div>
+						{/if}
+					</div>
+
+					<button class="icon-btn" type="button" on:click={() => handleDiscard(proposal.id)}>
+						Discard
+					</button>
 				</div>
 
 				{#if proposal.reason}
@@ -34,25 +63,40 @@
 				{/if}
 
 				<div class="proposal-images">
-					{#each proposal.imageIds as id}
-						{#if imagesById[id]}
-							<div style="height: 80px; width: 80px;">
+					{#each proposal.imageIds as id (id)}
+						{#if $imagesById[id]}
+							<div class="thumb">
 								<ImageThumbnail
-									contentHash={imagesById[id].hashes.contentHash}
-									fallbackSrc={imagesById[id].runtimeUri}
-									label={imagesById[id].label}
+									contentHash={$imagesById[id].hashes?.contentHash}
+									fallbackSrc={$imagesById[id].runtimeUri}
+									label={$imagesById[id].label}
 									mode="normalised"
-									debugCompare={true}
 								/>
+
+								{#if proposal.imageIds.length > 1}
+									<button
+										class="ungroup"
+										type="button"
+										title="Remove from this suggestion"
+										aria-label="Remove from this suggestion"
+										on:click|stopPropagation={() => handleUngroup(proposal.id, id)}
+									>
+										Ungroup
+									</button>
+								{/if}
 							</div>
 						{/if}
 					{/each}
 				</div>
 
 				<div class="proposal-actions">
-					<button class="confirm" on:click={() => onConfirm?.(proposal)}> Confirm </button>
+					<button class="btn primary" type="button" on:click={() => handleConfirm(proposal)}>
+						Confirm group
+					</button>
 
-					<button class="discard" on:click={() => onDiscard?.(proposal.id)}> Discard </button>
+					<button class="btn" type="button" on:click={() => handleDiscard(proposal.id)}>
+						Discard
+					</button>
 				</div>
 			</div>
 		{/each}
@@ -68,7 +112,7 @@
 
 	.proposal-card {
 		border: 1px dashed #cbd5e1;
-		border-radius: 8px;
+		border-radius: 10px;
 		padding: 0.75rem;
 		background: #f8fafc;
 	}
@@ -77,21 +121,34 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		gap: 0.75rem;
 		margin-bottom: 0.5rem;
+	}
+
+	.meta {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.count {
+		font-size: 0.75rem;
+		color: #334155;
+		font-weight: 600;
 	}
 
 	.confidence {
 		font-size: 0.7rem;
 		color: #64748b;
 		background: #e2e8f0;
-		padding: 0.2rem 0.4rem;
-		border-radius: 4px;
+		padding: 0.2rem 0.45rem;
+		border-radius: 6px;
 	}
 
 	.reason {
 		font-size: 0.75rem;
 		color: #475569;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.6rem;
 	}
 
 	.proposal-images {
@@ -101,35 +158,67 @@
 		margin-bottom: 0.75rem;
 	}
 
+	.thumb {
+		position: relative;
+		width: 84px;
+		height: 84px;
+		border-radius: 8px;
+		overflow: hidden;
+		border: 1px solid rgba(0, 0, 0, 0.08);
+		background: white;
+	}
+
+	/* small overlay action */
+	.ungroup {
+		all: unset;
+		position: absolute;
+		left: 6px;
+		bottom: 6px;
+		padding: 0.12rem 0.35rem;
+		font-size: 0.65rem;
+		line-height: 1;
+		border-radius: 6px;
+		cursor: pointer;
+
+		background: rgba(255, 255, 255, 0.92);
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		color: #0f172a;
+	}
+
+	.ungroup:hover {
+		background: rgba(255, 255, 255, 1);
+	}
+
 	.proposal-actions {
 		display: flex;
 		gap: 0.5rem;
 	}
 
-	button {
+	.btn,
+	.icon-btn {
 		all: unset;
 		cursor: pointer;
-		padding: 0.3rem 0.6rem;
+		padding: 0.35rem 0.65rem;
 		font-size: 0.75rem;
-		border-radius: 4px;
+		border-radius: 6px;
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		background: white;
+		color: #0f172a;
 	}
 
-	.confirm {
+	.btn:hover,
+	.icon-btn:hover {
+		background: #f1f5f9;
+	}
+
+	.btn.primary {
 		background: #d1fae5;
 		color: #065f46;
+		border-color: rgba(6, 95, 70, 0.25);
 	}
 
-	.confirm:hover {
+	.btn.primary:hover {
 		background: #a7f3d0;
-	}
-
-	.discard {
-		background: #f1f5f9;
-		color: #334155;
-	}
-
-	.discard:hover {
-		background: #e2e8f0;
 	}
 
 	.empty {
