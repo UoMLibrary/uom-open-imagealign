@@ -258,11 +258,24 @@ export function removeImage(imageId: string) {
 ============================================================ */
 
 export function addGroup(group: ImageGroup) {
-    groups.update(gs => [...gs, group]);
+    groups.update((gs) => {
+        const idx = gs.findIndex((g) => g.id === group.id);
+        if (idx !== -1) {
+            // Idempotent: replace existing entry (prevents each_key_duplicate crashes)
+            const next = [...gs];
+            next[idx] = group;
+            return next;
+        }
+        return [...gs, group];
+    });
 }
 
 export function addGroups(newGroups: ImageGroup[]) {
-    groups.update(gs => [...gs, ...newGroups]);
+    groups.update((gs) => {
+        const byId = new Map(gs.map((g) => [g.id, g]));
+        for (const g of newGroups) byId.set(g.id, g);
+        return Array.from(byId.values());
+    });
 }
 
 export function updateGroup(

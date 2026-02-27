@@ -84,7 +84,7 @@
 			</div>
 		</svelte:fragment>
 
-		<ConfirmedGroupList {selectedGroupId} on:select={(e) => selectGroup(e.detail.id)} />
+		<ConfirmedGroupList {selectedGroupId} onSelect={(id) => (selectedGroupId = id)} />
 	</SidePanel>
 
 	<div class="workspace">
