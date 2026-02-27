@@ -267,6 +267,8 @@ It allows grouping strategies to improve or change without breaking existing pro
 - #### ALIGNMENT
 - Get something in place even if it just passes te images along for the moment
 - #### ANNOTATE
+- Eye tool on each annotation to show/hide the annotations
+- Eye tool across all annotations to show/hide the annotation layer
 - Copy in Annotate mode from existing app
 - #### DERIVATIONCACHE
 - Refactor derivation cache so prep and norm are keyed by imageId (instance-based) rather than contentHash, to prevent duplicate images overwriting each other’s preparation.
