@@ -80,11 +80,6 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.proposal-title {
-		font-weight: 600;
-		font-size: 0.85rem;
-	}
-
 	.confidence {
 		font-size: 0.7rem;
 		color: #64748b;
@@ -104,13 +99,6 @@
 		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
-	}
-
-	.image-pill {
-		font-size: 0.7rem;
-		padding: 0.2rem 0.4rem;
-		background: #e2e8f0;
-		border-radius: 4px;
 	}
 
 	.proposal-actions {
