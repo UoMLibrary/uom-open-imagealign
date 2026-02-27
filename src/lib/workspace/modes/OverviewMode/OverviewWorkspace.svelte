@@ -2,7 +2,7 @@
 	import { images } from '$lib/core/projectStore';
 	import { STAGE_ORDER, isStageAtOrBeyond, type WorkflowStage } from '$lib/core/workflow';
 
-	import ImageThumbnail from '$lib/ui/features/thumbnails/ImageThumbnail.svelte';
+	import ImageThumbnail from '$lib/ui/shared/ui/ImageThumbnail.svelte';
 	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
 
 	/* -------------------------------------------------
