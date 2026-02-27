@@ -30,7 +30,7 @@
 
 		<div class="title">
 			<a
-				href="https://github.com/UoMLibrary/uom-open-annotator/"
+				href="https://github.com/UoMLibrary/uom-open-imagealign/"
 				target="_blank"
 				rel="noopener noreferrer"
 			>
