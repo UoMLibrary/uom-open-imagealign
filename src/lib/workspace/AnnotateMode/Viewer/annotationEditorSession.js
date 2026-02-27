@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 
-export function createImagePairSession(initial = {}) {
+export function createAnnotationEditorSession(initial = {}) {
 	const annotations = writable(initial.annotations ?? []);
 	const selectedId = writable(null);
 
