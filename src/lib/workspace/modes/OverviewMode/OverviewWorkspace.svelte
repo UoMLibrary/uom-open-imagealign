@@ -123,9 +123,9 @@
 						{#each STAGE_ORDER as stage}
 							<td class="stage-cell">
 								{#if isStageAtOrBeyond(image.workflow?.stage ?? 'ingested', stage)}
-									<span class="tick">✓</span>
+									<div class="badge confirmed">✓</div>
 								{:else}
-									<span class="cross">✕</span>
+									<div class="cross">✕</div>
 								{/if}
 							</td>
 						{/each}
@@ -260,13 +260,33 @@
 		text-align: center;
 	}
 
-	.tick {
-		color: #16a34a;
-		font-weight: 700;
-	}
-
 	.cross {
 		color: #9ca3af;
 		font-weight: 600;
+	}
+
+	/* ==================================================
+    Stage Badge
+	================================================== */
+
+	.stage-cell {
+		text-align: center;
+		vertical-align: middle;
+	}
+
+	.badge {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		font-size: 0.65rem;
+		display: inline-flex; /* ← inline-flex instead of flex */
+		align-items: center;
+		justify-content: center;
+		font-weight: 600;
+	}
+
+	.badge.confirmed {
+		background: #22c55e;
+		color: white;
 	}
 </style>

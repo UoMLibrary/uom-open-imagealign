@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WORKSPACE_MODES, currentMode, type WorkspaceMode } from '$lib/workspace/workspaceStore';
+	import { WORKSPACE_MODES, currentMode, type WorkspaceMode } from '$lib/core/workspaceStore';
 
 	function setMode(mode: WorkspaceMode) {
 		currentMode.set(mode);

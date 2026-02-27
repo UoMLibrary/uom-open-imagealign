@@ -1,48 +1,44 @@
-<script>
-	import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+<script lang="ts">
+	import { onMount } from 'svelte';
 
-	export let side = 'left'; // 'left' | 'right'
+	// Which side the panel is attached to. Controls toggle key + button placement.
+	export let side: 'left' | 'right' = 'left';
+
+	// Whether the panel is open. Parent should use: bind:open
 	export let open = true;
+
+	// Width in pixels when expanded.
 	export let width = 260;
 
-	const dispatch = createEventDispatcher();
-
+	// Toggle panel state. Parent reacts via bind:open.
 	function toggle() {
 		open = !open;
-		dispatch('toggle', open);
 	}
 
-	function onKeyDown(e) {
-		// Don't interfere with typing
-		if (e.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+	// Keyboard shortcut handler. [  toggles left panel, ]  toggles right panel
+	function handleKeydown(e: KeyboardEvent) {
+		const target = e.target as HTMLElement | null;
+
+		// Do not interfere with typing
+		if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) {
 			return;
 		}
 
-		// Left panel toggle
-		if (side === 'left' && e.key === '[') {
-			e.preventDefault();
-			toggle();
-		}
-
-		// Right panel toggle
-		if (side === 'right' && e.key === ']') {
+		if ((side === 'left' && e.key === '[') || (side === 'right' && e.key === ']')) {
 			e.preventDefault();
 			toggle();
 		}
 	}
 
 	onMount(() => {
-		window.addEventListener('keydown', onKeyDown);
-	});
-
-	onDestroy(() => {
-		window.removeEventListener('keydown', onKeyDown);
+		window.addEventListener('keydown', handleKeydown);
+		return () => window.removeEventListener('keydown', handleKeydown);
 	});
 </script>
 
 <div class="side-panel {side}" class:collapsed={!open} style="--panel-width: {width}px">
 	<aside>
-		<header>
+		<header class="panel-header">
 			<slot name="header" />
 		</header>
 
@@ -53,7 +49,7 @@
 		{/if}
 	</aside>
 
-	<button class="toggle" on:click={toggle} aria-label="Toggle panel">
+	<button class="toggle" on:click={toggle} aria-label="Toggle {side} panel">
 		{#if side === 'left'}
 			{open ? '⟨' : '⟩'}
 		{:else}
@@ -63,10 +59,19 @@
 </div>
 
 <style>
+	/* =========================================================
+	   Layout container
+	========================================================= */
+
 	.side-panel {
 		position: relative;
 		height: 100%;
+		min-height: 0; /* allows proper flex scrolling */
 	}
+
+	/* =========================================================
+	   Panel structure
+	========================================================= */
 
 	aside {
 		width: var(--panel-width);
@@ -78,45 +83,27 @@
 		transition: width 0.2s ease;
 	}
 
-	.side-panel,
-	.viewer {
-		min-height: 0; /* allows scrolling instead of growth */
-	}
-
-	.collapsed aside {
+	.side-panel.collapsed aside {
 		width: 0;
 	}
 
+	.panel-header {
+		flex-shrink: 0;
+	}
+
+	/* =========================================================
+	   Scrollable content
+	========================================================= */
+
 	.panel-content {
 		flex: 1;
-		overflow-y: scroll;
-
-		/* Firefox */
-		scrollbar-width: thin;
-		scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
-
-		/* Fake edge flush by slightly shifting content: */
-		margin-right: -16px;
-		padding-right: 8px;
+		overflow-y: auto;
+		scrollbar-color: rgba(0, 0, 0, 0.25) transparent; /* Firefox */
 	}
 
-	/* WebKit (Chrome, Edge, Safari) */
-	.panel-content::-webkit-scrollbar {
-		width: 8px;
-	}
-
-	.panel-content::-webkit-scrollbar-track {
-		background: transparent;
-	}
-
-	.panel-content::-webkit-scrollbar-thumb {
-		background-color: rgba(0, 0, 0, 0.25);
-		border-radius: 6px;
-	}
-
-	.panel-content::-webkit-scrollbar-thumb:hover {
-		background-color: rgba(0, 0, 0, 0.35);
-	}
+	/* =========================================================
+	   Toggle button
+	========================================================= */
 
 	.toggle {
 		position: absolute;
@@ -134,6 +121,8 @@
 	.toggle:hover {
 		opacity: 1;
 	}
+
+	/* Side-specific placement */
 
 	.left .toggle {
 		left: 100%;

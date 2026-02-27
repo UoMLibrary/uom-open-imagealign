@@ -2,7 +2,7 @@
 	import LoadProjectButton from '$lib/ui/shared/buttons/LoadProjectButton.svelte';
 	import SaveProjectButton from '$lib/ui/shared/buttons/SaveProjectButton.svelte';
 	import ImportImagesButton from '$lib/ui/shared/buttons/ImportImagesButton.svelte';
-	import ModeTabs from '$lib/workspace/shared/ModeTabs.svelte';
+	import ModeTabs from '$lib/ui/app/ModeTabs.svelte';
 
 	// Add callback props for Help and About actions
 	export let onHelp: () => void;
