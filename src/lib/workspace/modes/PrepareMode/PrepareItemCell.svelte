@@ -11,7 +11,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="cell {selected ? 'selected' : ''}" on:click={onSelect}>
+<div class="cell {selected ? 'selected' : ''}" on:click={onSelect} role="button" tabindex="0">
 	<div class="thumb">
 		<ImageThumbnail
 			contentHash={image.hashes?.contentHash}

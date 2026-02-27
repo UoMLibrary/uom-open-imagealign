@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { images, project, updateProjectUI } from '$lib/core/projectStore';
-	import { get } from 'svelte/store';
 	import Sidebar from '$lib/ui/app/SidePanel.svelte';
-	import ImagePreparationCanvas from './ImagePreparationCanvas.svelte';
-	import PreparationToolbar from './PreparationToolbar.svelte';
+	import ImagePreparationCanvas from './ImagePreparationPanel/ImagePreparationCanvas.svelte';
+	import PreparationInfoBar from './PreparationInfoBar.svelte';
 	import PrepareItemCell from './PrepareItemCell.svelte';
 	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
 	import { isStageAtOrBeyond } from '$lib/core/workflow';
@@ -17,10 +16,6 @@
 
 	type FilterMode = 'all' | 'confirmed' | 'unconfirmed';
 	let filter: FilterMode = 'all';
-
-	// DEBUG
-	// console.log('Images in store:', get(images));
-
 	let selectedId: string | null = null;
 	let sidebarOpen = true;
 
@@ -136,7 +131,7 @@
 	<div class="workspace">
 		{#if selectedImage}
 			<ImagePreparationCanvas {selectedImage} />
-			<PreparationToolbar {selectedImage} />
+			<PreparationInfoBar {selectedImage} />
 		{:else}
 			<div class="placeholder">Select an image to prepare</div>
 		{/if}
