@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
+
 	import { createAnnotationEditorSession } from './Viewer/annotationEditorSession';
 
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
@@ -8,11 +11,22 @@
 	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
 
 	let session = createAnnotationEditorSession();
+	let selectedGroupId: string | null = null;
 
 	let LeftPanelOpen = true;
 	let RightPanelOpen = true;
 
-	let selectedGroupId: string | null = null;
+	/* -------------------------------------------------
+	   Close annotation panel on mount if empty
+	------------------------------------------------- */
+
+	onMount(() => {
+		const existing = get(session.annotations);
+
+		if (!existing || existing.length === 0) {
+			RightPanelOpen = false;
+		}
+	});
 
 	// Keep selection valid / default to first group
 	$: {
