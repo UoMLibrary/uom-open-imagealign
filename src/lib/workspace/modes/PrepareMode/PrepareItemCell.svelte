@@ -159,10 +159,10 @@
 	================================================ */
 
 	.badge {
-		width: 16px;
-		height: 16px;
+		width: 15px;
+		height: 15px;
 		border-radius: 50%;
-		font-size: 0.65rem;
+		font-size: 0.6rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
