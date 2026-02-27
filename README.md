@@ -250,16 +250,16 @@ It allows grouping strategies to improve or change without breaking existing pro
 - #### INGEST
 - If importing an image folder and it contains a project.json file, use it
 - #### PREPARE
-- Show summary at bottomm of sidebar with 'x of y confirmed'
+- Show summary at bottomm of SidePanel with 'x of y confirmed'
 - Make confirm buttom top right not in the flow
 - Add an invalidate button that resets the preparation to the oute bounds
-- Add select All at bottom of sidebar (as control) with tick and cross actions to apply to all
+- Add select All at bottom of SidePanel (as control) with tick and cross actions to apply to all
 - #### GROUP
 - Fix adding a confirmed item to the group
 - Redesign awful looking grouping strategy component
 - Strategy return matches, they need to also return unmatched as groups of 1
 - Lots of wasted screen real estate with group suggestions, use grid?
-- Need visual component for Group > Sidebar > item
+- Need visual component for Group > SidePanel > item
 - Need to be able to order within the group
 - Add select/unselect all in Group suggestions fixed header along with actions
 - Align mode can infer base image as groupImage[0]
@@ -277,7 +277,7 @@ It allows grouping strategies to improve or change without breaking existing pro
 - Add Tiff support in browser
 
 - DONE: Update in Image prepare needs to regenerate the normalised image
-- DONE: Prepare sidebar always reserve space (narrowed) for scroll bar on y
-- DONE: Fix prep sidebar header
+- DONE: Prepare SidePanel always reserve space (narrowed) for scroll bar on y
+- DONE: Fix prep SidePanel header
 - DONE: Add 5 digit hash into Prepare cell
 - DONE: SHow Dimensions, source and filename at bottom as well

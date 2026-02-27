@@ -6,13 +6,13 @@
 	import { groupingState } from '$lib/core/groupingStore';
 	import { initialiseSingleImageProposals } from '$lib/core/groupingStore';
 
-	import Sidebar from '$lib/ui/app/SidePanel.svelte';
+	import SidePanel from '$lib/ui/app/SidePanel.svelte';
 	import ConfirmedGroupList from './ConfirmedGroupList.svelte';
 	import GroupStrategyPanel from './GroupStrategyPanel.svelte';
 	import GroupProposalList from './GroupProposalList.svelte';
 
 	let selectedGroupId: string | null = null;
-	let sidebarOpen = true;
+	let SidePanelOpen = true;
 
 	/* ------------------------------------------------
 	   Initialise selection from project.ui
@@ -75,7 +75,7 @@
 </script>
 
 <div class="group-layout">
-	<Sidebar side="left" bind:open={sidebarOpen} width={280}>
+	<SidePanel side="left" bind:open={SidePanelOpen} width={280}>
 		<svelte:fragment slot="header">
 			<div class="panel-header">
 				<div class="header-row">
@@ -85,7 +85,7 @@
 		</svelte:fragment>
 
 		<ConfirmedGroupList {selectedGroupId} on:select={(e) => selectGroup(e.detail.id)} />
-	</Sidebar>
+	</SidePanel>
 
 	<div class="workspace">
 		<div class="suggestions">
@@ -131,7 +131,7 @@
 		background: #f9fafb;
 	}
 
-	/* Sidebar header */
+	/* SidePanel header */
 	.panel-header {
 		padding: 0.4rem 0.75rem 0.4rem 0.75rem;
 		border-bottom: 1px solid rgba(0, 0, 0, 0.06);

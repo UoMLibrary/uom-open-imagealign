@@ -397,7 +397,7 @@
                         "annotate"
                     ]
                 },
-                "sidebarOpen": {
+                "SidePanelOpen": {
                     "type": "boolean"
                 }
             }
