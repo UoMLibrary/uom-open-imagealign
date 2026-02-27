@@ -1,5 +1,5 @@
 <script>
-	import PadlockToggleButton from '$lib/ui/shared/buttons/PadlockToggleButton.svelte';
+	import PadlockButton from '$lib/ui/shared/buttons/PadlockButton.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	// TODO: This does not belong here
@@ -64,11 +64,29 @@
 		<button class="doc" on:click={setB} aria-label="Show image B only"> B </button>
 	</div>
 
-	<!-- Lock segment -->
-	<div><PadlockToggleButton {locked} on:change={handleLockChange} /></div>
+	<!-- Padlock: Does not really belong at this level -->
+	<!-- <div class="padlock">
+		<PadlockButton
+			{locked}
+			color={locked ? '#222' : '#222'}
+			size={18}
+			onChange={(v) => (locked = v)}
+			ariaLabelLocked="Unlock image"
+			ariaLabelUnlocked="Lock image"
+			showHover={false}
+		/>
+	</div> -->
 </div>
 
 <style>
+	.padlock {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.5rem 0 0.5rem;
+		/* background-color: #222;
+		border-top-right-radius: 10px; */
+	}
 	/* ---------- Toolbar shell ---------- */
 
 	.toolbar {

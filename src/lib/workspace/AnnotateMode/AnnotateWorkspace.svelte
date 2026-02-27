@@ -12,7 +12,7 @@
 		<!-- {#if $activePair} -->
 		<!-- {#key $activePair.id} -->
 		<!-- <ViewerShell imageA={$activePair.imageAUrl} imageB={$activePair.imageBUrl} {session} /> -->
-		<ViewerShell />
+		<ViewerShell imageA="test/photo1.png" imageB="test/photo2.png" />
 		<!-- {/key} -->
 		<!-- {/if} -->
 	</div>
