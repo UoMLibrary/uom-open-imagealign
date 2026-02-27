@@ -250,6 +250,7 @@
 		font-size: 0.65rem;
 		color: #9ca3af;
 		margin-top: 0.2rem;
+		font-weight: 500;
 	}
 
 	/* ==================================================
