@@ -4,7 +4,7 @@
 	import ImagePreparationCanvas from './ImagePreparationPanel/ImagePreparationCanvas.svelte';
 	import PreparationInfoBar from './PreparationInfoBar.svelte';
 	import PrepareItemCell from './PrepareItemCell.svelte';
-	import FilterSegment from '$lib/ui/shared/ui/FilterSegment.svelte';
+	import FilterSegment from '$lib/ui/shared/FilterSegment.svelte';
 	import { isStageAtOrBeyond } from '$lib/core/workflow';
 	import type { WorkflowStage } from '$lib/core/workflow';
 

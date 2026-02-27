@@ -2,7 +2,7 @@
 	import { groupingState } from '$lib/core/groupingStore';
 	import { images } from '$lib/core/projectStore';
 	import type { GroupingProposal } from '$lib/core/groupingStore';
-	import ImageThumbnail from '$lib/ui/shared/ui/ImageThumbnail.svelte';
+	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
 
 	//  Svelte 5 callback props instead of dispatcher
 	export let onConfirm: (proposal: GroupingProposal) => void;

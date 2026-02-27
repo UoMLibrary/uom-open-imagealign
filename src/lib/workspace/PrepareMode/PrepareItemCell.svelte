@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ImageThumbnail from '$lib/ui/shared/ui/ImageThumbnail.svelte';
+	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
 
 	export let image;
 	export let selected: boolean = false;
