@@ -158,7 +158,7 @@
 	}
 
 	.panel-header {
-		padding: 0.4rem 0.75rem 0.4rem 0.75rem;
+		padding: 0.4rem 0.75rem 0.4rem 1.75rem;
 		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 	}
 
