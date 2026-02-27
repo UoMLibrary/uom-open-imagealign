@@ -7,7 +7,7 @@
 	import { initialiseSingleImageProposals } from '$lib/core/groupingStore';
 
 	import Sidebar from '$lib/ui/app/SidePanel.svelte';
-	import GroupSidebar from './GroupSidebar.svelte';
+	import ConfirmedGroupList from './ConfirmedGroupList.svelte';
 	import GroupStrategyPanel from './GroupStrategyPanel.svelte';
 	import GroupProposalList from './GroupProposalList.svelte';
 
@@ -77,12 +77,14 @@
 <div class="group-layout">
 	<Sidebar side="left" bind:open={sidebarOpen} width={280}>
 		<svelte:fragment slot="header">
-			<div class="panel-title">
-				Groups ({$groups.length})
+			<div class="panel-header">
+				<div class="header-row">
+					<div class="panel-title">Groups</div>
+				</div>
 			</div>
 		</svelte:fragment>
 
-		<GroupSidebar {selectedGroupId} on:select={(e) => selectGroup(e.detail.id)} />
+		<ConfirmedGroupList {selectedGroupId} on:select={(e) => selectGroup(e.detail.id)} />
 	</Sidebar>
 
 	<div class="workspace">
@@ -129,12 +131,26 @@
 		background: #f9fafb;
 	}
 
+	/* Sidebar header */
+	.panel-header {
+		padding: 0.4rem 0.75rem 0.4rem 0.75rem;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+	}
+
+	.header-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
 	.panel-title {
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		font-weight: 700;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: #6b7280;
-		margin-bottom: 0.5rem;
+		line-height: 1; /* prevents vertical drift */
+		margin: 0; /* remove bottom spacing */
+		padding: 0.4rem 0; /* add vertical padding */
 	}
 </style>
