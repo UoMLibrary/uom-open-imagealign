@@ -1,6 +1,5 @@
 <script>
 	import { createEventDispatcher } from 'svelte';
-	import AudioNote from './AudioNote.svelte';
 	import SpeechToText from './SpeechToText.svelte';
 	import PageLockItemToggle from './PageLockItemToggle.svelte';
 	import BinButton from '$lib/ui/shared/buttons/BinButton.svelte';
@@ -129,8 +128,6 @@
 
 	<!-- ---------- Footer controls ---------- -->
 	<footer>
-		<AudioNote audio={annotation.audio} on:recorded={handleRecorded} on:deleted={removeAudio} />
-
 		<PageLockItemToggle {locked} on:change={handleLockChange} />
 	</footer>
 </div>
