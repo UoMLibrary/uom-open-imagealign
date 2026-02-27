@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { images, project, updateProjectUI } from '$lib/core/projectStore';
-	import SidePanel from '$lib/ui/app/SidePanel.svelte';
+	import SidePanel from '$lib/ui/shared/ui/SidePanel.svelte';
 	import ImagePreparationCanvas from './ImagePreparationPanel/ImagePreparationCanvas.svelte';
 	import PreparationInfoBar from './PreparationInfoBar.svelte';
 	import PrepareItemCell from './PrepareItemCell.svelte';
