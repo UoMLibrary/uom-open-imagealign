@@ -3,9 +3,18 @@
 	import SaveProjectButton from '$lib/ui/shared/buttons/SaveProjectButton.svelte';
 	import ImportImagesButton from '$lib/ui/shared/buttons/ImportImagesButton.svelte';
 	import ModeTabs from '$lib/workspace/shared/ModeTabs.svelte';
-	import { createEventDispatcher } from 'svelte';
 
-	const dispatch = createEventDispatcher();
+	// Add callback props for Help and About actions
+	export let onHelp: () => void;
+	export let onAbout: () => void;
+
+	// Handlers to call the passed-in callbacks
+	function handleHelp() {
+		onHelp?.();
+	}
+	function handleAbout() {
+		onAbout?.();
+	}
 </script>
 
 <div class="header-wrapper">
@@ -15,8 +24,8 @@
 			<LoadProjectButton />
 			<SaveProjectButton />
 
-			<button on:click={() => dispatch('help')}>Help</button>
-			<button on:click={() => dispatch('about')}>About</button>
+			<button onclick={handleHelp}>Help</button>
+			<button onclick={handleAbout}>About</button>
 		</div>
 
 		<div class="title">
@@ -30,12 +39,17 @@
 		</div>
 	</header>
 
-	<!-- Mode Tabs below header line -->
 	<ModeTabs />
 </div>
 
 <style>
-	/* ---------- Header shell ---------- */
+	/* =========================================================
+   Header Layout
+   ---------------------------------------------------------
+   Top-level horizontal bar.
+   Responsible for positioning title (left) and actions (right).
+   Fixed height to keep consistent app chrome.
+   ========================================================= */
 
 	.header {
 		display: flex;
@@ -56,10 +70,15 @@
 			sans-serif;
 	}
 
-	/* ---------- Title ---------- */
+	/* =========================================================
+   Title Area
+   ---------------------------------------------------------
+   Styled link used as primary app title / navigation anchor.
+   Focus styling ensures accessibility compliance.
+   ========================================================= */
 
 	.title a {
-		color: #111827; /* same as your header text */
+		color: #111827;
 		text-decoration: none;
 		font-weight: 600;
 	}
@@ -73,7 +92,13 @@
 		outline-offset: 2px;
 	}
 
-	/* ---------- Action group ---------- */
+	/* =========================================================
+   Actions Container
+   ---------------------------------------------------------
+   Right-aligned toolbar area.
+   Uses flex to allow horizontal stacking of buttons.
+   Overflow hidden prevents focus ring bleed.
+   ========================================================= */
 
 	.actions {
 		display: flex;
@@ -81,7 +106,13 @@
 		overflow: hidden;
 	}
 
-	/* ---------- Action buttons (toolbar-style) ---------- */
+	/* =========================================================
+   Toolbar Button Styling
+   ---------------------------------------------------------
+   Resets native button styles.
+   Creates compact toolbar-style interaction targets.
+   Scoped globally because buttons may be slotted or child components.
+   ========================================================= */
 
 	.actions :global(button) {
 		all: unset;
@@ -105,6 +136,12 @@
 		outline: 2px solid #4c9ffe;
 		outline-offset: -2px;
 	}
+
+	/* =========================================================
+   Wrapper
+   ---------------------------------------------------------
+   Allows stacking header with optional secondary bars.
+   ========================================================= */
 
 	.header-wrapper {
 		display: flex;

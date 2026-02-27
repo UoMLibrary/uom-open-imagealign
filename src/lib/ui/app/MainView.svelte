@@ -12,7 +12,7 @@
 
 <div class="app">
 	<Toast />
-	<Header on:help={() => (showHelp = true)} on:about={() => (showAbout = true)} />
+	<Header onHelp={() => (showHelp = true)} onAbout={() => (showAbout = true)} />
 	<WorkspaceShell />
 	<HelpModal bind:open={showHelp} />
 	<AboutModal bind:open={showAbout} />
