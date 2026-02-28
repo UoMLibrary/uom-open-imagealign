@@ -244,6 +244,10 @@ It allows grouping strategies to improve or change without breaking existing pro
 
 ## TODO
 
+- Alignment: When Source dragged, locate same position and zoom level on target
+- Alignment: The point jumps up to the top left of the mouse cursor
+- Alignment: When zooming the point does not appear to stay locked to the same point, there is drift
+- Alignment: The Composite result zoom and position resets every time the slider is dragged or a point is moved
 - #### ALL
 - Toggle between difference and result in align page
 - Hide circle when dragging the point and just show the crosshairs
