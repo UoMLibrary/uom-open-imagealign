@@ -513,10 +513,6 @@
 		</div>
 	</div>
 
-	{#if toast}
-		<div class="toast">{toast}</div>
-	{/if}
-
 	{#if cvError}
 		<div class="error">
 			{cvError}
@@ -604,6 +600,10 @@
 			{/each}
 		{/if}
 	</div>
+
+	{#if toast}
+		<div class="toast">{toast}</div>
+	{/if}
 
 	<div class="preview">
 		<div class="preview-header">
