@@ -9,9 +9,9 @@
 	export let onChange: (s: AlignStrategy) => void;
 
 	const options = [
-		{ value: 'manual', label: 'Manual' },
-		{ value: 'keypoints', label: 'Keypoints' },
-		{ value: 'affine', label: 'Affine' }
+		// { value: 'manual', label: 'Manual' },
+		{ value: 'keypoints', label: 'Keypoints' }
+		// { value: 'affine', label: 'Affine' }
 	];
 </script>
 
