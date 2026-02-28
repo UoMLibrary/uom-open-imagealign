@@ -7,6 +7,9 @@
 	import type { ImageAlignment } from '$lib/core/types';
 
 	import AlignToolbar, { type AlignStrategy } from './AlignToolbar.svelte';
+
+	// Tools
+	import KeypointAlignTool from './tools/KeypointAlignTool.svelte';
 	import ManualAlignTool from './tools/ManualAlignTool.svelte';
 
 	let LeftPanelOpen = true;
@@ -184,6 +187,13 @@
 				{#key `${activePair.sourceImageId}:${activePair.targetImageId}:${strategy}`}
 					{#if strategy === 'manual'}
 						<ManualAlignTool
+							targetUrl={activePair.targetUrl}
+							sourceUrl={activePair.sourceUrl}
+							existingAlignment={existingAlignment ?? null}
+							onSave={saveFromTool}
+						/>
+					{:else if strategy === 'keypoints'}
+						<KeypointAlignTool
 							targetUrl={activePair.targetUrl}
 							sourceUrl={activePair.sourceUrl}
 							existingAlignment={existingAlignment ?? null}
