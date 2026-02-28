@@ -333,7 +333,6 @@
 			if (n === 3) {
 				transformType = 'affine';
 
-				// 3-point affine requires 3 points in src/dst, order matters but not crossing
 				const srcFlat: number[] = [];
 				const dstFlat: number[] = [];
 
@@ -355,10 +354,8 @@
 
 				A.delete();
 			} else {
-				// n === 4
 				transformType = 'homography';
 
-				// Reorder the 4 correspondences into TL, TR, BR, BL (based on TARGET)
 				const targetPx = pairs.map((p) => toPx(p.target, targetImg));
 				const order = orderQuadByTarget(targetPx);
 
@@ -427,8 +424,6 @@
 
 	/* -------------------------------------------------
 	   Export helpers
-	   - Export warped: the warped source (target pixel space)
-	   - Export composite: target + warped overlay
 	------------------------------------------------- */
 
 	async function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
@@ -468,7 +463,6 @@
 		ctx.globalAlpha = overlayOpacity / 100;
 		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
 
-		// Reset alpha
 		ctx.globalAlpha = 1;
 
 		await downloadCanvas(out, 'aligned-composite.png');
@@ -484,11 +478,9 @@
 		const ctx = out.getContext('2d');
 		if (!ctx) return;
 
-		// Draw target
 		ctx.globalCompositeOperation = 'source-over';
 		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
 
-		// Difference blend (supported in modern browsers)
 		ctx.globalCompositeOperation = 'difference';
 		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
 
@@ -570,14 +562,17 @@
 
 				{#each pairs as p, i (i)}
 					<div
-						class="marker"
+						class="kp"
 						class:active={i === adjustIndex}
 						style="left: {p.target.x * 100}%; top: {p.target.y * 100}%"
 						on:pointerdown={(e) => targetWrap && startDrag(e, 'target', i, targetWrap)}
 						on:pointerup={endDrag}
 						on:pointercancel={endDrag}
 					>
-						{i + 1}
+						<div class="kp-ring" aria-hidden="true">
+							<div class="kp-dot" aria-hidden="true" />
+						</div>
+						<div class="kp-label" aria-hidden="true">{i + 1}</div>
 					</div>
 				{/each}
 			</div>
@@ -596,14 +591,17 @@
 
 				{#each pairs as p, i (i)}
 					<div
-						class="marker"
+						class="kp"
 						class:active={i === adjustIndex}
 						style="left: {p.source.x * 100}%; top: {p.source.y * 100}%"
 						on:pointerdown={(e) => sourceWrap && startDrag(e, 'source', i, sourceWrap)}
 						on:pointerup={endDrag}
 						on:pointercancel={endDrag}
 					>
-						{i + 1}
+						<div class="kp-ring" aria-hidden="true">
+							<div class="kp-dot" aria-hidden="true" />
+						</div>
+						<div class="kp-label" aria-hidden="true">{i + 1}</div>
 					</div>
 				{/each}
 			</div>
@@ -831,32 +829,76 @@
 		user-select: none;
 	}
 
-	.marker {
+	/* ---------- target-style points ---------- */
+
+	.kp {
 		position: absolute;
 		transform: translate(-50%, -50%);
-		width: 18px;
-		height: 18px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.95);
-		border: 1px solid rgba(0, 0, 0, 0.25);
-		color: #111827;
-		font-size: 10px;
-		font-weight: 700;
-		display: grid;
-		place-items: center;
 		z-index: 5;
 		touch-action: none;
-		cursor: grab;
+		/* cursor: grab; */
+		cursor: crosshair;
 	}
 
-	.marker.active {
-		outline: 2px solid rgba(2, 132, 199, 0.8);
+	.kp:active {
+		/* cursor: grabbing; */
+		cursor: crosshair;
+	}
+
+	.kp-ring {
+		--s: 18px;
+
+		width: var(--s);
+		height: var(--s);
+		border-radius: 999px;
+
+		background: rgba(255, 255, 255, 0.75);
+		border: 2px solid rgba(17, 24, 39, 0.75);
+
+		box-shadow:
+			0 1px 3px rgba(0, 0, 0, 0.35),
+			0 0 0 1px rgba(255, 255, 255, 0.35);
+
+		display: grid;
+		place-items: center;
+	}
+
+	.kp-dot {
+		width: 4px;
+		height: 4px;
+		border-radius: 999px;
+		background: rgba(17, 24, 39, 0.95);
+		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+	}
+
+	.kp-label {
+		position: absolute;
+		left: 100%;
+		top: 0;
+		transform: translate(6px, -8px);
+
+		padding: 0.12rem 0.38rem;
+		border-radius: 999px;
+
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 1;
+
+		background: rgba(17, 24, 39, 0.9);
+		color: white;
+
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+
+		pointer-events: none;
+	}
+
+	.kp.active .kp-ring {
+		outline: 2px solid rgba(2, 132, 199, 0.85);
 		outline-offset: 2px;
 	}
 
-	.marker:active {
-		cursor: grabbing;
-	}
+	/* ---------- pairs panel ---------- */
 
 	.pairs {
 		border: 1px solid rgba(0, 0, 0, 0.08);
@@ -932,6 +974,8 @@
 	.remove:hover {
 		background: rgba(251, 191, 36, 0.25);
 	}
+
+	/* ---------- preview ---------- */
 
 	.preview {
 		border: 1px solid rgba(0, 0, 0, 0.08);

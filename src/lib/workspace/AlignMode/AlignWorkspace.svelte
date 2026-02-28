@@ -14,7 +14,7 @@
 
 	let LeftPanelOpen = true;
 
-	let strategy: AlignStrategy = 'keypoints';
+	let strategy: AlignStrategy = 'manual';
 
 	let selectedGroupId: string | null = null;
 
