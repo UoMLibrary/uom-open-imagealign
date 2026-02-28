@@ -460,11 +460,41 @@
 		const ctx = out.getContext('2d');
 		if (!ctx) return;
 
-		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
+		// Base
 		ctx.globalAlpha = 1;
+		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
+
+		// Overlay with same opacity as UI
+		ctx.globalAlpha = overlayOpacity / 100;
 		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
 
+		// Reset alpha
+		ctx.globalAlpha = 1;
+
 		await downloadCanvas(out, 'aligned-composite.png');
+	}
+
+	async function exportDifference() {
+		if (!previewCanvas || !targetImg || !computed) return;
+
+		const out = document.createElement('canvas');
+		out.width = previewCanvas.width;
+		out.height = previewCanvas.height;
+
+		const ctx = out.getContext('2d');
+		if (!ctx) return;
+
+		// Draw target
+		ctx.globalCompositeOperation = 'source-over';
+		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
+
+		// Difference blend (supported in modern browsers)
+		ctx.globalCompositeOperation = 'difference';
+		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
+
+		ctx.globalCompositeOperation = 'source-over';
+
+		await downloadCanvas(out, 'aligned-difference.png');
 	}
 </script>
 
@@ -505,6 +535,10 @@
 
 			<button class="btn" type="button" on:click={exportComposite} disabled={!computed}>
 				Export composite
+			</button>
+
+			<button class="btn" type="button" on:click={exportDifference} disabled={!computed}>
+				Export difference
 			</button>
 
 			<button class="btn save" type="button" on:click={save} disabled={!computed}>
