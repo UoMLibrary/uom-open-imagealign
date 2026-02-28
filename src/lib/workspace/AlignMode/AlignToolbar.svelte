@@ -10,8 +10,8 @@
 
 	const options = [
 		{ value: 'manual', label: 'Manual' },
-		{ value: 'keypoints', label: 'Keypoints' }
-		// { value: 'affine', label: 'Affine' }
+		{ value: 'keypoints', label: 'Keypoints' },
+		{ value: 'affine', label: 'Affine' }
 	];
 </script>
 

@@ -245,6 +245,7 @@ It allows grouping strategies to improve or change without breaking existing pro
 ## TODO
 
 - #### ALL
+- Toggle between difference and result in align page
 - Hide circle when dragging the point and just show the crosshairs
 - DONE: Add 4+ points to detection
 - WORK AND NORMALISED images are not being reliably rebuilt as seen in the summary page.

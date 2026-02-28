@@ -11,10 +11,11 @@
 	// Tools
 	import KeypointAlignTool from './tools/KeypointAlignTool.svelte';
 	import ManualAlignTool from './tools/ManualAlignTool.svelte';
+	import AffineAlignTool from './tools/AffineAlignTool.svelte';
 
 	let LeftPanelOpen = true;
 
-	let strategy: AlignStrategy = 'manual';
+	let strategy: AlignStrategy = 'affine';
 
 	let selectedGroupId: string | null = null;
 
@@ -194,6 +195,13 @@
 						/>
 					{:else if strategy === 'keypoints'}
 						<KeypointAlignTool
+							targetUrl={activePair.targetUrl}
+							sourceUrl={activePair.sourceUrl}
+							existingAlignment={existingAlignment ?? null}
+							onSave={saveFromTool}
+						/>
+					{:else if strategy === 'affine'}
+						<AffineAlignTool
 							targetUrl={activePair.targetUrl}
 							sourceUrl={activePair.sourceUrl}
 							existingAlignment={existingAlignment ?? null}
