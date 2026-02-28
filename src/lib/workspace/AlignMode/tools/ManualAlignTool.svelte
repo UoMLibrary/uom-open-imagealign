@@ -1,4 +1,5 @@
-<script context="module" lang="ts">
+<script lang="ts">
+	import { onMount } from 'svelte';
 	import type { ImageAlignment } from '$lib/core/types';
 
 	export type AlignmentDraft = {
@@ -6,30 +7,22 @@
 		transform: ImageAlignment['transform'];
 		methodData?: Record<string, any>;
 	};
-</script>
 
-<script lang="ts">
-	import { onMount } from 'svelte';
-
-	export let targetUrl: string; // base image
-	export let sourceUrl: string; // image to align onto target
+	export let targetUrl: string;
+	export let sourceUrl: string;
 	export let existingAlignment: ImageAlignment | null = null;
 
 	// Svelte 5 callback prop
 	export let onSave: (draft: AlignmentDraft) => void;
 
-	// If you prefer a local copy, pass a local URL in from the workspace
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
 
-	// Practical limits
 	export let maxPairs = 80;
 
-	// RANSAC settings (pixels in NATURAL image space)
 	export let ransacReprojThreshold = 4.0;
 	export let ransacMaxIters = 2000;
 	export let ransacConfidence = 0.995;
 
-	// Grid seed defaults
 	export let defaultGridRows = 4;
 	export let defaultGridCols = 4;
 	export let defaultGridMargin = 0.08;
@@ -51,7 +44,6 @@
 	let pairs: Pair[] = [];
 	let overlayOpacity = 60;
 
-	// Active pair index (mostly for UI highlight)
 	let adjustIndex: number | null = null;
 
 	let computed: {
@@ -63,7 +55,6 @@
 	let toast: string | null = null;
 	let toastTimer: any = null;
 
-	// Grid UI
 	let gridRows = defaultGridRows;
 	let gridCols = defaultGridCols;
 	let gridMargin = defaultGridMargin;
@@ -71,14 +62,8 @@
 	let lockToGridCells = true;
 	let gridActive = false;
 
-	// Cached grid axes (normalised) used for cell clamping when lock is enabled
 	let gridXs: number[] | null = null;
 	let gridYs: number[] | null = null;
-
-	function isMarkerEvent(e: Event) {
-		const el = e.target as HTMLElement | null;
-		return !!el?.closest?.('.kp');
-	}
 
 	function showToast(msg: string) {
 		toast = msg;
@@ -104,6 +89,12 @@
 		};
 	}
 
+	/** ✅ True if the event started from a marker (prevents wrapper click adding points). */
+	function isMarkerEvent(e: Event) {
+		const el = e.target as HTMLElement | null;
+		return !!el?.closest?.('.kp');
+	}
+
 	/* -------------------------------------------------
 	   Grid helpers
 	------------------------------------------------- */
@@ -116,7 +107,6 @@
 	}
 
 	function cellBounds(axis: number[], idx: number) {
-		// midpoints between neighbours define cell boundaries
 		const left = idx === 0 ? 0 : (axis[idx - 1] + axis[idx]) / 2;
 		const right = idx === axis.length - 1 ? 1 : (axis[idx] + axis[idx + 1]) / 2;
 		return { left, right };
@@ -173,13 +163,16 @@
 	}
 
 	/* -------------------------------------------------
-	   Add points (manual)
-	   Click TARGET adds a pair immediately, with SOURCE initialised to same coords
-	   Then user adjusts SOURCE (drag or click in source)
+	   Add points (manual) - TARGET ONLY
+	   ✅ Wrapper click adds new points, but marker interactions don't.
 	------------------------------------------------- */
 
 	function onTargetClick(e: MouseEvent) {
 		if (!targetWrap) return;
+
+		// ✅ Don’t add points when the user clicked/dragged a marker
+		if (isMarkerEvent(e)) return;
+		if (drag) return;
 
 		if (pairs.length >= maxPairs) {
 			showToast(`Max ${maxPairs} point pairs`);
@@ -190,22 +183,6 @@
 
 		pairs = [...pairs, { target: pt, source: { ...pt }, grid: null }];
 		adjustIndex = pairs.length - 1;
-		computed = null;
-	}
-
-	function onSourceClick(e: MouseEvent) {
-		if (!sourceWrap) return;
-		if (adjustIndex == null) return;
-
-		let pt = pointFromEvent(e, sourceWrap);
-		const p = pairs[adjustIndex];
-		if (!p) return;
-
-		if (lockToGridCells) pt = clampToCell(pt, p.grid);
-
-		const next = [...pairs];
-		next[adjustIndex] = { ...next[adjustIndex], source: pt };
-		pairs = next;
 		computed = null;
 	}
 
@@ -235,7 +212,6 @@
 
 	/* -------------------------------------------------
 	   Bulk “grid-ish” transforms for SOURCE points
-	   (simple but very useful when you seed a grid)
 	------------------------------------------------- */
 
 	function centroid(pts: Pt[]) {
@@ -299,6 +275,7 @@
 
 	/* -------------------------------------------------
 	   Dragging points (updates normalised coords)
+	   ✅ Source points are adjusted by dragging ONLY.
 	------------------------------------------------- */
 
 	type DragState = {
@@ -354,7 +331,7 @@
 	}
 
 	/* -------------------------------------------------
-	   OpenCV loader (opencv.js)
+	   OpenCV loader
 	------------------------------------------------- */
 
 	function ensureOpenCV(): Promise<void> {
@@ -407,10 +384,6 @@
 		}
 	});
 
-	/* -------------------------------------------------
-	   OpenCV image read at natural size (IMPORTANT)
-	------------------------------------------------- */
-
 	function imreadNatural(img: HTMLImageElement, cv: any) {
 		const c = document.createElement('canvas');
 		c.width = img.naturalWidth;
@@ -425,8 +398,6 @@
 
 	/* -------------------------------------------------
 	   Compute transform + preview
-	   - 3 points: affine (best-effort)
-	   - 4+ points: homography via RANSAC findHomography
 	------------------------------------------------- */
 
 	async function compute() {
@@ -463,7 +434,6 @@
 		let mask: any = null;
 
 		try {
-			// Build Nx1 CV_32FC2 arrays
 			const srcFlat: number[] = [];
 			const dstFlat: number[] = [];
 
@@ -480,10 +450,8 @@
 			let confidence = 1;
 
 			if (n === 3) {
-				// Affine (2x3) then lift to 3x3
 				transformType = 'affine';
 
-				// Prefer estimateAffine2D if available (more stable), else fallback to getAffineTransform
 				if (typeof wcv.estimateAffine2D === 'function') {
 					const inliers = new wcv.Mat();
 					const A = wcv.estimateAffine2D(
@@ -496,7 +464,6 @@
 						ransacConfidence
 					);
 
-					// inlier ratio (should be 1 for 3 perfect points, but keep it consistent)
 					let inl = 0;
 					for (let i = 0; i < inliers.rows; i++) inl += inliers.ucharPtr(i, 0)[0] ? 1 : 0;
 					confidence = inliers.rows ? inl / inliers.rows : 1;
@@ -509,7 +476,6 @@
 					inliers.delete();
 					A.delete();
 				} else {
-					// Fallback: use first 3 points
 					const src3 = wcv.matFromArray(3, 1, wcv.CV_32FC2, srcFlat.slice(0, 6));
 					const dst3 = wcv.matFromArray(3, 1, wcv.CV_32FC2, dstFlat.slice(0, 6));
 
@@ -524,7 +490,6 @@
 					A.delete();
 				}
 			} else {
-				// Homography with RANSAC (order independent, robust)
 				transformType = 'homography';
 				mask = new wcv.Mat();
 
@@ -538,23 +503,19 @@
 					ransacConfidence
 				);
 
-				// Compute inlier ratio as confidence
 				let inliers = 0;
 				for (let i = 0; i < mask.rows; i++) inliers += mask.ucharPtr(i, 0)[0] ? 1 : 0;
 				confidence = mask.rows ? inliers / mask.rows : 0;
 
-				// Guard if H is empty / invalid
 				if (!H || (typeof H.empty === 'function' && H.empty())) {
 					showToast('Homography failed. Try more points or adjust outliers.');
 					return;
 				}
 			}
 
-			// Preview output canvas should be target natural size
 			previewCanvas.width = targetImg.naturalWidth;
 			previewCanvas.height = targetImg.naturalHeight;
 
-			// Warp preview: warp source -> target canvas size
 			const srcMat = imreadNatural(sourceImg, wcv);
 			const dstMat = new wcv.Mat();
 			const dsize = new wcv.Size(targetImg.naturalWidth, targetImg.naturalHeight);
@@ -562,25 +523,13 @@
 			wcv.warpPerspective(srcMat, dstMat, H, dsize);
 			wcv.imshow(previewCanvas, dstMat);
 
-			const dataArray =
-				H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
-			const matrix = [
-				dataArray[0],
-				dataArray[1],
-				dataArray[2],
-				dataArray[3],
-				dataArray[4],
-				dataArray[5],
-				dataArray[6],
-				dataArray[7],
-				dataArray[8]
-			] as [number, number, number, number, number, number, number, number, number];
+			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
 			computed = {
 				confidence,
 				transform: {
 					type: transformType,
-					matrix
+					matrix: data
 				},
 				methodData: {
 					pointCount: n,
@@ -614,10 +563,6 @@
 			methodData: computed.methodData
 		});
 	}
-
-	/* -------------------------------------------------
-	   Export helpers
-	------------------------------------------------- */
 
 	async function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -686,21 +631,20 @@
 		<div class="left">
 			<div class="name">Multi-point alignment</div>
 			<div class="hint">
-				Seed a <b>grid</b> (recommended) or click the <b>target</b> to add pairs. Then adjust the
-				matching points on the <b>source</b> (drag/click). Use 4+ points for robust homography.
+				Seed a <b>grid</b> (recommended) or click the <b>target</b> to add pairs. Adjust points on
+				the <b>source</b> by <b>dragging markers</b> (no click-to-move).
 			</div>
 		</div>
 
 		<div class="right">
 			<span class="chip">{pairs.length}/{maxPairs} pairs</span>
 
-			<button class="btn" type="button" on:click={undoLast} disabled={pairs.length === 0}>
-				Undo
-			</button>
-
-			<button class="btn" type="button" on:click={resetAll} disabled={pairs.length === 0}>
-				Reset
-			</button>
+			<button class="btn" type="button" on:click={undoLast} disabled={pairs.length === 0}
+				>Undo</button
+			>
+			<button class="btn" type="button" on:click={resetAll} disabled={pairs.length === 0}
+				>Reset</button
+			>
 
 			<button
 				class="btn primary"
@@ -711,21 +655,19 @@
 				Compute
 			</button>
 
-			<button class="btn" type="button" on:click={exportWarped} disabled={!computed}>
-				Export warped
-			</button>
+			<button class="btn" type="button" on:click={exportWarped} disabled={!computed}
+				>Export warped</button
+			>
+			<button class="btn" type="button" on:click={exportComposite} disabled={!computed}
+				>Export composite</button
+			>
+			<button class="btn" type="button" on:click={exportDifference} disabled={!computed}
+				>Export difference</button
+			>
 
-			<button class="btn" type="button" on:click={exportComposite} disabled={!computed}>
-				Export composite
-			</button>
-
-			<button class="btn" type="button" on:click={exportDifference} disabled={!computed}>
-				Export difference
-			</button>
-
-			<button class="btn save" type="button" on:click={save} disabled={!computed}>
-				Save alignment
-			</button>
+			<button class="btn save" type="button" on:click={save} disabled={!computed}
+				>Save alignment</button
+			>
 		</div>
 	</div>
 
@@ -738,27 +680,21 @@
 		</div>
 	{/if}
 
-	<!-- Grid tools -->
 	<div class="gridbar">
 		<div class="grid-left">
 			<div class="grid-title">Grid seed</div>
 
+			<label class="field"
+				>Rows <input type="number" min="2" max="12" bind:value={gridRows} /></label
+			>
+			<label class="field"
+				>Cols <input type="number" min="2" max="12" bind:value={gridCols} /></label
+			>
 			<label class="field">
-				Rows
-				<input type="number" min="2" max="12" bind:value={gridRows} />
+				Margin <input type="number" min="0" max="0.2" step="0.01" bind:value={gridMargin} />
 			</label>
 
-			<label class="field">
-				Cols
-				<input type="number" min="2" max="12" bind:value={gridCols} />
-			</label>
-
-			<label class="field">
-				Margin
-				<input type="number" min="0" max="0.2" step="0.01" bind:value={gridMargin} />
-			</label>
-
-			<button class="btn" type="button" on:click={seedGrid}> Seed grid </button>
+			<button class="btn" type="button" on:click={seedGrid}>Seed grid</button>
 
 			<label class="toggle">
 				<input type="checkbox" bind:checked={lockToGridCells} />
@@ -811,9 +747,11 @@
 						class="kp"
 						class:active={i === adjustIndex}
 						style="left: {p.target.x * 100}%; top: {p.target.y * 100}%"
-						on:pointerdown={(e) => targetWrap && startDrag(e, 'target', i, targetWrap)}
-						on:pointerup={endDrag}
-						on:pointercancel={endDrag}
+						on:click|stopPropagation={() => (adjustIndex = i)}
+						on:pointerdown|stopPropagation={(e) =>
+							targetWrap && startDrag(e, 'target', i, targetWrap)}
+						on:pointerup|stopPropagation={endDrag}
+						on:pointercancel|stopPropagation={endDrag}
 					>
 						<div class="kp-ring" aria-hidden="true">
 							<div class="kp-dot" aria-hidden="true" />
@@ -827,10 +765,10 @@
 		<div class="img-block">
 			<div class="block-title">Source (to align)</div>
 
+			<!-- ✅ NO wrapper click handler here -->
 			<div
-				class="img-wrap"
+				class="img-wrap source"
 				bind:this={sourceWrap}
-				on:click={onSourceClick}
 				on:pointermove={(e) => sourceWrap && drag?.side === 'source' && moveDrag(e, sourceWrap)}
 			>
 				<img bind:this={sourceImg} src={sourceUrl} alt="Source image" draggable="false" />
@@ -840,9 +778,11 @@
 						class="kp"
 						class:active={i === adjustIndex}
 						style="left: {p.source.x * 100}%; top: {p.source.y * 100}%"
-						on:pointerdown={(e) => sourceWrap && startDrag(e, 'source', i, sourceWrap)}
-						on:pointerup={endDrag}
-						on:pointercancel={endDrag}
+						on:click|stopPropagation={() => (adjustIndex = i)}
+						on:pointerdown|stopPropagation={(e) =>
+							sourceWrap && startDrag(e, 'source', i, sourceWrap)}
+						on:pointerup|stopPropagation={endDrag}
+						on:pointercancel|stopPropagation={endDrag}
 					>
 						<div class="kp-ring" aria-hidden="true">
 							<div class="kp-dot" aria-hidden="true" />
@@ -918,6 +858,8 @@
 </div>
 
 <style>
+	/* (same styles as before, plus small source cursor tweak) */
+
 	.tool {
 		background: rgba(255, 255, 255, 0.92);
 		border: 1px solid rgba(0, 0, 0, 0.08);
@@ -1133,6 +1075,11 @@
 		background: #f3f4f6;
 		cursor: crosshair;
 		min-height: 240px;
+	}
+
+	/* ✅ Source should not imply click-to-place */
+	.img-wrap.source {
+		cursor: default;
 	}
 
 	.img-wrap img {
