@@ -245,7 +245,8 @@ It allows grouping strategies to improve or change without breaking existing pro
 ## TODO
 
 - #### ALL
-- Add 4+ points to detection
+- Hide circle when dragging the point and just show the crosshairs
+- DONE: Add 4+ points to detection
 - WORK AND NORMALISED images are not being reliably rebuilt as seen in the summary page.
 - Show breadcrumb trail of where the image currently is in the workflow (need to think this through as images are grouped in later stages)
 - #### INGEST

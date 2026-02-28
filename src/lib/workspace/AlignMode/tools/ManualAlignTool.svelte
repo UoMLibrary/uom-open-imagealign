@@ -1,5 +1,4 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
+<script context="module" lang="ts">
 	import type { ImageAlignment } from '$lib/core/types';
 
 	export type AlignmentDraft = {
@@ -7,6 +6,10 @@
 		transform: ImageAlignment['transform'];
 		methodData?: Record<string, any>;
 	};
+</script>
+
+<script lang="ts">
+	import { onMount } from 'svelte';
 
 	export let targetUrl: string;
 	export let sourceUrl: string;
@@ -523,7 +526,19 @@
 			wcv.warpPerspective(srcMat, dstMat, H, dsize);
 			wcv.imshow(previewCanvas, dstMat);
 
-			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
+			const dataArray =
+				H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
+			const data = dataArray.slice(0, 9) as [
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number,
+				number
+			];
 
 			computed = {
 				confidence,
