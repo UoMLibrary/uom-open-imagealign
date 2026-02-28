@@ -18,8 +18,10 @@
 	// If you prefer a local copy, pass a local URL in from the workspace
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
 
+	const MAX_PAIRS = 4;
+
 	type Pt = { x: number; y: number }; // normalised 0..1
-	type Pair = { target?: Pt; source?: Pt };
+	type Pair = { target: Pt; source: Pt };
 
 	let targetImg: HTMLImageElement | null = null;
 	let sourceImg: HTMLImageElement | null = null;
@@ -32,8 +34,10 @@
 	let cvError: string | null = null;
 
 	let pairs: Pair[] = [];
-	let next: 'target' | 'source' = 'target';
 	let overlayOpacity = 60;
+
+	// “Which pair am I currently adjusting on the source image?”
+	let adjustIndex: number | null = null;
 
 	let computed: {
 		transform: ImageAlignment['transform'];
@@ -41,91 +45,126 @@
 		methodData?: any;
 	} | null = null;
 
+	let toast: string | null = null;
+	let toastTimer: any = null;
+
+	function showToast(msg: string) {
+		toast = msg;
+		clearTimeout(toastTimer);
+		toastTimer = setTimeout(() => (toast = null), 1800);
+	}
+
 	function clamp01(v: number) {
 		return Math.max(0, Math.min(1, v));
 	}
 
-	function pointFromClick(e: MouseEvent, wrap: HTMLDivElement): Pt {
+	function pointFromEvent(e: MouseEvent | PointerEvent, wrap: HTMLDivElement): Pt {
 		const r = wrap.getBoundingClientRect();
 		const x = clamp01((e.clientX - r.left) / r.width);
 		const y = clamp01((e.clientY - r.top) / r.height);
 		return { x, y };
 	}
 
-	function addOrUpdateTargetPoint(pt: Pt) {
-		// If last pair is incomplete and needs target, fill it; else push new.
-		const last = pairs[pairs.length - 1];
-		if (last && !last.target && !last.source) {
-			last.target = pt;
-			pairs = [...pairs];
-		} else if (last && last.target && !last.source) {
-			// user clicked target again while waiting for source: replace target
-			last.target = pt;
-			pairs = [...pairs];
-		} else {
-			pairs = [...pairs, { target: pt }];
-		}
-		next = 'source';
-		computed = null;
+	/* -------------------------------------------------
+	   Quad ordering helpers (prevents “bow-tie” 4-point warp)
+	------------------------------------------------- */
+
+	function toPx(pt: Pt, img: HTMLImageElement) {
+		return {
+			x: pt.x * img.naturalWidth,
+			y: pt.y * img.naturalHeight
+		};
 	}
 
-	function addOrUpdateSourcePoint(pt: Pt) {
-		const last = pairs[pairs.length - 1];
-		if (!last || !last.target) {
-			// Don’t allow source-first; keeps correspondence clean
-			return;
-		}
-		last.source = pt;
-		pairs = [...pairs];
-		next = 'target';
-		computed = null;
+	function argMin(vals: number[]) {
+		let best = 0;
+		for (let i = 1; i < vals.length; i++) if (vals[i] < vals[best]) best = i;
+		return best;
 	}
+
+	function argMax(vals: number[]) {
+		let best = 0;
+		for (let i = 1; i < vals.length; i++) if (vals[i] > vals[best]) best = i;
+		return best;
+	}
+
+	/**
+	 * Return indices in TL, TR, BR, BL order based on TARGET points.
+	 * (Works well for typical page/corner selections.)
+	 */
+	function orderQuadByTarget(targetPtsPx: { x: number; y: number }[]) {
+		const sums = targetPtsPx.map((p) => p.x + p.y);
+		const diffs = targetPtsPx.map((p) => p.x - p.y);
+
+		const tl = argMin(sums);
+		const br = argMax(sums);
+		const tr = argMax(diffs);
+		const bl = argMin(diffs);
+
+		const order = [tl, tr, br, bl];
+
+		// Guard: if the heuristic produces duplicates (rare), fall back to original order
+		if (new Set(order).size !== 4) return [0, 1, 2, 3];
+
+		return order;
+	}
+
+	/* -------------------------------------------------
+	   Add points:
+	   Click TARGET adds a pair immediately, with SOURCE initialised to same coords
+	   Then user adjusts SOURCE (drag or click in source)
+	------------------------------------------------- */
 
 	function onTargetClick(e: MouseEvent) {
 		if (!targetWrap) return;
-		if (next !== 'target') {
-			// If waiting for source, allow retargeting the last target point
-			const pt = pointFromClick(e, targetWrap);
-			addOrUpdateTargetPoint(pt);
+
+		if (pairs.length >= MAX_PAIRS) {
+			showToast(`Max ${MAX_PAIRS} point pairs`);
 			return;
 		}
-		const pt = pointFromClick(e, targetWrap);
-		addOrUpdateTargetPoint(pt);
+
+		const pt = pointFromEvent(e, targetWrap);
+
+		// Add a complete pair immediately (source starts at same normalised position)
+		pairs = [...pairs, { target: pt, source: { ...pt } }];
+		adjustIndex = pairs.length - 1; // now adjust this one on the source image
+		computed = null;
 	}
 
 	function onSourceClick(e: MouseEvent) {
 		if (!sourceWrap) return;
-		if (next !== 'source') return;
-		const pt = pointFromClick(e, sourceWrap);
-		addOrUpdateSourcePoint(pt);
+		if (adjustIndex == null) return;
+
+		const pt = pointFromEvent(e, sourceWrap);
+
+		// Clicking the source image repositions the “active” source point
+		const next = [...pairs];
+		next[adjustIndex] = { ...next[adjustIndex], source: pt };
+		pairs = next;
+		computed = null;
 	}
 
 	function undoLast() {
 		if (pairs.length === 0) return;
 
-		const last = pairs[pairs.length - 1];
-		if (last && last.target && !last.source) {
-			// remove incomplete pair
-			pairs = pairs.slice(0, -1);
-			next = 'target';
-		} else {
-			pairs = pairs.slice(0, -1);
-			next = 'target';
-		}
+		pairs = pairs.slice(0, -1);
+		adjustIndex = pairs.length ? pairs.length - 1 : null;
 		computed = null;
 	}
 
 	function resetAll() {
 		pairs = [];
-		next = 'target';
+		adjustIndex = null;
 		computed = null;
 	}
 
 	function removePair(idx: number) {
 		pairs = pairs.filter((_, i) => i !== idx);
-		// recompute next step based on last pair completeness
-		const last = pairs[pairs.length - 1];
-		next = last && last.target && !last.source ? 'source' : 'target';
+		if (pairs.length === 0) {
+			adjustIndex = null;
+		} else if (adjustIndex != null) {
+			adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+		}
 		computed = null;
 	}
 
@@ -151,24 +190,20 @@
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		drag = { side, index, pointerId: e.pointerId };
 
-		const r = wrap.getBoundingClientRect();
-		const x = clamp01((e.clientX - r.left) / r.width);
-		const y = clamp01((e.clientY - r.top) / r.height);
+		// If user drags a source marker, make that pair the active adjust target
+		if (side === 'source') adjustIndex = index;
 
-		updatePoint(side, index, { x, y });
+		const pt = pointFromEvent(e, wrap);
+		updatePoint(side, index, pt);
 	}
 
 	function moveDrag(e: PointerEvent, wrap: HTMLDivElement) {
 		if (!drag) return;
-
-		const r = wrap.getBoundingClientRect();
-		const x = clamp01((e.clientX - r.left) / r.width);
-		const y = clamp01((e.clientY - r.top) / r.height);
-
-		updatePoint(drag.side, drag.index, { x, y });
+		const pt = pointFromEvent(e, wrap);
+		updatePoint(drag.side, drag.index, pt);
 	}
 
-	function endDrag(e: PointerEvent) {
+	function endDrag() {
 		if (!drag) return;
 		drag = null;
 		computed = null;
@@ -178,12 +213,9 @@
 		const p = pairs[index];
 		if (!p) return;
 
-		const nextPairs = [...pairs];
-		nextPairs[index] = {
-			...p,
-			[side]: pt
-		};
-		pairs = nextPairs;
+		const next = [...pairs];
+		next[index] = side === 'target' ? { ...p, target: pt } : { ...p, source: pt };
+		pairs = next;
 	}
 
 	/* -------------------------------------------------
@@ -194,11 +226,9 @@
 		if (typeof window === 'undefined') return Promise.reject('No window');
 		const w = window as any;
 
-		// Already loaded and initialised
 		if (w.cv && w.cv.Mat) return Promise.resolve();
 
 		return new Promise((resolve, reject) => {
-			// If script already present, just wait for init
 			const existing = document.querySelector(
 				'script[data-opencv="true"]'
 			) as HTMLScriptElement | null;
@@ -243,25 +273,27 @@
 	});
 
 	/* -------------------------------------------------
-	   Compute transform + preview
+	   OpenCV image read at natural size (IMPORTANT)
+	   cv.imread(imgEl) reads rendered size; we need natural pixels.
 	------------------------------------------------- */
 
-	function allComplete(ps: Pair[]) {
-		return ps.length > 0 && ps.every((p) => p.target && p.source);
+	function imreadNatural(img: HTMLImageElement, cv: any) {
+		const c = document.createElement('canvas');
+		c.width = img.naturalWidth;
+		c.height = img.naturalHeight;
+
+		const ctx = c.getContext('2d');
+		if (!ctx) throw new Error('Canvas 2D context unavailable');
+
+		ctx.drawImage(img, 0, 0, c.width, c.height);
+		return cv.imread(c);
 	}
 
-	function toCvPoints(ps: Pair[], side: 'target' | 'source', imgEl: HTMLImageElement) {
-		// Convert normalised (0..1) to natural pixel coords
-		const w = imgEl.naturalWidth;
-		const h = imgEl.naturalHeight;
-
-		const out: number[] = [];
-		for (const p of ps) {
-			const pt = side === 'target' ? p.target! : p.source!;
-			out.push(pt.x * w, pt.y * h);
-		}
-		return out;
-	}
+	/* -------------------------------------------------
+	   Compute transform + preview
+	   - 3 pairs => affine (converted to 3x3)
+	   - 4 pairs => perspective (exact) + ordered to prevent self-crossing
+	------------------------------------------------- */
 
 	async function compute() {
 		computed = null;
@@ -271,78 +303,93 @@
 			return;
 		}
 		if (!targetImg || !sourceImg || !previewCanvas) return;
-		if (!allComplete(pairs)) return;
+
+		if (!targetImg.naturalWidth || !sourceImg.naturalWidth) {
+			showToast('Images not fully loaded yet');
+			return;
+		}
 
 		const n = pairs.length;
-		if (n < 3) return;
+		if (n < 3) {
+			showToast('Need at least 3 point pairs');
+			return;
+		}
+		if (n > 4) {
+			showToast(`Max ${MAX_PAIRS} point pairs`);
+			return;
+		}
 
 		const wcv = (window as any).cv;
-
-		// OpenCV expects:
-		//  - src = source points (image to warp)
-		//  - dst = target points (base image)
-		const srcFlat = toCvPoints(pairs, 'source', sourceImg);
-		const dstFlat = toCvPoints(pairs, 'target', targetImg);
-
-		// Build point Mats
-		const srcPts = wcv.matFromArray(n, 1, wcv.CV_32FC2, srcFlat);
-		const dstPts = wcv.matFromArray(n, 1, wcv.CV_32FC2, dstFlat);
 
 		let H: any = null;
 		let transformType: 'affine' | 'homography' = 'homography';
 		let confidence = 1;
-		let methodData: any = { pointCount: n };
+
+		// point mats (filled differently per mode)
+		let srcPts: any = null;
+		let dstPts: any = null;
 
 		try {
 			if (n === 3) {
-				// Affine from 3 pairs
 				transformType = 'affine';
 
+				// 3-point affine requires 3 points in src/dst, order matters but not crossing
+				const srcFlat: number[] = [];
+				const dstFlat: number[] = [];
+
+				for (const p of pairs) {
+					const s = toPx(p.source, sourceImg);
+					const t = toPx(p.target, targetImg);
+					srcFlat.push(s.x, s.y);
+					dstFlat.push(t.x, t.y);
+				}
+
+				srcPts = wcv.matFromArray(3, 1, wcv.CV_32FC2, srcFlat);
+				dstPts = wcv.matFromArray(3, 1, wcv.CV_32FC2, dstFlat);
+
 				const A = wcv.getAffineTransform(srcPts, dstPts); // 2x3
-				// Convert 2x3 -> 3x3
 				const a = A.data64F && A.data64F.length ? Array.from(A.data64F) : Array.from(A.data32F);
+
 				const m3 = [a[0], a[1], a[2], a[3], a[4], a[5], 0, 0, 1];
 				H = wcv.matFromArray(3, 3, wcv.CV_64F, m3);
 
 				A.delete();
-				methodData.transformFrom = 'affine(3 points)';
-			} else if (n === 4) {
-				// Exact perspective for 4 pairs (usually more stable than findHomography for exactly 4)
-				transformType = 'homography';
-				H = wcv.getPerspectiveTransform(srcPts, dstPts); // 3x3
-				methodData.transformFrom = 'perspective(4 points)';
 			} else {
-				// Robust for 5+ pairs
+				// n === 4
 				transformType = 'homography';
 
-				const mask = new wcv.Mat();
-				// ransacReprojThreshold=3 pixels (tweakable later)
-				H = wcv.findHomography(srcPts, dstPts, wcv.RANSAC, 3, mask);
+				// Reorder the 4 correspondences into TL, TR, BR, BL (based on TARGET)
+				const targetPx = pairs.map((p) => toPx(p.target, targetImg));
+				const order = orderQuadByTarget(targetPx);
 
-				// Inlier ratio as a confidence proxy
-				let inliers = 0;
-				if (mask.rows > 0) {
-					for (let i = 0; i < mask.data.length; i++) {
-						if (mask.data[i]) inliers++;
-					}
+				const srcFlat: number[] = [];
+				const dstFlat: number[] = [];
+
+				for (const i of order) {
+					const s = toPx(pairs[i].source, sourceImg);
+					const t = toPx(pairs[i].target, targetImg);
+					srcFlat.push(s.x, s.y);
+					dstFlat.push(t.x, t.y);
 				}
-				confidence = n > 0 ? inliers / n : 0;
-				methodData.transformFrom = 'findHomography(RANSAC)';
-				methodData.inliers = inliers;
-				methodData.inlierRatio = confidence;
 
-				mask.delete();
+				srcPts = wcv.matFromArray(4, 1, wcv.CV_32FC2, srcFlat);
+				dstPts = wcv.matFromArray(4, 1, wcv.CV_32FC2, dstFlat);
+
+				H = wcv.getPerspectiveTransform(srcPts, dstPts); // 3x3
 			}
 
+			// Preview output canvas should be target natural size
+			previewCanvas.width = targetImg.naturalWidth;
+			previewCanvas.height = targetImg.naturalHeight;
+
 			// Warp preview: warp source -> target canvas size
-			const srcMat = wcv.imread(sourceImg);
+			const srcMat = imreadNatural(sourceImg, wcv);
 			const dstMat = new wcv.Mat();
 			const dsize = new wcv.Size(targetImg.naturalWidth, targetImg.naturalHeight);
 
 			wcv.warpPerspective(srcMat, dstMat, H, dsize);
 			wcv.imshow(previewCanvas, dstMat);
 
-			// Extract matrix
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
 			computed = {
@@ -352,8 +399,7 @@
 					matrix: data
 				},
 				methodData: {
-					...methodData,
-					// Store normalised pairs so the tool can be reconstructed later (if schema allows)
+					pointCount: n,
 					pairs
 				}
 			};
@@ -364,8 +410,8 @@
 			console.error(err);
 			cvError = 'Alignment failed (see console).';
 		} finally {
-			srcPts.delete();
-			dstPts.delete();
+			if (srcPts) srcPts.delete();
+			if (dstPts) dstPts.delete();
 			if (H) H.delete?.();
 		}
 	}
@@ -378,6 +424,48 @@
 			methodData: computed.methodData
 		});
 	}
+
+	/* -------------------------------------------------
+	   Export helpers
+	   - Export warped: the warped source (target pixel space)
+	   - Export composite: target + warped overlay
+	------------------------------------------------- */
+
+	async function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
+		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+		if (!blob) return;
+
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(url);
+	}
+
+	async function exportWarped() {
+		if (!previewCanvas || !computed) return;
+		await downloadCanvas(previewCanvas, 'aligned-warped.png');
+	}
+
+	async function exportComposite() {
+		if (!previewCanvas || !targetImg || !computed) return;
+
+		const out = document.createElement('canvas');
+		out.width = previewCanvas.width;
+		out.height = previewCanvas.height;
+
+		const ctx = out.getContext('2d');
+		if (!ctx) return;
+
+		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
+		ctx.globalAlpha = 1;
+		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
+
+		await downloadCanvas(out, 'aligned-composite.png');
+	}
 </script>
 
 <div class="tool">
@@ -385,32 +473,49 @@
 		<div class="left">
 			<div class="name">Keypoints alignment</div>
 			<div class="hint">
-				Next click: <span class="chip">{next}</span>
-				<span class="sep">•</span>
-				Pairs: <span class="chip">{pairs.length}</span>
+				Click the <b>target</b> to add a pair (max {MAX_PAIRS}). Then adjust the matching point on
+				the
+				<b>source</b> (by drag or click).
 			</div>
 		</div>
 
 		<div class="right">
+			<span class="chip">{pairs.length}/{MAX_PAIRS} pairs</span>
+
 			<button class="btn" type="button" on:click={undoLast} disabled={pairs.length === 0}>
 				Undo
 			</button>
+
 			<button class="btn" type="button" on:click={resetAll} disabled={pairs.length === 0}>
 				Reset
 			</button>
+
 			<button
 				class="btn primary"
 				type="button"
 				on:click={compute}
-				disabled={!cvReady || !allComplete(pairs) || pairs.length < 3}
+				disabled={!cvReady || pairs.length < 3}
 			>
 				Compute
 			</button>
+
+			<button class="btn" type="button" on:click={exportWarped} disabled={!computed}>
+				Export warped
+			</button>
+
+			<button class="btn" type="button" on:click={exportComposite} disabled={!computed}>
+				Export composite
+			</button>
+
 			<button class="btn save" type="button" on:click={save} disabled={!computed}>
 				Save alignment
 			</button>
 		</div>
 	</div>
+
+	{#if toast}
+		<div class="toast">{toast}</div>
+	{/if}
 
 	{#if cvError}
 		<div class="error">
@@ -434,17 +539,16 @@
 				<img bind:this={targetImg} src={targetUrl} alt="Target image" draggable="false" />
 
 				{#each pairs as p, i (i)}
-					{#if p.target}
-						<div
-							class="marker"
-							style="left: {p.target.x * 100}%; top: {p.target.y * 100}%"
-							on:pointerdown={(e) => targetWrap && startDrag(e, 'target', i, targetWrap)}
-							on:pointerup={endDrag}
-							on:pointercancel={endDrag}
-						>
-							{i + 1}
-						</div>
-					{/if}
+					<div
+						class="marker"
+						class:active={i === adjustIndex}
+						style="left: {p.target.x * 100}%; top: {p.target.y * 100}%"
+						on:pointerdown={(e) => targetWrap && startDrag(e, 'target', i, targetWrap)}
+						on:pointerup={endDrag}
+						on:pointercancel={endDrag}
+					>
+						{i + 1}
+					</div>
 				{/each}
 			</div>
 		</div>
@@ -461,17 +565,16 @@
 				<img bind:this={sourceImg} src={sourceUrl} alt="Source image" draggable="false" />
 
 				{#each pairs as p, i (i)}
-					{#if p.source}
-						<div
-							class="marker"
-							style="left: {p.source.x * 100}%; top: {p.source.y * 100}%"
-							on:pointerdown={(e) => sourceWrap && startDrag(e, 'source', i, sourceWrap)}
-							on:pointerup={endDrag}
-							on:pointercancel={endDrag}
-						>
-							{i + 1}
-						</div>
-					{/if}
+					<div
+						class="marker"
+						class:active={i === adjustIndex}
+						style="left: {p.source.x * 100}%; top: {p.source.y * 100}%"
+						on:pointerdown={(e) => sourceWrap && startDrag(e, 'source', i, sourceWrap)}
+						on:pointerup={endDrag}
+						on:pointercancel={endDrag}
+					>
+						{i + 1}
+					</div>
 				{/each}
 			</div>
 		</div>
@@ -479,33 +582,24 @@
 
 	<div class="pairs">
 		<div class="pairs-title">Point pairs</div>
+
 		{#if pairs.length === 0}
-			<div class="pairs-empty">
-				Click the target image to place point #1, then click the source image.
-			</div>
+			<div class="pairs-empty">Click the target image to add point #1.</div>
 		{:else}
 			{#each pairs as p, i (i)}
-				<div class="pair-row">
+				<div class="pair-row" class:active={i === adjustIndex} on:click={() => (adjustIndex = i)}>
 					<div class="pair-idx">{i + 1}</div>
 					<div class="pair-coords">
 						<div>
-							T:
-							{#if p.target}
-								<span class="mono">{p.target.x.toFixed(3)}, {p.target.y.toFixed(3)}</span>
-							{:else}
-								<span class="muted">—</span>
-							{/if}
+							T: <span class="mono">{p.target.x.toFixed(3)}, {p.target.y.toFixed(3)}</span>
 						</div>
 						<div>
-							S:
-							{#if p.source}
-								<span class="mono">{p.source.x.toFixed(3)}, {p.source.y.toFixed(3)}</span>
-							{:else}
-								<span class="muted">—</span>
-							{/if}
+							S: <span class="mono">{p.source.x.toFixed(3)}, {p.source.y.toFixed(3)}</span>
 						</div>
 					</div>
-					<button class="remove" type="button" on:click={() => removePair(i)}>Remove</button>
+					<button class="remove" type="button" on:click|stopPropagation={() => removePair(i)}>
+						Remove
+					</button>
 				</div>
 			{/each}
 		{/if}
@@ -558,7 +652,7 @@
 
 	.tool-header {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: 0.75rem;
 		flex-wrap: wrap;
@@ -573,29 +667,15 @@
 	.hint {
 		font-size: 0.78rem;
 		color: #64748b;
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
 		margin-top: 0.2rem;
-	}
-
-	.chip {
-		font-size: 0.72rem;
-		color: #334155;
-		background: rgba(0, 0, 0, 0.06);
-		padding: 0.15rem 0.45rem;
-		border-radius: 999px;
-	}
-
-	.sep {
-		opacity: 0.6;
-		margin: 0 0.15rem;
+		max-width: 60ch;
 	}
 
 	.right {
 		display: flex;
 		gap: 0.4rem;
 		flex-wrap: wrap;
+		align-items: center;
 	}
 
 	.btn {
@@ -638,6 +718,30 @@
 
 	.btn.save:hover {
 		background: #a7f3d0;
+	}
+
+	.chip {
+		font-size: 0.72rem;
+		color: #334155;
+		background: rgba(0, 0, 0, 0.06);
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+	}
+
+	.sep {
+		opacity: 0.6;
+		margin: 0 0.15rem;
+	}
+
+	.toast {
+		position: sticky;
+		top: 0;
+		z-index: 20;
+		background: rgba(17, 24, 39, 0.92);
+		color: white;
+		padding: 0.45rem 0.6rem;
+		border-radius: 10px;
+		font-size: 0.85rem;
 	}
 
 	.error {
@@ -711,6 +815,11 @@
 		cursor: grab;
 	}
 
+	.marker.active {
+		outline: 2px solid rgba(2, 132, 199, 0.8);
+		outline-offset: 2px;
+	}
+
 	.marker:active {
 		cursor: grabbing;
 	}
@@ -741,10 +850,18 @@
 		gap: 0.6rem;
 		padding: 0.35rem 0;
 		border-top: 1px solid rgba(0, 0, 0, 0.06);
+		cursor: pointer;
 	}
 
 	.pair-row:first-of-type {
 		border-top: none;
+	}
+
+	.pair-row.active {
+		background: rgba(2, 132, 199, 0.06);
+		border-radius: 10px;
+		padding-left: 0.4rem;
+		padding-right: 0.4rem;
 	}
 
 	.pair-idx {
@@ -765,10 +882,6 @@
 		font-family:
 			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
 			monospace;
-	}
-
-	.muted {
-		opacity: 0.6;
 	}
 
 	.remove {
