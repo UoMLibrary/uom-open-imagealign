@@ -9,26 +9,28 @@
 		methodData?: Record<string, any>;
 	};
 
-	export let targetUrl: string; // base image
-	export let sourceUrl: string; // image to align onto target
+	/**
+	 * IMPORTANT SEMANTICS (per your request)
+	 * - Source = BASE image (where you click to add points)
+	 * - Target = MOVING image (warped onto Source)
+	 */
+	export let targetUrl: string; // moving image (to align)
+	export let sourceUrl: string; // base image
 	export let existingAlignment: ImageAlignment | null = null;
 
-	// Svelte 5 callback prop
 	export let onSave: (draft: AlignmentDraft) => void;
 
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
 
-	// Point limits + RANSAC
 	export let maxPairs = 120;
 	export let ransacReprojThreshold = 4.0;
 	export let ransacMaxIters = 2000;
 	export let ransacConfidence = 0.995;
 
-	// Optional safety: require Shift+click to add points on target
 	export let requireShiftToAdd = false;
 
 	type Pt = { x: number; y: number }; // normalised 0..1
-	type Pair = { target: Pt; source: Pt };
+	type Pair = { target: Pt; source: Pt }; // target=moving, source=base
 
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
@@ -36,29 +38,22 @@
 	let overlayOpacity = 60;
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
-	// OpenCV state
 	let cvReady = false;
 	let cvError: string | null = null;
 
-	// Seadragon containers
 	let srcEl: HTMLDivElement | null = null;
 	let tgtEl: HTMLDivElement | null = null;
 	let resEl: HTMLDivElement | null = null;
 
-	// Seadragon viewers
-	let srcViewer: OpenSeadragon.Viewer | null = null;
-	let tgtViewer: OpenSeadragon.Viewer | null = null;
+	let srcViewer: OpenSeadragon.Viewer | null = null; // base (sourceUrl)
+	let tgtViewer: OpenSeadragon.Viewer | null = null; // moving (targetUrl)
 	let resViewer: OpenSeadragon.Viewer | null = null;
 
-	// Image sizes in pixels (from OSD content size)
-	let srcSize: { w: number; h: number } | null = null;
-	let tgtSize: { w: number; h: number } | null = null;
+	let srcSize: { w: number; h: number } | null = null; // base size
+	let tgtSize: { w: number; h: number } | null = null; // moving size
 
-	// Offscreen canvases for OpenCV + result rendering
 	let warpCanvas: HTMLCanvasElement | null = null;
 	let resultCanvas: HTMLCanvasElement | null = null;
-
-	// Result image URL fed into result viewer
 	let resultDataUrl: string | null = null;
 
 	let computed: {
@@ -68,7 +63,7 @@
 	} | null = null;
 
 	/* -------------------------------------------------
-	   Small helpers
+	   Helpers
 	------------------------------------------------- */
 
 	function clamp01(v: number) {
@@ -76,7 +71,6 @@
 	}
 
 	function showToast(msg: string) {
-		// keep simple; you can wire your existing toast UI if you want
 		console.log(msg);
 	}
 
@@ -88,7 +82,7 @@
 	function getContentSize(viewer: OpenSeadragon.Viewer) {
 		const item = viewer.world.getItemAt(0);
 		if (!item) return null;
-		const sz = item.getContentSize(); // {x,y} in pixels
+		const sz = item.getContentSize();
 		return { w: sz.x, h: sz.y };
 	}
 
@@ -117,6 +111,31 @@
 		};
 	}
 
+	function selectPair(i: number) {
+		adjustIndex = i;
+		refreshOverlays();
+
+		// ✅ new: center both viewers on selected pair
+		centerOnPair(i, false);
+	}
+
+	function centerOn(viewer: OpenSeadragon.Viewer | null, pt: Pt, immediate = false) {
+		if (!viewer) return;
+
+		const vp = normToViewportPoint(viewer, pt);
+		if (!vp) return;
+
+		viewer.viewport.panTo(vp, immediate);
+	}
+
+	function centerOnPair(i: number, immediate = false) {
+		const p = pairs[i];
+		if (!p) return;
+
+		centerOn(srcViewer, p.source, immediate);
+		centerOn(tgtViewer, p.target, immediate);
+	}
+
 	/* -------------------------------------------------
 	   OpenSeadragon init / teardown
 	------------------------------------------------- */
@@ -127,10 +146,8 @@
 			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
 			showNavigator: true,
 			autoResize: true,
-
 			crossOriginPolicy: 'Anonymous',
 
-			// Important: don't zoom on click (we use click for adding/selecting)
 			gestureSettingsMouse: {
 				clickToZoom: false,
 				dblClickToZoom: true,
@@ -139,7 +156,6 @@
 				pinchToZoom: true
 			},
 
-			// Cleaner look
 			showFullPageControl: false,
 			showHomeControl: true,
 			showZoomControl: true
@@ -149,33 +165,28 @@
 	function openImage(viewer: OpenSeadragon.Viewer, url: string) {
 		viewer.open({ type: 'image', url });
 		viewer.addOnceHandler('open', () => {
-			// sizes update after open
 			if (viewer === srcViewer) srcSize = getContentSize(viewer);
 			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
-
-			// rebuild overlays after open
 			refreshOverlays();
 		});
 	}
 
 	onMount(async () => {
-		// Seadragon viewers
 		if (srcEl) srcViewer = makeViewer(srcEl);
 		if (tgtEl) tgtViewer = makeViewer(tgtEl);
 		if (resEl) resViewer = makeViewer(resEl);
 
+		// Source is BASE
 		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
 		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
 
-		// Target click adds points (through OSD event system)
-		tgtViewer?.addHandler('canvas-click', (ev: any) => {
-			if (!tgtViewer) return;
-			if (!ev?.quick) return; // ignore drag/pan
-			if (computed) computed = null;
+		// ✅ ADD POINTS BY CLICKING SOURCE (BASE), NOT TARGET
+		srcViewer?.addHandler('canvas-click', (ev: any) => {
+			if (!srcViewer) return;
+			if (!ev?.quick) return;
 
 			const oe = ev.originalEvent as MouseEvent;
 			if (isMarkerEventFromOriginalEvent(oe)) return;
-
 			if (requireShiftToAdd && !oe.shiftKey) return;
 
 			if (pairs.length >= maxPairs) {
@@ -183,19 +194,24 @@
 				return;
 			}
 
-			// Convert OSD click -> image-normalised point
-			const vpPoint = tgtViewer.viewport.pointFromPixel(ev.position, true);
-			const imgPoint = tgtViewer.viewport.viewportToImageCoordinates(vpPoint);
-			const size = getContentSize(tgtViewer);
+			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
+			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
+			const size = getContentSize(srcViewer);
 			if (!size) return;
 
-			const pt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
+			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
 
-			// Add pair (source initialised to same coords)
-			pairs = [...pairs, { target: pt, source: { ...pt } }];
+			// Add pair: source (base) gets click location; target (moving) starts same coords
+			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
 			adjustIndex = pairs.length - 1;
 
+			computed = null;
 			refreshOverlays();
+
+			// Center TARGET on the newly added point so it’s easy to find
+			centerOn(tgtViewer, { ...basePt }, false);
+
+			requestAutoCompute(); // ✅ if we now have >=3 points, auto compute
 		});
 
 		// OpenCV
@@ -222,23 +238,24 @@
 	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
 	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
 
-	// reactively re-open result if we have it
+	// reactively re-open result
 	$: if (resViewer && resultDataUrl) {
 		resViewer.open({ type: 'image', url: resultDataUrl });
 	}
 
 	/* -------------------------------------------------
-	   Point overlay rendering (OSD overlays)
+	   Point overlays (OSD overlays)
 	------------------------------------------------- */
 
 	type DragState = {
-		side: 'target' | 'source';
+		side: 'source' | 'target';
 		index: number;
 		viewer: OpenSeadragon.Viewer;
 		el: HTMLElement;
 		pointerId: number;
 		temp: Pt | null;
 	};
+
 	let drag: DragState | null = null;
 
 	function createMarkerEl(label: string, active: boolean) {
@@ -251,7 +268,17 @@
 		return el;
 	}
 
-	function placeMarker(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+	function createCrosshairEl() {
+		const el = document.createElement('div');
+		el.className = 'kp-crosshair';
+		el.innerHTML = `
+			<div class="h"></div>
+			<div class="v"></div>
+		`;
+		return el;
+	}
+
+	function placeOverlay(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
 		viewer.addOverlay({
@@ -261,49 +288,47 @@
 		});
 	}
 
-	function updateMarker(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+	function updateOverlay(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
 		viewer.updateOverlay(el, vp, OpenSeadragon.Placement.CENTER);
 	}
 
 	function refreshOverlays() {
-		// don't rebuild while dragging (prevents element recreation mid-drag)
+		// don't rebuild while dragging
 		if (drag) return;
 
-		if (srcViewer) srcViewer.clearOverlays();
-		if (tgtViewer) tgtViewer.clearOverlays();
+		srcViewer?.clearOverlays();
+		tgtViewer?.clearOverlays();
 
 		if (!srcViewer || !tgtViewer) return;
 
 		pairs.forEach((p, i) => {
 			const isActive = i === adjustIndex;
 
-			// Target marker
-			const tEl = createMarkerEl(String(i + 1), isActive);
-			tEl.addEventListener('click', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				adjustIndex = i;
-				refreshOverlays();
-			});
-			tEl.addEventListener('pointerdown', (e) =>
-				startDrag(e as PointerEvent, 'target', i, tgtViewer!, tEl)
-			);
-			placeMarker(tgtViewer!, tEl, p.target);
-
-			// Source marker (drag-only on source image; marker click just selects)
+			// BASE marker (source)
 			const sEl = createMarkerEl(String(i + 1), isActive);
 			sEl.addEventListener('click', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				adjustIndex = i;
-				refreshOverlays();
+				selectPair(i);
 			});
 			sEl.addEventListener('pointerdown', (e) =>
 				startDrag(e as PointerEvent, 'source', i, srcViewer!, sEl)
 			);
-			placeMarker(srcViewer!, sEl, p.source);
+			placeOverlay(srcViewer!, sEl, p.source);
+
+			// MOVING marker (target)
+			const tEl = createMarkerEl(String(i + 1), isActive);
+			tEl.addEventListener('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				selectPair(i);
+			});
+			tEl.addEventListener('pointerdown', (e) =>
+				startDrag(e as PointerEvent, 'target', i, tgtViewer!, tEl)
+			);
+			placeOverlay(tgtViewer!, tEl, p.target);
 		});
 	}
 
@@ -318,13 +343,27 @@
 		e.stopPropagation();
 
 		el.setPointerCapture(e.pointerId);
+
+		// “hollow” styling during drag
+		el.classList.add('dragging');
+
+		el.classList.add('active');
+
 		drag = { side, index, viewer, el, pointerId: e.pointerId, temp: null };
 
-		adjustIndex = index;
-
+		adjustIndex = index; // selection (highlight requires refresh; we avoid refresh mid-drag)
 		window.addEventListener('pointermove', onDragMove, { passive: false });
 		window.addEventListener('pointerup', onDragEnd, { passive: false });
 		window.addEventListener('pointercancel', onDragEnd, { passive: false });
+	}
+
+	function stopDrag() {
+		window.removeEventListener('pointermove', onDragMove);
+		window.removeEventListener('pointerup', onDragEnd);
+		window.removeEventListener('pointercancel', onDragEnd);
+
+		if (drag?.el) drag.el.classList.remove('dragging');
+		drag = null;
 	}
 
 	function onDragMove(e: PointerEvent) {
@@ -337,7 +376,9 @@
 		if (!pt) return;
 
 		drag.temp = pt;
-		updateMarker(drag.viewer, drag.el, pt);
+
+		// ✅ move the marker itself
+		updateOverlay(drag.viewer, drag.el, pt);
 	}
 
 	function onDragEnd(e: PointerEvent) {
@@ -349,25 +390,21 @@
 		const { side, index, temp } = drag;
 		stopDrag();
 
-		if (!temp) return;
+		if (!temp) {
+			refreshOverlays();
+			return;
+		}
 
-		// Commit to state
 		const next = [...pairs];
 		const p = next[index];
 		if (!p) return;
 
-		next[index] = side === 'target' ? { ...p, target: temp } : { ...p, source: temp };
+		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
 		pairs = next;
 		computed = null;
 
 		refreshOverlays();
-	}
-
-	function stopDrag() {
-		window.removeEventListener('pointermove', onDragMove);
-		window.removeEventListener('pointerup', onDragEnd);
-		window.removeEventListener('pointercancel', onDragEnd);
-		drag = null;
+		requestAutoCompute();
 	}
 
 	function removePair(i: number) {
@@ -376,6 +413,7 @@
 		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
 		computed = null;
 		refreshOverlays();
+		requestAutoCompute();
 	}
 
 	function resetAll() {
@@ -392,10 +430,11 @@
 		adjustIndex = pairs.length ? pairs.length - 1 : null;
 		computed = null;
 		refreshOverlays();
+		requestAutoCompute();
 	}
 
 	/* -------------------------------------------------
-	   OpenCV loader + compute (warpPerspective)
+	   OpenCV loader + compute
 	------------------------------------------------- */
 
 	function ensureOpenCV(): Promise<void> {
@@ -440,8 +479,6 @@
 	}
 
 	function imreadNatural(url: string, cv: any): Promise<any> {
-		// Use an <img> to load, draw to canvas, then cv.imread(canvas)
-		// NOTE: remote URLs require CORS headers or canvas will be tainted.
 		return new Promise((resolve, reject) => {
 			const img = new Image();
 			img.crossOrigin = 'anonymous';
@@ -459,21 +496,35 @@
 		});
 	}
 
+	let canCompute = false;
+	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
+
+	let computing = false;
+	let computeQueued = false;
+	let autoTimer: any = null;
+
+	function requestAutoCompute() {
+		if (!canCompute) return;
+		clearTimeout(autoTimer);
+		autoTimer = setTimeout(() => {
+			void compute();
+		}, 120);
+	}
+
 	async function compute() {
+		if (!canCompute) return;
+
+		// avoid overlapping computes (dragging + rapid moves)
+		if (computing) {
+			computeQueued = true;
+			return;
+		}
+		computing = true;
+
 		computed = null;
 
-		if (!cvReady) {
-			cvError ??= 'OpenCV not ready yet.';
-			return;
-		}
-		if (pairs.length < 3) {
-			showToast('Need at least 3 point pairs');
-			return;
-		}
-		if (!tgtSize || !srcSize) {
-			showToast('Images not ready yet');
-			return;
-		}
+		const baseSize = srcSize!;
+		const movingSize = tgtSize!;
 
 		const wcv = (window as any).cv;
 
@@ -485,12 +536,19 @@
 		try {
 			const n = pairs.length;
 
+			/**
+			 * We want to warp MOVING (targetUrl) onto BASE (sourceUrl).
+			 * So homography maps: moving -> base
+			 *
+			 * srcPts = points in moving image (p.target)
+			 * dstPts = points in base image   (p.source)
+			 */
 			const srcFlat: number[] = [];
 			const dstFlat: number[] = [];
 
 			for (const p of pairs) {
-				srcFlat.push(p.source.x * srcSize.w, p.source.y * srcSize.h);
-				dstFlat.push(p.target.x * tgtSize.w, p.target.y * tgtSize.h);
+				srcFlat.push(p.target.x * movingSize.w, p.target.y * movingSize.h);
+				dstFlat.push(p.source.x * baseSize.w, p.source.y * baseSize.h);
 			}
 
 			srcPts = wcv.matFromArray(n, 1, wcv.CV_32FC2, srcFlat);
@@ -499,8 +557,7 @@
 			let confidence = 1;
 
 			if (n === 3) {
-				// affine -> 3x3
-				const A = wcv.getAffineTransform(srcPts, dstPts); // 2x3
+				const A = wcv.getAffineTransform(srcPts, dstPts);
 				const a = A.data64F && A.data64F.length ? Array.from(A.data64F) : Array.from(A.data32F);
 				const m3 = [a[0], a[1], a[2], a[3], a[4], a[5], 0, 0, 1];
 				H = wcv.matFromArray(3, 3, wcv.CV_64F, m3);
@@ -527,23 +584,23 @@
 				}
 			}
 
-			// Warp source onto target size
+			// Warp MOVING onto BASE size
 			warpCanvas ??= document.createElement('canvas');
-			warpCanvas.width = tgtSize.w;
-			warpCanvas.height = tgtSize.h;
+			warpCanvas.width = baseSize.w;
+			warpCanvas.height = baseSize.h;
 
-			const srcMat = await imreadNatural(sourceUrl, wcv);
+			const movingMat = await imreadNatural(targetUrl, wcv);
 			const dstMat = new wcv.Mat();
-			const dsize = new wcv.Size(tgtSize.w, tgtSize.h);
+			const dsize = new wcv.Size(baseSize.w, baseSize.h);
 
-			wcv.warpPerspective(srcMat, dstMat, H, dsize);
+			wcv.warpPerspective(movingMat, dstMat, H, dsize);
 			wcv.imshow(warpCanvas, dstMat);
 
-			srcMat.delete();
+			movingMat.delete();
 			dstMat.delete();
 
-			// Render result mode into resultCanvas + update resultDataUrl
-			renderResult();
+			// Render the display image for the result viewer
+			await renderResult();
 
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
@@ -557,36 +614,43 @@
 					pointCount: n,
 					pairs,
 					ransac:
-						n >= 4 ? { reprojThreshold: ransacReprojThreshold, maxIters: ransacMaxIters } : null
+						n >= 4 ? { reprojThreshold: ransacReprojThreshold, maxIters: ransacMaxIters } : null,
+					base: 'source',
+					moving: 'target'
 				}
 			};
-		} catch (err) {
+		} catch (err: any) {
 			console.error(err);
-			cvError = 'Alignment failed (see console).';
+			cvError = err?.message ?? 'Alignment failed (see console).';
 		} finally {
 			if (srcPts) srcPts.delete();
 			if (dstPts) dstPts.delete();
 			if (mask) mask.delete();
 			if (H) H.delete?.();
+
+			computing = false;
+			if (computeQueued) {
+				computeQueued = false;
+				requestAutoCompute();
+			}
 		}
 	}
 
 	async function renderResult() {
-		if (!warpCanvas) return;
-		if (!tgtSize) return;
+		if (!warpCanvas || !srcSize) return;
 
-		// Load target into an Image for drawing (again: CORS matters for remote)
-		const targetImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+		// base image = sourceUrl
+		const baseImg = await new Promise<HTMLImageElement>((resolve, reject) => {
 			const im = new Image();
 			im.crossOrigin = 'anonymous';
 			im.onload = () => resolve(im);
-			im.onerror = () => reject(new Error('Failed to load target for result render (CORS?)'));
-			im.src = targetUrl;
+			im.onerror = () => reject(new Error('Failed to load base image for result render (CORS?)'));
+			im.src = sourceUrl;
 		});
 
 		resultCanvas ??= document.createElement('canvas');
-		resultCanvas.width = tgtSize.w;
-		resultCanvas.height = tgtSize.h;
+		resultCanvas.width = srcSize.w;
+		resultCanvas.height = srcSize.h;
 
 		const ctx = resultCanvas.getContext('2d');
 		if (!ctx) return;
@@ -600,7 +664,7 @@
 		if (resultMode === 'composite') {
 			ctx.globalCompositeOperation = 'source-over';
 			ctx.globalAlpha = 1;
-			ctx.drawImage(targetImg, 0, 0);
+			ctx.drawImage(baseImg, 0, 0);
 
 			ctx.globalAlpha = overlayOpacity / 100;
 			ctx.drawImage(warpCanvas, 0, 0);
@@ -610,7 +674,7 @@
 
 		if (resultMode === 'difference') {
 			ctx.globalCompositeOperation = 'source-over';
-			ctx.drawImage(targetImg, 0, 0);
+			ctx.drawImage(baseImg, 0, 0);
 
 			ctx.globalCompositeOperation = 'difference';
 			ctx.drawImage(warpCanvas, 0, 0);
@@ -631,21 +695,12 @@
 	}
 
 	$: if (computed && (resultMode || overlayOpacity)) {
-		// If user changes mode/opacity after compute, re-render the result image
-		// (avoid doing this before we have a warp)
-		renderResult().catch(() => {});
+		void renderResult();
 	}
 
 	function onModeChange(m: 'warped' | 'composite' | 'difference') {
 		resultMode = m;
-	}
-
-	/* -------------------------------------------------
-	   UI-only
-	------------------------------------------------- */
-
-	function canCompute() {
-		return cvReady && pairs.length >= 3;
+		void renderResult();
 	}
 </script>
 
@@ -664,28 +719,26 @@
 			<button class="btn" type="button" on:click={undoLast} disabled={!pairs.length}>UNDO</button>
 			<button class="btn" type="button" on:click={resetAll} disabled={!pairs.length}>RESET</button>
 
-			<button class="btn primary" type="button" on:click={compute} disabled={!canCompute()}>
+			<button class="btn primary" type="button" on:click={() => compute()} disabled={!canCompute}>
 				COMPUTE
 			</button>
 
-			<button class="btn save" type="button" on:click={save} disabled={!computed}> SAVE </button>
+			<button class="btn save" type="button" on:click={save} disabled={!computed}>SAVE</button>
 		</div>
 	</div>
 
 	{#if cvError}
-		<div class="error">
-			{cvError}
-		</div>
+		<div class="error">{cvError}</div>
 	{/if}
 
 	<div class="pink-row">
 		<section class="panel">
-			<header>Source</header>
+			<header>Source (base)</header>
 			<div class="osd" bind:this={srcEl} />
 		</section>
 
 		<section class="panel">
-			<header>Target</header>
+			<header>Target (moving)</header>
 			<div class="osd" bind:this={tgtEl} />
 		</section>
 
@@ -726,26 +779,28 @@
 
 		{#if !pairs.length}
 			<div class="pairs-empty">
-				Click the target viewer to add points.
+				Click the <b>Source (base)</b> viewer to add points.
 				{#if requireShiftToAdd}
 					(Hold Shift.)
 				{/if}
-				Source points are drag-only.
+				Drag points in either view to refine. Compute runs automatically on release.
 			</div>
 		{:else}
 			<div class="pairs-list">
 				{#each pairs as p, i (i)}
-					<div class="row" class:active={i === adjustIndex}>
+					<div class="row" class:active={i === adjustIndex} on:click={() => selectPair(i)}>
 						<div class="idx">{i + 1}</div>
 						<div class="coords">
 							<div>
-								T: <span class="mono">{p.target.x.toFixed(4)}, {p.target.y.toFixed(4)}</span>
+								Base: <span class="mono">{p.source.x.toFixed(4)}, {p.source.y.toFixed(4)}</span>
 							</div>
 							<div>
-								S: <span class="mono">{p.source.x.toFixed(4)}, {p.source.y.toFixed(4)}</span>
+								Move: <span class="mono">{p.target.x.toFixed(4)}, {p.target.y.toFixed(4)}</span>
 							</div>
 						</div>
-						<button class="remove" type="button" on:click={() => removePair(i)}>Remove</button>
+						<button class="remove" type="button" on:click|stopPropagation={() => removePair(i)}>
+							Remove
+						</button>
 					</div>
 				{/each}
 			</div>
@@ -754,6 +809,7 @@
 </div>
 
 <style>
+	/* --- your existing layout styles unchanged (trimmed for brevity) --- */
 	.layout {
 		display: flex;
 		flex-direction: column;
@@ -794,7 +850,6 @@
 		background: white;
 		color: #0f172a;
 	}
-
 	.btn:hover {
 		background: rgba(0, 0, 0, 0.04);
 	}
@@ -802,14 +857,12 @@
 		opacity: 0.45;
 		cursor: not-allowed;
 	}
-
 	.btn.primary {
 		background: #e0f2fe;
 		border-color: rgba(2, 132, 199, 0.25);
 		color: #075985;
 		font-weight: 700;
 	}
-
 	.btn.save {
 		background: #d1fae5;
 		color: #065f46;
@@ -827,7 +880,6 @@
 		align-items: center;
 		gap: 8px;
 	}
-
 	.toggle input {
 		transform: translateY(1px);
 	}
@@ -843,11 +895,10 @@
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		border-radius: 10px;
 		overflow: hidden;
-		background: rgba(253, 186, 200, 0.35); /* pink-ish */
+		background: rgba(253, 186, 200, 0.35);
 		display: flex;
 		flex-direction: column;
 	}
-
 	.panel header {
 		padding: 8px 10px;
 		font-size: 0.78rem;
@@ -856,14 +907,12 @@
 		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 		background: rgba(255, 255, 255, 0.7);
 	}
-
 	.result-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
 	}
-
 	.result-controls {
 		display: flex;
 		align-items: center;
@@ -871,14 +920,12 @@
 		flex-wrap: wrap;
 		font-weight: 400;
 	}
-
 	select {
 		border: 1px solid rgba(0, 0, 0, 0.15);
 		border-radius: 8px;
 		padding: 4px 8px;
 		background: white;
 	}
-
 	.opacity {
 		display: inline-flex;
 		align-items: center;
@@ -886,7 +933,6 @@
 		font-size: 0.75rem;
 		color: #334155;
 	}
-
 	.osd {
 		flex: 1;
 		background: rgba(255, 255, 255, 0.65);
@@ -904,10 +950,9 @@
 	.pairs {
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		border-radius: 10px;
-		background: rgba(187, 247, 208, 0.45); /* green-ish */
+		background: rgba(187, 247, 208, 0.45);
 		padding: 10px;
 	}
-
 	.pairs-head {
 		display: flex;
 		align-items: center;
@@ -916,19 +961,16 @@
 		font-weight: 700;
 		color: rgba(17, 24, 39, 0.85);
 	}
-
 	.pairs-empty {
 		color: #334155;
 		font-size: 0.85rem;
 		padding: 6px 0;
 	}
-
 	.pairs-list {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 	}
-
 	.row {
 		display: grid;
 		grid-template-columns: 34px 1fr auto;
@@ -938,12 +980,11 @@
 		border-radius: 8px;
 		background: rgba(255, 255, 255, 0.65);
 		border: 1px solid rgba(0, 0, 0, 0.06);
+		cursor: pointer;
 	}
-
 	.row.active {
 		outline: 2px solid rgba(2, 132, 199, 0.35);
 	}
-
 	.idx {
 		font-weight: 800;
 		color: #334155;
@@ -955,13 +996,11 @@
 		font-size: 0.82rem;
 		color: #0f172a;
 	}
-
 	.mono {
 		font-family:
 			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
 			monospace;
 	}
-
 	.remove {
 		all: unset;
 		cursor: pointer;
@@ -973,7 +1012,7 @@
 		color: #7c2d12;
 	}
 
-	/* ---------- Marker styling (OSD overlays) ---------- */
+	/* ---------- Marker styling ---------- */
 	:global(.kp) {
 		transform: translate(-50%, -50%);
 		touch-action: none;
@@ -1016,5 +1055,19 @@
 	:global(.kp.active .kp-ring) {
 		outline: 2px solid rgba(2, 132, 199, 0.85);
 		outline-offset: 2px;
+	}
+
+	/* While dragging: remove fill + hide centre dot */
+	:global(.kp.dragging .kp-ring) {
+		background: transparent; /* was rgba(255,255,255,0.8) */
+	}
+
+	:global(.kp.dragging .kp-dot) {
+		opacity: 0;
+	}
+
+	/* Optional: reduce “busy” look while dragging */
+	:global(.kp.dragging .kp-ring) {
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 	}
 </style>
