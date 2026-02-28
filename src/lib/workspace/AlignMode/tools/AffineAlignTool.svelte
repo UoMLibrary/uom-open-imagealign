@@ -124,8 +124,10 @@
 	function makeViewer(el: HTMLElement) {
 		return OpenSeadragon({
 			element: el,
-			prefixUrl: '/openseadragon-images/', // optional; only needed for default button icons
+			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
 			showNavigator: true,
+			autoResize: true,
+
 			crossOriginPolicy: 'Anonymous',
 
 			// Important: don't zoom on click (we use click for adding/selecting)
