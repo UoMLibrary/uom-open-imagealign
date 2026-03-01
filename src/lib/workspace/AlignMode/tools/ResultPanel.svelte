@@ -10,22 +10,19 @@
 	// Overlay layer (world index 1)
 	export let overlayUrl: string | null = null;
 
-	// Optional overlay appearance
-	export let overlayOpacity: number = 0.6;
+	// Overlay appearance
+	export let overlayOpacity: number = 0.6; // expects 0..1
 	export let overlayCompositeOperation: string | null = null;
 
 	// Bump this whenever the pixels behind imageUrl/overlayUrl change
 	// (point moved, recompute finished, etc.)
 	export let refreshKey: number = 0;
 
-	// Optional: include your render mode ("composite" | "warped" | "difference")
-	// so mode-only changes can force a refresh too.
+	// Optional: a mode tag ("warped" | "composite" | "difference") for cache-busting/signatures
 	export let mode: string | null = null;
 
-	// Optional: keep result zoom matched to source/target zoom
+	// Optional external sync
 	export let zoom: number | null = null;
-
-	// Optional: pan to this point (normalised in base image space)
 	export let focus: Pt | null = null;
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
@@ -33,9 +30,12 @@
 	let el: HTMLDivElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	// Track what we've actually opened (url + refreshKey + mode)
 	let openedBaseSig: string | null = null;
 	let openedOverlaySig: string | null = null;
+
+	// Track last *applied* external sync, so we don't override user zoom/pan on refresh
+	let lastAppliedZoom: number | null = null;
+	let lastAppliedFocusSig: string | null = null;
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
@@ -64,9 +64,17 @@
 		});
 	}
 
+	function requestRedraw() {
+		if (!viewer) return;
+		const v: any = viewer;
+		// best-effort across OSD versions
+		if (typeof v.forceRedraw === 'function') v.forceRedraw();
+		else if (viewer.world && (viewer.world as any).requestDraw) (viewer.world as any).requestDraw();
+	}
+
 	function cacheBust(url: string) {
-		// For data:/blob: URLs, DO NOT append "?..." (breaks data URLs).
-		// Use a fragment instead, so the URL string changes but the data doesn't.
+		// Don't break data:/blob: URLs by adding query params.
+		// Use a fragment so the string changes (OSD will reload) but the payload stays valid.
 		const base = url.split('#')[0];
 		const frag = `v=${refreshKey}&m=${encodeURIComponent(mode ?? '')}`;
 
@@ -74,16 +82,13 @@
 			return `${base}#${frag}`;
 		}
 
-		// For http(s)/relative, add query params safely
 		try {
 			const u = new URL(base, window.location.href);
 			u.searchParams.set('_v', String(refreshKey));
 			if (mode) u.searchParams.set('_m', mode);
-			// keep our fragment too (harmless)
 			u.hash = frag;
 			return u.toString();
 		} catch {
-			// Fallback: don’t break the URL if parsing fails
 			return url;
 		}
 	}
@@ -100,6 +105,12 @@
 		const item: any = baseItem();
 		if (!item) return null;
 		return item.getBoundsNoRotate ? item.getBoundsNoRotate(true) : item.getBounds(true);
+	}
+
+	function clamp01(n: any) {
+		const v = Number(n);
+		if (!Number.isFinite(v)) return 1;
+		return Math.max(0, Math.min(1, v));
 	}
 
 	function setOrReplaceOverlay(url: string) {
@@ -122,8 +133,10 @@
 			y: b.y,
 			width: b.width,
 
-			opacity: overlayOpacity,
-			compositeOperation: overlayCompositeOperation ?? undefined
+			opacity: clamp01(overlayOpacity),
+			compositeOperation: overlayCompositeOperation ?? undefined,
+
+			success: () => requestRedraw()
 		} as any);
 
 		openedOverlaySig = `${url}|${refreshKey}|${mode ?? ''}`;
@@ -135,6 +148,7 @@
 		if (!item) return;
 		viewer.world.removeItem(item);
 		openedOverlaySig = null;
+		requestRedraw();
 	}
 
 	function getContentSize() {
@@ -178,12 +192,17 @@
 		const item: any = overlayItem();
 		if (!item) return;
 
-		if (item.setOpacity) item.setOpacity(overlayOpacity);
+		const op = clamp01(overlayOpacity);
+		if (item.setOpacity) item.setOpacity(op);
 
 		// Reset to default when null
 		if (item.setCompositeOperation) {
 			item.setCompositeOperation(overlayCompositeOperation ?? 'source-over');
+		} else {
+			item.compositeOperation = overlayCompositeOperation ?? 'source-over';
 		}
+
+		requestRedraw();
 	}
 
 	onMount(() => {
@@ -195,6 +214,7 @@
 
 	/* ---------------------------
 	   Base image open (index 0)
+	   Preserves viewport on refresh.
 	--------------------------- */
 
 	$: if (viewer) {
@@ -212,22 +232,22 @@
 
 				openedBaseSig = nextBaseSig;
 
-				// attach handler BEFORE open
+				// IMPORTANT: handler BEFORE open (data: URLs can load very fast)
 				viewer.addOnceHandler('open', () => {
+					// restore viewport exactly where user left it
 					if (prevCenter && prevZoom != null) {
 						viewer!.viewport.panTo(prevCenter, true);
 						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
 						viewer!.viewport.applyConstraints(true);
 					}
 
-					// open() replaces world; ensure overlay is re-applied
+					// open() replaces world; overlay must be re-added
 					if (overlayUrl) {
 						openedOverlaySig = null;
 						setOrReplaceOverlay(overlayUrl);
 					}
 
-					applyZoom(true);
-					applyFocus(false);
+					requestRedraw();
 				});
 
 				viewer.open({ type: 'image', url: cacheBust(imageUrl) });
@@ -246,7 +266,6 @@
 
 		if (overlayUrl) {
 			const nextOverlaySig = `${overlayUrl}|${refreshKey}|${mode ?? ''}`;
-
 			if (openedOverlaySig !== nextOverlaySig) {
 				if (baseItem()) setOrReplaceOverlay(overlayUrl);
 			}
@@ -254,11 +273,12 @@
 	}
 
 	/* ---------------------------
-	   Overlay appearance updates
-	   Make deps explicit so mode/opacity/composite changes update immediately.
+	   Overlay appearance updates (opacity / composite)
+	   Force redraw so it updates immediately.
 	--------------------------- */
 
 	$: if (viewer && overlayUrl) {
+		// make deps explicit
 		overlayOpacity;
 		overlayCompositeOperation;
 		mode;
@@ -267,15 +287,23 @@
 	}
 
 	/* ---------------------------
-	   External sync
+	   External sync (only when prop changes)
+	   Prevents clobbering manual zoom/pan during refresh.
 	--------------------------- */
 
-	$: if (viewer && focus) {
-		applyFocus(false);
+	$: if (viewer && zoom != null) {
+		if (lastAppliedZoom !== zoom) {
+			lastAppliedZoom = zoom;
+			applyZoom(true);
+		}
 	}
 
-	$: if (viewer && zoom != null) {
-		applyZoom(true);
+	$: if (viewer && focus) {
+		const sig = `${focus.x},${focus.y}`;
+		if (lastAppliedFocusSig !== sig) {
+			lastAppliedFocusSig = sig;
+			applyFocus(false);
+		}
 	}
 </script>
 
