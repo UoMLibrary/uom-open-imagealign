@@ -11,18 +11,16 @@
 	export let overlayUrl: string | null = null;
 
 	// Overlay appearance
-	export let overlayOpacity: number = 0.6; // expects 0..1
+	export let overlayOpacity: number = 0.6; // 0..1
 	export let overlayCompositeOperation: string | null = null;
 
-	// Bump this whenever the pixels behind imageUrl/overlayUrl change
-	// (point moved, recompute finished, etc.)
+	// Bump this whenever the pixels behind a data:/blob: URL change (e.g. warped output)
 	export let refreshKey: number = 0;
 
-	// Optional: a mode tag ("warped" | "composite" | "difference") for cache-busting/signatures
+	// Optional: tag for signatures
 	export let mode: string | null = null;
 
 	// Optional external sync
-	export let zoom: number | null = null;
 	export let focus: Pt | null = null;
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
@@ -33,8 +31,6 @@
 	let openedBaseSig: string | null = null;
 	let openedOverlaySig: string | null = null;
 
-	// Track last *applied* external sync, so we don't override user zoom/pan on refresh
-	let lastAppliedZoom: number | null = null;
 	let lastAppliedFocusSig: string | null = null;
 
 	function makeViewer(node: HTMLElement) {
@@ -67,16 +63,24 @@
 	function requestRedraw() {
 		if (!viewer) return;
 		const v: any = viewer;
-		// best-effort across OSD versions
 		if (typeof v.forceRedraw === 'function') v.forceRedraw();
-		else if (viewer.world && (viewer.world as any).requestDraw) (viewer.world as any).requestDraw();
+		else if ((viewer.world as any)?.requestDraw) (viewer.world as any).requestDraw();
 	}
 
-	function cacheBust(url: string) {
-		// Don't break data:/blob: URLs by adding query params.
-		// Use a fragment so the string changes (OSD will reload) but the payload stays valid.
+	function clamp01(n: any) {
+		const v = Number(n);
+		if (!Number.isFinite(v)) return 1;
+		return Math.max(0, Math.min(1, v));
+	}
+
+	function isDynamicUrl(url: string) {
+		return url.startsWith('data:') || url.startsWith('blob:');
+	}
+
+	function cacheBust(url: string, layer: 'base' | 'overlay') {
+		// data:/blob: cannot safely accept query params; use #fragment
 		const base = url.split('#')[0];
-		const frag = `v=${refreshKey}&m=${encodeURIComponent(mode ?? '')}`;
+		const frag = `v=${refreshKey}&m=${encodeURIComponent(mode ?? '')}&l=${layer}`;
 
 		if (base.startsWith('data:') || base.startsWith('blob:')) {
 			return `${base}#${frag}`;
@@ -107,50 +111,6 @@
 		return item.getBoundsNoRotate ? item.getBoundsNoRotate(true) : item.getBounds(true);
 	}
 
-	function clamp01(n: any) {
-		const v = Number(n);
-		if (!Number.isFinite(v)) return 1;
-		return Math.max(0, Math.min(1, v));
-	}
-
-	function setOrReplaceOverlay(url: string) {
-		if (!viewer) return;
-		const base = baseItem() as any;
-		if (!base) return;
-
-		const b = baseBounds();
-		if (!b) return;
-
-		const hasOverlay = !!overlayItem();
-
-		viewer.addTiledImage({
-			index: 1,
-			replace: hasOverlay,
-			tileSource: { type: 'image', url: cacheBust(url) },
-
-			// match base placement (assumes same dimensions/aspect)
-			x: b.x,
-			y: b.y,
-			width: b.width,
-
-			opacity: clamp01(overlayOpacity),
-			compositeOperation: overlayCompositeOperation ?? undefined,
-
-			success: () => requestRedraw()
-		} as any);
-
-		openedOverlaySig = `${url}|${refreshKey}|${mode ?? ''}`;
-	}
-
-	function removeOverlay() {
-		if (!viewer) return;
-		const item: any = overlayItem();
-		if (!item) return;
-		viewer.world.removeItem(item);
-		openedOverlaySig = null;
-		requestRedraw();
-	}
-
 	function getContentSize() {
 		if (!viewer) return null;
 		const item: any = baseItem();
@@ -178,31 +138,71 @@
 		viewer.viewport.applyConstraints(true);
 	}
 
-	function applyZoom(immediate = true) {
-		if (!viewer || zoom == null) return;
-		if (viewer.world.getItemCount() === 0) return;
+	function setOrReplaceOverlay(url: string) {
+		if (!viewer) return;
+		const base = baseItem() as any;
+		if (!base) return;
 
-		const center = viewer.viewport.getCenter(true);
-		viewer.viewport.zoomTo(zoom, center, immediate);
-		viewer.viewport.applyConstraints(true);
+		const b = baseBounds();
+		if (!b) return;
+
+		const hasOverlay = !!overlayItem();
+
+		viewer.addTiledImage({
+			index: 1,
+			replace: hasOverlay,
+			tileSource: { type: 'image', url: cacheBust(url, 'overlay') },
+
+			// match base placement (assumes same dimensions/aspect)
+			x: b.x,
+			y: b.y,
+			width: b.width,
+
+			opacity: clamp01(overlayOpacity),
+			compositeOperation: overlayCompositeOperation ?? undefined,
+
+			success: () => requestRedraw()
+		} as any);
+
+		openedOverlaySig = `${url}|${isDynamicUrl(url) ? refreshKey : 0}|${mode ?? ''}`;
 	}
 
-	function applyOverlayAppearance() {
+	function removeOverlay() {
 		if (!viewer) return;
 		const item: any = overlayItem();
 		if (!item) return;
-
-		const op = clamp01(overlayOpacity);
-		if (item.setOpacity) item.setOpacity(op);
-
-		// Reset to default when null
-		if (item.setCompositeOperation) {
-			item.setCompositeOperation(overlayCompositeOperation ?? 'source-over');
-		} else {
-			item.compositeOperation = overlayCompositeOperation ?? 'source-over';
-		}
-
+		viewer.world.removeItem(item);
+		openedOverlaySig = null;
 		requestRedraw();
+	}
+
+	// rAF throttled overlay appearance so slider feels smooth
+	let pendingAppearance = false;
+	let pendingOpacity = overlayOpacity;
+	let pendingComposite = overlayCompositeOperation;
+
+	function scheduleOverlayAppearance() {
+		pendingOpacity = overlayOpacity;
+		pendingComposite = overlayCompositeOperation;
+
+		if (pendingAppearance) return;
+		pendingAppearance = true;
+
+		requestAnimationFrame(() => {
+			pendingAppearance = false;
+			if (!viewer) return;
+
+			const item: any = overlayItem();
+			if (!item) return;
+
+			const op = clamp01(pendingOpacity);
+			if (item.setOpacity) item.setOpacity(op);
+
+			if (item.setCompositeOperation) item.setCompositeOperation(pendingComposite ?? 'source-over');
+			else item.compositeOperation = pendingComposite ?? 'source-over';
+
+			requestRedraw();
+		});
 	}
 
 	onMount(() => {
@@ -214,7 +214,7 @@
 
 	/* ---------------------------
 	   Base image open (index 0)
-	   Preserves viewport on refresh.
+	   Preserve viewport on refresh.
 	--------------------------- */
 
 	$: if (viewer) {
@@ -223,7 +223,8 @@
 			openedBaseSig = null;
 			openedOverlaySig = null;
 		} else {
-			const nextBaseSig = `${imageUrl}|${refreshKey}|${mode ?? ''}`;
+			const baseKey = isDynamicUrl(imageUrl) ? refreshKey : 0;
+			const nextBaseSig = `${imageUrl}|${baseKey}|${mode ?? ''}`;
 
 			if (openedBaseSig !== nextBaseSig) {
 				const hadImage = viewer.world.getItemCount() > 0;
@@ -232,16 +233,16 @@
 
 				openedBaseSig = nextBaseSig;
 
-				// IMPORTANT: handler BEFORE open (data: URLs can load very fast)
+				// Attach handler BEFORE open (data URLs can load very fast)
 				viewer.addOnceHandler('open', () => {
-					// restore viewport exactly where user left it
+					// Restore zoom/pan where user left it
 					if (prevCenter && prevZoom != null) {
 						viewer!.viewport.panTo(prevCenter, true);
 						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
 						viewer!.viewport.applyConstraints(true);
 					}
 
-					// open() replaces world; overlay must be re-added
+					// open() replaces world; re-add overlay if needed
 					if (overlayUrl) {
 						openedOverlaySig = null;
 						setOrReplaceOverlay(overlayUrl);
@@ -250,7 +251,7 @@
 					requestRedraw();
 				});
 
-				viewer.open({ type: 'image', url: cacheBust(imageUrl) });
+				viewer.open({ type: 'image', url: cacheBust(imageUrl, 'base') });
 			}
 		}
 	}
@@ -265,7 +266,9 @@
 		}
 
 		if (overlayUrl) {
-			const nextOverlaySig = `${overlayUrl}|${refreshKey}|${mode ?? ''}`;
+			const overlayKey = isDynamicUrl(overlayUrl) ? refreshKey : 0;
+			const nextOverlaySig = `${overlayUrl}|${overlayKey}|${mode ?? ''}`;
+
 			if (openedOverlaySig !== nextOverlaySig) {
 				if (baseItem()) setOrReplaceOverlay(overlayUrl);
 			}
@@ -273,30 +276,18 @@
 	}
 
 	/* ---------------------------
-	   Overlay appearance updates (opacity / composite)
-	   Force redraw so it updates immediately.
+	   Overlay appearance updates (smooth slider)
 	--------------------------- */
 
 	$: if (viewer && overlayUrl) {
-		// make deps explicit
 		overlayOpacity;
 		overlayCompositeOperation;
-		mode;
-
-		applyOverlayAppearance();
+		scheduleOverlayAppearance();
 	}
 
 	/* ---------------------------
-	   External sync (only when prop changes)
-	   Prevents clobbering manual zoom/pan during refresh.
+	   Focus updates (only when it actually changes)
 	--------------------------- */
-
-	$: if (viewer && zoom != null) {
-		if (lastAppliedZoom !== zoom) {
-			lastAppliedZoom = zoom;
-			applyZoom(true);
-		}
-	}
 
 	$: if (viewer && focus) {
 		const sig = `${focus.x},${focus.y}`;

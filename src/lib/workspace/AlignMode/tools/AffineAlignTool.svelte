@@ -5,8 +5,6 @@
 
 	import ResultPanel from './ResultPanel.svelte';
 	import PointPairs from './PointPairs.svelte';
-
-	// ✅ adjust path to your SidePanel
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 
 	export type AlignmentDraft = {
@@ -15,11 +13,6 @@
 		methodData?: Record<string, any>;
 	};
 
-	/**
-	 * Semantics:
-	 * - Source = BASE image (click to add points)
-	 * - Target = MOVING image (warped onto Source)
-	 */
 	export let sourceUrl: string; // base
 	export let targetUrl: string; // moving
 	export let existingAlignment: ImageAlignment | null = null;
@@ -27,7 +20,6 @@
 	export let onSave: (draft: AlignmentDraft) => void;
 
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
-
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
 	export let maxPairs = 120;
@@ -43,7 +35,7 @@
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
 
-	let overlayOpacity = 60; // 0..100 (UI)
+	let overlayOpacityPct = 60; // 0..100 (UI)
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
 	// OpenCV
@@ -60,17 +52,15 @@
 	let srcSize: { w: number; h: number } | null = null;
 	let tgtSize: { w: number; h: number } | null = null;
 
-	// Result output bitmap (data URL) + focus point
-	let resultUrl: string | null = null;
+	// Warped output (data URL) + refresh key
+	let warpedUrl: string | null = null;
+	let warpedRefreshKey = 0;
+
+	// Focus point for result panel (in source/base normalised space)
 	let resultFocus: Pt | null = null;
 
-	// If your ResultPanel supports refreshKey/mode, these help it refresh reliably
-	let resultRefreshKey = 0;
-
-	// Cached canvases/images for rendering modes reliably
+	// Cached canvas for warp output
 	let warpCanvas: HTMLCanvasElement | null = null;
-	let outCanvas: HTMLCanvasElement | null = null;
-	let baseImg: HTMLImageElement | null = null;
 
 	let computed: {
 		transform: ImageAlignment['transform'];
@@ -78,7 +68,6 @@
 		methodData?: any;
 	} | null = null;
 
-	// Right sidebar open state
 	let RightPanelOpen = true;
 
 	/* -------------------------------------------------
@@ -137,7 +126,6 @@
 		centerOn(srcViewer, p.source, immediate);
 		centerOn(tgtViewer, p.target, immediate);
 
-		// Optional: focus result on selected point
 		resultFocus = { ...p.source };
 	}
 
@@ -427,20 +415,6 @@
 	}
 
 	/* -------------------------------------------------
-	   Base image preload (for composite/difference rendering)
-	------------------------------------------------- */
-
-	async function loadImage(url: string): Promise<HTMLImageElement> {
-		return new Promise((resolve, reject) => {
-			const img = new Image();
-			img.crossOrigin = 'anonymous';
-			img.onload = () => resolve(img);
-			img.onerror = () => reject(new Error('Failed to load base image (CORS?)'));
-			img.src = url;
-		});
-	}
-
-	/* -------------------------------------------------
 	   OpenCV
 	------------------------------------------------- */
 
@@ -514,73 +488,16 @@
 		autoTimer = setTimeout(() => void compute(), 120);
 	}
 
-	async function ensureCanvases() {
+	async function ensureWarpCanvas() {
 		if (!srcSize) return;
-
 		if (!warpCanvas) {
 			warpCanvas = document.createElement('canvas');
 			warpCanvas.getContext('2d', { willReadFrequently: true });
 		}
-		if (!outCanvas) {
-			outCanvas = document.createElement('canvas');
-			outCanvas.getContext('2d', { willReadFrequently: true });
-		}
-
 		if (warpCanvas.width !== srcSize.w || warpCanvas.height !== srcSize.h) {
 			warpCanvas.width = srcSize.w;
 			warpCanvas.height = srcSize.h;
 			warpCanvas.getContext('2d', { willReadFrequently: true });
-		}
-
-		if (outCanvas.width !== srcSize.w || outCanvas.height !== srcSize.h) {
-			outCanvas.width = srcSize.w;
-			outCanvas.height = srcSize.h;
-			outCanvas.getContext('2d', { willReadFrequently: true });
-		}
-	}
-
-	function renderResultBitmap() {
-		if (!warpCanvas || !outCanvas || !baseImg) return;
-
-		const ctx = outCanvas.getContext('2d', { willReadFrequently: true });
-		if (!ctx) return;
-
-		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.clearRect(0, 0, outCanvas.width, outCanvas.height);
-
-		if (resultMode === 'warped') {
-			ctx.globalCompositeOperation = 'source-over';
-			ctx.globalAlpha = 1;
-			ctx.drawImage(warpCanvas, 0, 0);
-		}
-
-		if (resultMode === 'composite') {
-			ctx.globalCompositeOperation = 'source-over';
-			ctx.globalAlpha = 1;
-			ctx.drawImage(baseImg, 0, 0, outCanvas.width, outCanvas.height);
-
-			ctx.globalAlpha = Number(overlayOpacity) / 100;
-			ctx.drawImage(warpCanvas, 0, 0);
-
-			ctx.globalAlpha = 1;
-		}
-
-		if (resultMode === 'difference') {
-			ctx.globalCompositeOperation = 'source-over';
-			ctx.globalAlpha = 1;
-			ctx.drawImage(baseImg, 0, 0, outCanvas.width, outCanvas.height);
-
-			ctx.globalCompositeOperation = 'difference';
-			ctx.drawImage(warpCanvas, 0, 0);
-
-			ctx.globalCompositeOperation = 'source-over';
-		}
-
-		try {
-			resultUrl = outCanvas.toDataURL('image/png');
-			resultRefreshKey += 1; // ensures ResultPanel refreshes even if URL string ends up identical
-		} catch (e: any) {
-			cvError = e?.message ?? 'Failed to export result image (CORS?)';
 		}
 	}
 
@@ -606,11 +523,7 @@
 		let mask: any = null;
 
 		try {
-			if (!baseImg || baseImg.src !== sourceUrl) {
-				baseImg = await loadImage(sourceUrl);
-			}
-
-			await ensureCanvases();
+			await ensureWarpCanvas();
 			if (!warpCanvas) throw new Error('warpCanvas missing');
 
 			const n = pairs.length;
@@ -666,7 +579,9 @@
 			movingMat.delete();
 			dstMat.delete();
 
-			renderResultBitmap();
+			// ✅ Only compute the warped bitmap once per compute
+			warpedUrl = warpCanvas.toDataURL('image/png');
+			warpedRefreshKey += 1;
 
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
@@ -697,13 +612,6 @@
 				requestAutoCompute();
 			}
 		}
-	}
-
-	// Re-render bitmap when user changes mode/opacity (no OpenCV recompute)
-	$: if (warpCanvas && baseImg) {
-		resultMode;
-		overlayOpacity;
-		renderResultBitmap();
 	}
 
 	function save() {
@@ -764,7 +672,6 @@
 			requestAutoCompute();
 		});
 
-		// OpenCV
 		try {
 			await ensureOpenCV();
 			cvReady = true;
@@ -779,7 +686,6 @@
 		tgtViewer?.destroy();
 	});
 
-	// Re-open images if URLs change
 	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
 	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
 
@@ -800,9 +706,9 @@
 		pairs = [];
 		adjustIndex = null;
 		computed = null;
-		resultUrl = null;
+		warpedUrl = null;
+		warpedRefreshKey += 1;
 		resultFocus = null;
-		resultRefreshKey += 1;
 		refreshOverlays();
 	}
 
@@ -874,19 +780,29 @@
 							{#if resultMode === 'composite'}
 								<label class="opacity">
 									Opacity
-									<input type="range" min="0" max="100" bind:value={overlayOpacity} />
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={overlayOpacityPct}
+										on:input={(e) =>
+											(overlayOpacityPct = Number((e.currentTarget as HTMLInputElement).value))}
+									/>
 								</label>
 							{/if}
 						</div>
 					</header>
 
 					<div class="result-shell">
-						{#if resultUrl}
+						{#if warpedUrl}
 							<ResultPanel
-								imageUrl={resultUrl}
-								focus={resultFocus}
-								refreshKey={resultRefreshKey}
+								imageUrl={resultMode === 'warped' ? warpedUrl : sourceUrl}
+								overlayUrl={resultMode === 'warped' ? null : warpedUrl}
+								overlayOpacity={overlayOpacityPct / 100}
+								overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
+								refreshKey={warpedRefreshKey}
 								mode={resultMode}
+								focus={resultFocus}
 								{drawer}
 							/>
 						{:else}
