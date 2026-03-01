@@ -244,6 +244,8 @@ It allows grouping strategies to improve or change without breaking existing pro
 
 ## TODO
 
+- Adding 4 corner points should call compute
+- Combine File and Modes into a top bar to save screen space.
 - Alignment: When Source dragged, locate same position and zoom level on target
 - Alignment: The point jumps up to the top left of the mouse cursor
 - Alignment: When zooming the point does not appear to stay locked to the same point, there is drift

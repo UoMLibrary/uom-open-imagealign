@@ -2,7 +2,12 @@
 	import { onMount, onDestroy } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 	import type { ImageAlignment } from '$lib/core/types';
+
 	import ResultPanel from './ResultPanel.svelte';
+	import PointPairs from './PointPairs.svelte';
+
+	// ✅ adjust path to your SidePanel
+	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 
 	export type AlignmentDraft = {
 		confidence?: number;
@@ -38,7 +43,7 @@
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
 
-	let overlayOpacity = 60;
+	let overlayOpacity = 60; // 0..100 (UI)
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
 	// OpenCV
@@ -59,8 +64,8 @@
 	let resultUrl: string | null = null;
 	let resultFocus: Pt | null = null;
 
-	// Keep result zoom matched to source/target
-	let sharedZoom: number | null = null;
+	// If your ResultPanel supports refreshKey/mode, these help it refresh reliably
+	let resultRefreshKey = 0;
 
 	// Cached canvases/images for rendering modes reliably
 	let warpCanvas: HTMLCanvasElement | null = null;
@@ -72,6 +77,9 @@
 		confidence: number;
 		methodData?: any;
 	} | null = null;
+
+	// Right sidebar open state
+	let RightPanelOpen = true;
 
 	/* -------------------------------------------------
 	   Helpers
@@ -125,10 +133,11 @@
 	function centerOnPair(i: number, immediate = false) {
 		const p = pairs[i];
 		if (!p) return;
+
 		centerOn(srcViewer, p.source, immediate);
 		centerOn(tgtViewer, p.target, immediate);
 
-		// also focus result
+		// Optional: focus result on selected point
 		resultFocus = { ...p.source };
 	}
 
@@ -176,12 +185,12 @@
 	}
 
 	function openImage(viewer: OpenSeadragon.Viewer, url: string) {
-		viewer.open({ type: 'image', url });
 		viewer.addOnceHandler('open', () => {
 			if (viewer === srcViewer) srcSize = getContentSize(viewer);
 			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
 			refreshOverlays();
 		});
+		viewer.open({ type: 'image', url });
 	}
 
 	/* -------------------------------------------------
@@ -192,20 +201,13 @@
 	let syncingHome = false;
 
 	function getImageZoomTarget(viewer: OpenSeadragon.Viewer) {
-		// IMPORTANT:
-		// getZoom(false) = target zoom (spring target)
-		// getZoom(true)  = current zoom (spring current)
 		const vpTargetZoom = viewer.viewport.getZoom(false);
 		return viewer.viewport.viewportToImageZoom(vpTargetZoom);
 	}
 
 	function setImageZoomTarget(viewer: OpenSeadragon.Viewer, imageZoom: number) {
 		const vpTargetZoom = viewer.viewport.imageToViewportZoom(imageZoom);
-
-		// keep the viewer’s own center (we’re syncing zoom only)
 		const center = viewer.viewport.getCenter(true);
-
-		// immediately = false => set spring target, let it ease (matches “momentum”)
 		viewer.viewport.zoomTo(vpTargetZoom, center, false);
 	}
 
@@ -217,20 +219,15 @@
 				const iz = getImageZoomTarget(from);
 				setImageZoomTarget(to, iz);
 			} finally {
-				// release next microtask so we don’t ping-pong
 				queueMicrotask(() => (syncingZoom = false));
 			}
 		};
 
-		// During scroll / pinch (target is changing)
 		from.addHandler('zoom', apply);
-
-		// When the spring finishes, force a final match
 		from.addHandler('animation-finish', apply);
 	}
 
 	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
-		// getHomeZoom is viewport zoom; convert to image zoom so different image sizes still match
 		const homeVpZoom = viewer.viewport.getHomeZoom();
 		return viewer.viewport.viewportToImageZoom(homeVpZoom);
 	}
@@ -240,18 +237,14 @@
 			if (syncingHome) return;
 			syncingHome = true;
 
-			// Canonical home zoom derived from the viewer whose Home was pressed
 			const homeImageZoom = getHomeImageZoom(from);
 
-			// Home both (pan + default zoom)
 			from.viewport.goHome(false);
 			to.viewport.goHome(false);
 
-			// Force both to share the same home zoom target
 			setImageZoomTarget(from, homeImageZoom);
 			setImageZoomTarget(to, homeImageZoom);
 
-			// Release once both animations finish (fallback timeout as safety)
 			let remaining = 2;
 			const done = () => {
 				remaining -= 1;
@@ -261,9 +254,7 @@
 			from.addOnceHandler('animation-finish', done);
 			to.addOnceHandler('animation-finish', done);
 
-			setTimeout(() => {
-				syncingHome = false;
-			}, 700);
+			setTimeout(() => (syncingHome = false), 700);
 		});
 	}
 
@@ -399,7 +390,6 @@
 		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
 		pairs = next;
 
-		// focus result on last adjusted point
 		resultFocus = { ...next[index].source };
 
 		computed = null;
@@ -417,21 +407,19 @@
 	}
 
 	function addInitial4Points(inset = 0.07) {
-		if (pairs.length) return; // only when empty
+		if (pairs.length) return;
 
 		const d = clamp01(inset);
-
 		const pts: Pt[] = [
-			{ x: d, y: d }, // TL
-			{ x: 1 - d, y: d }, // TR
-			{ x: 1 - d, y: 1 - d }, // BR
-			{ x: d, y: 1 - d } // BL
+			{ x: d, y: d },
+			{ x: 1 - d, y: d },
+			{ x: 1 - d, y: 1 - d },
+			{ x: d, y: 1 - d }
 		];
 
 		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
 		adjustIndex = 0;
 
-		// nice: center both viewers roughly on first point so user sees it
 		refreshOverlays();
 		centerOnPair(0, false);
 
@@ -571,7 +559,7 @@
 			ctx.globalAlpha = 1;
 			ctx.drawImage(baseImg, 0, 0, outCanvas.width, outCanvas.height);
 
-			ctx.globalAlpha = overlayOpacity / 100;
+			ctx.globalAlpha = Number(overlayOpacity) / 100;
 			ctx.drawImage(warpCanvas, 0, 0);
 
 			ctx.globalAlpha = 1;
@@ -590,6 +578,7 @@
 
 		try {
 			resultUrl = outCanvas.toDataURL('image/png');
+			resultRefreshKey += 1; // ensures ResultPanel refreshes even if URL string ends up identical
 		} catch (e: any) {
 			cvError = e?.message ?? 'Failed to export result image (CORS?)';
 		}
@@ -617,7 +606,6 @@
 		let mask: any = null;
 
 		try {
-			// Ensure base image is loaded for composite/difference
 			if (!baseImg || baseImg.src !== sourceUrl) {
 				baseImg = await loadImage(sourceUrl);
 			}
@@ -668,7 +656,6 @@
 				}
 			}
 
-			// Warp MOVING into BASE sized output
 			const movingMat = await imreadNatural(targetUrl, wcv);
 			const dstMat = new wcv.Mat();
 			const dsize = new wcv.Size(baseSize.w, baseSize.h);
@@ -679,7 +666,6 @@
 			movingMat.delete();
 			dstMat.delete();
 
-			// Render chosen mode into bitmap resultUrl
 			renderResultBitmap();
 
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
@@ -713,9 +699,10 @@
 		}
 	}
 
-	// If user changes mode/opacity after we already have a warp, re-render bitmap without recomputing OpenCV
+	// Re-render bitmap when user changes mode/opacity (no OpenCV recompute)
 	$: if (warpCanvas && baseImg) {
-		// This will run on init too; safe
+		resultMode;
+		overlayOpacity;
 		renderResultBitmap();
 	}
 
@@ -741,16 +728,12 @@
 		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
 		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
 
-		// Sync zoom + home
 		if (srcViewer && tgtViewer) {
 			syncZoom(srcViewer, tgtViewer);
 			syncZoom(tgtViewer, srcViewer);
 
 			syncHome(srcViewer, tgtViewer);
 			syncHome(tgtViewer, srcViewer);
-
-			// initialise sharedZoom once open
-			srcViewer.addHandler('open', () => (sharedZoom = srcViewer?.viewport.getZoom(true) ?? null));
 		}
 
 		// Add points by clicking Source (base)
@@ -773,7 +756,6 @@
 			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
 			adjustIndex = pairs.length - 1;
 
-			// focus result + centre target on new point
 			resultFocus = { ...basePt };
 			centerOn(tgtViewer, { ...basePt }, false);
 
@@ -809,6 +791,7 @@
 		pairs = pairs.filter((_, idx) => idx !== i);
 		if (pairs.length === 0) adjustIndex = null;
 		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+
 		refreshOverlays();
 		requestAutoCompute();
 	}
@@ -819,6 +802,7 @@
 		computed = null;
 		resultUrl = null;
 		resultFocus = null;
+		resultRefreshKey += 1;
 		refreshOverlays();
 	}
 
@@ -864,87 +848,78 @@
 		<div class="error">{cvError}</div>
 	{/if}
 
-	<div class="pink-row">
-		<section class="panel">
-			<header>Source (base)</header>
-			<div class="osd" bind:this={srcEl} />
-		</section>
+	<div class="content">
+		<div class="workspace">
+			<div class="pink-row">
+				<section class="panel">
+					<header>Source (base)</header>
+					<div class="osd" bind:this={srcEl} />
+				</section>
 
-		<section class="panel">
-			<header>Target (moving)</header>
-			<div class="osd" bind:this={tgtEl} />
-		</section>
+				<section class="panel">
+					<header>Target (moving)</header>
+					<div class="osd" bind:this={tgtEl} />
+				</section>
 
-		<section class="panel">
-			<header class="result-head">
-				<div>Result</div>
-				<div class="result-controls">
-					<select bind:value={resultMode}>
-						<option value="warped">Warped</option>
-						<option value="composite">Composite</option>
-						<option value="difference">Difference</option>
-					</select>
+				<section class="panel">
+					<header class="result-head">
+						<div>Result</div>
+						<div class="result-controls">
+							<select bind:value={resultMode}>
+								<option value="warped">Warped</option>
+								<option value="composite">Composite</option>
+								<option value="difference">Difference</option>
+							</select>
 
-					{#if resultMode === 'composite'}
-						<label class="opacity">
-							Opacity
-							<input type="range" min="0" max="100" bind:value={overlayOpacity} />
-						</label>
-					{/if}
-				</div>
-			</header>
+							{#if resultMode === 'composite'}
+								<label class="opacity">
+									Opacity
+									<input type="range" min="0" max="100" bind:value={overlayOpacity} />
+								</label>
+							{/if}
+						</div>
+					</header>
 
-			<div class="result-shell">
-				{#if resultUrl}
-					<ResultPanel imageUrl={resultUrl} focus={resultFocus} zoom={sharedZoom} {drawer} />
-				{:else}
-					<div class="result-empty">No result yet — add points and compute.</div>
-				{/if}
+					<div class="result-shell">
+						{#if resultUrl}
+							<ResultPanel
+								imageUrl={resultUrl}
+								focus={resultFocus}
+								refreshKey={resultRefreshKey}
+								mode={resultMode}
+								{drawer}
+							/>
+						{:else}
+							<div class="result-empty">No result yet — add points and compute.</div>
+						{/if}
+					</div>
+				</section>
 			</div>
-		</section>
-	</div>
-
-	<div class="pairs">
-		<div class="pairs-head">
-			<div>Point pairs</div>
-			{#if computed}
-				<div class="chip">
-					{computed.transform.type} • conf {computed.confidence.toFixed(2)}
-				</div>
-			{/if}
 		</div>
 
-		{#if !pairs.length}
-			{#if pairs.length === 0}
-				<div class="pairs-empty">
-					Click <b>Source</b> to add points (hold Shift if enabled), or start with:
-					<div class="empty-actions">
-						<button class="btn" type="button" on:click={() => addInitial4Points(0.07)}>
-							Add 4 corner points
-						</button>
-					</div>
-				</div>
-			{/if}
-		{:else}
-			<div class="pairs-list">
-				{#each pairs as p, i (i)}
-					<div class="row" class:active={i === adjustIndex} on:click={() => selectPair(i)}>
-						<div class="idx">{i + 1}</div>
-						<div class="coords">
-							<div>
-								Base: <span class="mono">{p.source.x.toFixed(4)}, {p.source.y.toFixed(4)}</span>
-							</div>
-							<div>
-								Move: <span class="mono">{p.target.x.toFixed(4)}, {p.target.y.toFixed(4)}</span>
-							</div>
+		<SidePanel side="right" bind:open={RightPanelOpen} width={420}>
+			<svelte:fragment slot="header">
+				<div class="sidebar-header">
+					<div class="panel-title">PointPairs</div>
+					{#if computed}
+						<div class="chip">
+							{computed.transform.type} • conf {computed.confidence.toFixed(2)}
 						</div>
-						<button class="remove" type="button" on:click|stopPropagation={() => removePair(i)}>
-							Remove
-						</button>
-					</div>
-				{/each}
+					{/if}
+				</div>
+			</svelte:fragment>
+
+			<div class="sidebar-body">
+				<PointPairs
+					{pairs}
+					{maxPairs}
+					activeIndex={adjustIndex}
+					onSelect={selectPair}
+					onRemove={removePair}
+					onAddCorners={() => addInitial4Points(0.07)}
+				/>
 			</div>
-		{/if}
+		</SidePanel>
 	</div>
 </div>
 
@@ -957,6 +932,8 @@
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		border-radius: 12px;
 		background: rgba(255, 255, 255, 0.92);
+		height: 100%;
+		min-height: 0;
 	}
 
 	.topbar {
@@ -1022,10 +999,33 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
+		white-space: nowrap;
 	}
 
 	.toggle input {
 		transform: translateY(1px);
+	}
+
+	.error {
+		border: 1px solid rgba(220, 38, 38, 0.25);
+		background: rgba(254, 226, 226, 0.7);
+		color: #7f1d1d;
+		padding: 8px 10px;
+		border-radius: 10px;
+		font-size: 0.85rem;
+	}
+
+	.content {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		gap: 10px;
+		position: relative;
+	}
+
+	.workspace {
+		flex: 1;
+		min-height: 0;
 	}
 
 	.pink-row {
@@ -1033,6 +1033,7 @@
 		grid-template-columns: 1.15fr 1.15fr 1fr;
 		gap: 10px;
 		min-height: 420px;
+		height: 100%;
 	}
 
 	.panel {
@@ -1042,6 +1043,7 @@
 		background: rgba(253, 186, 200, 0.35);
 		display: flex;
 		flex-direction: column;
+		min-height: 0;
 	}
 
 	.panel header {
@@ -1099,87 +1101,22 @@
 		color: #334155;
 	}
 
-	.error {
-		border: 1px solid rgba(220, 38, 38, 0.25);
-		background: rgba(254, 226, 226, 0.7);
-		color: #7f1d1d;
-		padding: 8px 10px;
-		border-radius: 10px;
-		font-size: 0.85rem;
-	}
-
-	.pairs {
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		border-radius: 10px;
-		background: rgba(187, 247, 208, 0.45);
-		padding: 10px;
-	}
-
-	.pairs-head {
+	.sidebar-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 8px;
+		gap: 8px;
+		padding: 0.75rem 0.75rem 0.5rem;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	.panel-title {
 		font-weight: 700;
 		color: rgba(17, 24, 39, 0.85);
 	}
 
-	.pairs-empty {
-		color: #334155;
-		font-size: 0.85rem;
-		padding: 6px 0;
-	}
-
-	.pairs-list {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.row {
-		display: grid;
-		grid-template-columns: 34px 1fr auto;
-		align-items: center;
-		gap: 10px;
-		padding: 6px 8px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.65);
-		border: 1px solid rgba(0, 0, 0, 0.06);
-		cursor: pointer;
-	}
-
-	.row.active {
-		outline: 2px solid rgba(2, 132, 199, 0.35);
-	}
-
-	.idx {
-		font-weight: 800;
-		color: #334155;
-	}
-
-	.coords {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		font-size: 0.82rem;
-		color: #0f172a;
-	}
-
-	.mono {
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-	}
-
-	.remove {
-		all: unset;
-		cursor: pointer;
-		font-size: 0.78rem;
-		padding: 4px 8px;
-		border-radius: 8px;
-		background: rgba(251, 191, 36, 0.22);
-		border: 1px solid rgba(124, 45, 18, 0.18);
-		color: #7c2d12;
+	.sidebar-body {
+		padding: 0.75rem;
 	}
 
 	/* ---------- Marker styling ---------- */
@@ -1229,19 +1166,11 @@
 		outline-offset: 2px;
 	}
 
-	/* While dragging: remove fill + hide centre dot */
 	:global(.kp.dragging .kp-ring) {
 		background: transparent;
 	}
 
 	:global(.kp.dragging .kp-dot) {
 		opacity: 0;
-	}
-
-	.empty-actions {
-		margin-top: 8px;
-		display: flex;
-		gap: 8px;
-		flex-wrap: wrap;
 	}
 </style>
