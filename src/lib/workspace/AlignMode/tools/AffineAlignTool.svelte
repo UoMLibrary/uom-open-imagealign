@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 	import type { ImageAlignment } from '$lib/core/types';
+	import ResultPanel from './ResultPanel.svelte';
 
 	export type AlignmentDraft = {
 		confidence?: number;
@@ -13,32 +14,26 @@
 	 * Semantics:
 	 * - Source = BASE image (click to add points)
 	 * - Target = MOVING image (warped onto Source)
-	 * - Result = OSD base layer (Source) + canvas overlay (warp) so viewport never resets
 	 */
-	export let sourceUrl: string; // base image
-	export let targetUrl: string; // moving image (to align)
+	export let sourceUrl: string; // base
+	export let targetUrl: string; // moving
 	export let existingAlignment: ImageAlignment | null = null;
 
-	// Svelte 5 callback prop
 	export let onSave: (draft: AlignmentDraft) => void;
 
-	// OpenCV.js
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
 
-	// Drawer choice (helps reduce the WebGLDrawer readback warning if set to 'canvas')
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
-	// Point limits + RANSAC
 	export let maxPairs = 120;
 	export let ransacReprojThreshold = 4.0;
 	export let ransacMaxIters = 2000;
 	export let ransacConfidence = 0.995;
 
-	// Optional safety: require Shift+click to add points on source
-	export let requireShiftToAdd = false;
+	export let requireShiftToAdd = true;
 
 	type Pt = { x: number; y: number }; // normalised 0..1
-	type Pair = { source: Pt; target: Pt }; // source=base, target=moving
+	type Pair = { source: Pt; target: Pt };
 
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
@@ -46,33 +41,32 @@
 	let overlayOpacity = 60;
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
-	let syncingHome = false;
-
-	// OpenCV state
+	// OpenCV
 	let cvReady = false;
 	let cvError: string | null = null;
 
-	// Seadragon containers
+	// OSD
 	let srcEl: HTMLDivElement | null = null;
 	let tgtEl: HTMLDivElement | null = null;
-	let resEl: HTMLDivElement | null = null;
 
-	// Seadragon viewers
-	let srcViewer: OpenSeadragon.Viewer | null = null; // base
-	let tgtViewer: OpenSeadragon.Viewer | null = null; // moving
-	let resViewer: OpenSeadragon.Viewer | null = null; // result
+	let srcViewer: OpenSeadragon.Viewer | null = null;
+	let tgtViewer: OpenSeadragon.Viewer | null = null;
 
-	// Image sizes in pixels (from OSD content size)
-	let srcSize: { w: number; h: number } | null = null; // base size (source)
-	let tgtSize: { w: number; h: number } | null = null; // moving size (target)
-	let resSize: { w: number; h: number } | null = null; // result base size
+	let srcSize: { w: number; h: number } | null = null;
+	let tgtSize: { w: number; h: number } | null = null;
 
-	// Result layering
-	let resBaseItem: any = null; // OpenSeadragon.TiledImage
-	let resOverlayCanvas: HTMLCanvasElement | null = null;
-	let resOverlayAdded = false;
+	// Result output bitmap (data URL) + focus point
+	let resultUrl: string | null = null;
+	let resultFocus: Pt | null = null;
 
-	// Alignment output
+	// Keep result zoom matched to source/target
+	let sharedZoom: number | null = null;
+
+	// Cached canvases/images for rendering modes reliably
+	let warpCanvas: HTMLCanvasElement | null = null;
+	let outCanvas: HTMLCanvasElement | null = null;
+	let baseImg: HTMLImageElement | null = null;
+
 	let computed: {
 		transform: ImageAlignment['transform'];
 		confidence: number;
@@ -118,10 +112,7 @@
 		const vpPoint = viewer.viewport.pointFromPixel(pixelPoint, true);
 		const imgPoint = viewer.viewport.viewportToImageCoordinates(vpPoint);
 
-		return {
-			x: clamp01(imgPoint.x / size.w),
-			y: clamp01(imgPoint.y / size.h)
-		};
+		return { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
 	}
 
 	function centerOn(viewer: OpenSeadragon.Viewer | null, pt: Pt, immediate = false) {
@@ -136,6 +127,9 @@
 		if (!p) return;
 		centerOn(srcViewer, p.source, immediate);
 		centerOn(tgtViewer, p.target, immediate);
+
+		// also focus result
+		resultFocus = { ...p.source };
 	}
 
 	function selectPair(i: number) {
@@ -147,52 +141,11 @@
 	function getMouseNavEnabled(viewer: OpenSeadragon.Viewer): boolean {
 		const v: any = viewer as any;
 		if (typeof v.isMouseNavEnabled === 'function') return v.isMouseNavEnabled();
-		// fallback if some build exposes it as a property
-		if (typeof v.mouseNavEnabled === 'boolean') return v.mouseNavEnabled;
 		return true;
 	}
 
-	let syncingZoom = false;
-
-	function setZoomLevel(viewer: OpenSeadragon.Viewer, zoom: number) {
-		// zoomTo(zoom, refPoint, immediately)
-		// Use current center so it doesn’t jump position, only zoom level.
-		const center = viewer.viewport.getCenter(true);
-		viewer.viewport.zoomTo(zoom, center, true);
-		viewer.viewport.applyConstraints(true);
-	}
-
-	function syncZoom(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
-		from.addHandler('zoom', () => {
-			if (syncingZoom) return;
-			syncingZoom = true;
-			try {
-				const z = from.viewport.getZoom(true);
-				setZoomLevel(to, z);
-			} finally {
-				// release on next tick to avoid nested zoom events in the same call stack
-				queueMicrotask(() => (syncingZoom = false));
-			}
-		});
-	}
-
-	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
-		// Fired when "home" is invoked (including clicking the home button)
-		from.addHandler('home', () => {
-			if (syncingHome) return;
-			syncingHome = true;
-			try {
-				to.viewport.goHome(true); // animate
-				to.viewport.applyConstraints(true);
-			} finally {
-				// avoid ping-pong between the two viewers
-				setTimeout(() => (syncingHome = false), 0);
-			}
-		});
-	}
-
 	/* -------------------------------------------------
-	   OpenSeadragon init / teardown
+	   OSD viewer setup
 	------------------------------------------------- */
 
 	function makeViewer(el: HTMLElement) {
@@ -201,31 +154,21 @@
 			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
 			showNavigator: true,
 			autoResize: true,
-
-			// Use canvas drawer by default to avoid WebGL-related readback noise
 			drawer,
-
-			// Zoom behaviour (matching your known-good component)
-			minZoomLevel: 0.1,
-			maxZoomLevel: 20,
-			maxZoomPixelRatio: 5,
-
 			crossOriginPolicy: 'Anonymous',
 			keyboardNavEnabled: false,
-
 			gestureSettingsKeyboard: { rotate: false },
-
 			gestureSettingsMouse: {
 				dragToPan: true,
 				clickToZoom: false,
 				scrollToZoom: true,
 				dblClickToZoom: false,
 				pinchToZoom: true,
-
-				// ✅ match your working component (avoid MouseButton.* enum differences)
 				dragToPanButton: true
 			},
-
+			minZoomLevel: 0.1,
+			maxZoomLevel: 20,
+			maxZoomPixelRatio: 5,
 			showFullPageControl: false,
 			showHomeControl: true,
 			showZoomControl: true
@@ -237,113 +180,52 @@
 		viewer.addOnceHandler('open', () => {
 			if (viewer === srcViewer) srcSize = getContentSize(viewer);
 			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
-			if (viewer === resViewer) {
-				resSize = getContentSize(viewer);
-				resBaseItem = resViewer?.world.getItemAt(0) ?? null;
-				ensureResultOverlay();
-				applyResultMode();
-			}
 			refreshOverlays();
 		});
-	}
-
-	let openedSourceUrl: string | null = null;
-	let openedTargetUrl: string | null = null;
-	let openedResultBaseUrl: string | null = null;
-
-	onMount(async () => {
-		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-		if (srcEl) srcViewer = makeViewer(srcEl);
-		if (tgtEl) tgtViewer = makeViewer(tgtEl);
-		if (resEl) resViewer = makeViewer(resEl);
-
-		if (srcViewer && tgtViewer) {
-			syncZoom(srcViewer, tgtViewer);
-			syncZoom(tgtViewer, srcViewer);
-		}
-
-		if (srcViewer && tgtViewer) {
-			syncHome(srcViewer, tgtViewer);
-			syncHome(tgtViewer, srcViewer);
-		}
-
-		if (srcViewer && sourceUrl) {
-			openedSourceUrl = sourceUrl;
-			openImage(srcViewer, sourceUrl);
-		}
-		if (tgtViewer && targetUrl) {
-			openedTargetUrl = targetUrl;
-			openImage(tgtViewer, targetUrl);
-		}
-		if (resViewer && sourceUrl) {
-			openedResultBaseUrl = sourceUrl;
-			openImage(resViewer, sourceUrl);
-		}
-
-		// Add points by clicking SOURCE (base)
-		srcViewer?.addHandler('canvas-click', (ev: any) => {
-			if (!srcViewer) return;
-			if (!ev?.quick) return;
-
-			const oe = ev.originalEvent as MouseEvent;
-			if (isMarkerEventFromOriginalEvent(oe)) return;
-			if (requireShiftToAdd && !oe.shiftKey) return;
-
-			if (pairs.length >= maxPairs) return;
-
-			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
-			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
-			const size = getContentSize(srcViewer);
-			if (!size) return;
-
-			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
-
-			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
-			adjustIndex = pairs.length - 1;
-
-			computed = null;
-			refreshOverlays();
-
-			// Center TARGET on new point so it’s easy to find
-			centerOn(tgtViewer, { ...basePt }, false);
-
-			requestAutoCompute();
-		});
-
-		resViewer?.addHandler('resize', () => ensureResultOverlay());
-
-		// OpenCV
-		try {
-			await ensureOpenCV();
-			cvReady = true;
-		} catch (e: any) {
-			cvError = e?.message ?? String(e);
-		}
-	});
-
-	onDestroy(() => {
-		stopDrag();
-		srcViewer?.destroy();
-		tgtViewer?.destroy();
-		resViewer?.destroy();
-	});
-
-	$: if (srcViewer && sourceUrl && openedSourceUrl !== sourceUrl) {
-		openedSourceUrl = sourceUrl;
-		openImage(srcViewer, sourceUrl);
-	}
-	$: if (tgtViewer && targetUrl && openedTargetUrl !== targetUrl) {
-		openedTargetUrl = targetUrl;
-		openImage(tgtViewer, targetUrl);
-	}
-	$: if (resViewer && sourceUrl && openedResultBaseUrl !== sourceUrl) {
-		openedResultBaseUrl = sourceUrl;
-		openImage(resViewer, sourceUrl);
 	}
 
 	/* -------------------------------------------------
-	   Point overlays
+	   Zoom sync + home sync (Source <-> Target)
+	------------------------------------------------- */
+
+	let syncingZoom = false;
+	let syncingHome = false;
+
+	function setZoomLevel(viewer: OpenSeadragon.Viewer, zoom: number) {
+		const center = viewer.viewport.getCenter(true);
+		viewer.viewport.zoomTo(zoom, center, true);
+		viewer.viewport.applyConstraints(true);
+	}
+
+	function syncZoom(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		from.addHandler('zoom', () => {
+			if (syncingZoom) return;
+			syncingZoom = true;
+			try {
+				const z = from.viewport.getZoom(true);
+				sharedZoom = z;
+				setZoomLevel(to, z);
+			} finally {
+				queueMicrotask(() => (syncingZoom = false));
+			}
+		});
+	}
+
+	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		from.addHandler('home', () => {
+			if (syncingHome) return;
+			syncingHome = true;
+			try {
+				to.viewport.goHome(true);
+				to.viewport.applyConstraints(true);
+			} finally {
+				setTimeout(() => (syncingHome = false), 0);
+			}
+		});
+	}
+
+	/* -------------------------------------------------
+	   Markers
 	------------------------------------------------- */
 
 	function createMarkerEl(label: string, active: boolean) {
@@ -428,7 +310,6 @@
 		el.setPointerCapture(e.pointerId);
 		el.classList.add('dragging');
 
-		// ✅ correct API
 		const navEnabledBefore = getMouseNavEnabled(viewer);
 		viewer.setMouseNavEnabled(false);
 
@@ -461,7 +342,6 @@
 
 		const { side, index, temp, viewer, navEnabledBefore } = drag;
 		stopDrag();
-
 		viewer.setMouseNavEnabled(navEnabledBefore);
 
 		if (!temp) {
@@ -475,6 +355,9 @@
 
 		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
 		pairs = next;
+
+		// focus result on last adjusted point
+		resultFocus = { ...next[index].source };
 
 		computed = null;
 		refreshOverlays();
@@ -490,100 +373,44 @@
 		drag = null;
 	}
 
-	function removePair(i: number) {
-		pairs = pairs.filter((_, idx) => idx !== i);
-		if (pairs.length === 0) adjustIndex = null;
-		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+	function addInitial4Points(inset = 0.07) {
+		if (pairs.length) return; // only when empty
 
-		computed = null;
+		const d = clamp01(inset);
+
+		const pts: Pt[] = [
+			{ x: d, y: d }, // TL
+			{ x: 1 - d, y: d }, // TR
+			{ x: 1 - d, y: 1 - d }, // BR
+			{ x: d, y: 1 - d } // BL
+		];
+
+		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
+		adjustIndex = 0;
+
+		// nice: center both viewers roughly on first point so user sees it
 		refreshOverlays();
-		requestAutoCompute();
-	}
+		centerOnPair(0, false);
 
-	function resetAll() {
-		pairs = [];
-		adjustIndex = null;
-		computed = null;
-		refreshOverlays();
-		clearResultOverlay();
-	}
-
-	function undoLast() {
-		if (!pairs.length) return;
-		pairs = pairs.slice(0, -1);
-		adjustIndex = pairs.length ? pairs.length - 1 : null;
-
-		computed = null;
-		refreshOverlays();
 		requestAutoCompute();
 	}
 
 	/* -------------------------------------------------
-	   Result layer: base OSD item + overlay canvas
+	   Base image preload (for composite/difference rendering)
 	------------------------------------------------- */
 
-	function ensureResultOverlay() {
-		if (!resViewer) return;
-		if (!resBaseItem) resBaseItem = resViewer.world.getItemAt(0);
-		if (!resBaseItem) return;
-
-		const size = resSize ?? srcSize;
-		if (!size) return;
-
-		if (!resOverlayCanvas) {
-			resOverlayCanvas = document.createElement('canvas');
-			resOverlayCanvas.className = 'result-overlay';
-			resOverlayCanvas.width = size.w;
-			resOverlayCanvas.height = size.h;
-			resOverlayCanvas.getContext('2d', { willReadFrequently: true });
-		}
-
-		if (resOverlayCanvas.width !== size.w || resOverlayCanvas.height !== size.h) {
-			resOverlayCanvas.width = size.w;
-			resOverlayCanvas.height = size.h;
-			resOverlayCanvas.getContext('2d', { willReadFrequently: true });
-		}
-
-		const bounds = resBaseItem.getBounds();
-
-		if (!resOverlayAdded) {
-			resViewer.addOverlay({ element: resOverlayCanvas, location: bounds });
-			resOverlayAdded = true;
-		} else {
-			resViewer.updateOverlay(resOverlayCanvas, bounds);
-		}
+	async function loadImage(url: string): Promise<HTMLImageElement> {
+		return new Promise((resolve, reject) => {
+			const img = new Image();
+			img.crossOrigin = 'anonymous';
+			img.onload = () => resolve(img);
+			img.onerror = () => reject(new Error('Failed to load base image (CORS?)'));
+			img.src = url;
+		});
 	}
-
-	function clearResultOverlay() {
-		if (!resOverlayCanvas) return;
-		const ctx = resOverlayCanvas.getContext('2d', { willReadFrequently: true });
-		if (!ctx) return;
-		ctx.clearRect(0, 0, resOverlayCanvas.width, resOverlayCanvas.height);
-	}
-
-	function applyResultMode() {
-		if (!resOverlayCanvas) return;
-
-		if (resBaseItem?.setOpacity) {
-			resBaseItem.setOpacity(resultMode === 'warped' ? 0 : 1);
-		}
-
-		if (resultMode === 'composite') {
-			resOverlayCanvas.style.opacity = String(overlayOpacity / 100);
-			resOverlayCanvas.style.mixBlendMode = 'normal';
-		} else if (resultMode === 'difference') {
-			resOverlayCanvas.style.opacity = '1';
-			resOverlayCanvas.style.mixBlendMode = 'difference';
-		} else {
-			resOverlayCanvas.style.opacity = '1';
-			resOverlayCanvas.style.mixBlendMode = 'normal';
-		}
-	}
-
-	$: applyResultMode();
 
 	/* -------------------------------------------------
-	   OpenCV loader + compute
+	   OpenCV
 	------------------------------------------------- */
 
 	function ensureOpenCV(): Promise<void> {
@@ -633,10 +460,8 @@
 				const c = document.createElement('canvas');
 				c.width = img.naturalWidth;
 				c.height = img.naturalHeight;
-
 				const ctx = c.getContext('2d', { willReadFrequently: true });
 				if (!ctx) return reject(new Error('Canvas 2D context unavailable'));
-
 				ctx.drawImage(img, 0, 0);
 				resolve(cv.imread(c));
 			};
@@ -646,10 +471,7 @@
 	}
 
 	let canCompute = false;
-	$: {
-		const base = srcSize ?? resSize;
-		canCompute = cvReady && pairs.length >= 3 && !!tgtSize && !!base;
-	}
+	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
 
 	let computing = false;
 	let computeQueued = false;
@@ -659,6 +481,75 @@
 		if (!canCompute) return;
 		clearTimeout(autoTimer);
 		autoTimer = setTimeout(() => void compute(), 120);
+	}
+
+	async function ensureCanvases() {
+		if (!srcSize) return;
+
+		if (!warpCanvas) {
+			warpCanvas = document.createElement('canvas');
+			warpCanvas.getContext('2d', { willReadFrequently: true });
+		}
+		if (!outCanvas) {
+			outCanvas = document.createElement('canvas');
+			outCanvas.getContext('2d', { willReadFrequently: true });
+		}
+
+		if (warpCanvas.width !== srcSize.w || warpCanvas.height !== srcSize.h) {
+			warpCanvas.width = srcSize.w;
+			warpCanvas.height = srcSize.h;
+			warpCanvas.getContext('2d', { willReadFrequently: true });
+		}
+
+		if (outCanvas.width !== srcSize.w || outCanvas.height !== srcSize.h) {
+			outCanvas.width = srcSize.w;
+			outCanvas.height = srcSize.h;
+			outCanvas.getContext('2d', { willReadFrequently: true });
+		}
+	}
+
+	function renderResultBitmap() {
+		if (!warpCanvas || !outCanvas || !baseImg) return;
+
+		const ctx = outCanvas.getContext('2d', { willReadFrequently: true });
+		if (!ctx) return;
+
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, outCanvas.width, outCanvas.height);
+
+		if (resultMode === 'warped') {
+			ctx.globalCompositeOperation = 'source-over';
+			ctx.globalAlpha = 1;
+			ctx.drawImage(warpCanvas, 0, 0);
+		}
+
+		if (resultMode === 'composite') {
+			ctx.globalCompositeOperation = 'source-over';
+			ctx.globalAlpha = 1;
+			ctx.drawImage(baseImg, 0, 0, outCanvas.width, outCanvas.height);
+
+			ctx.globalAlpha = overlayOpacity / 100;
+			ctx.drawImage(warpCanvas, 0, 0);
+
+			ctx.globalAlpha = 1;
+		}
+
+		if (resultMode === 'difference') {
+			ctx.globalCompositeOperation = 'source-over';
+			ctx.globalAlpha = 1;
+			ctx.drawImage(baseImg, 0, 0, outCanvas.width, outCanvas.height);
+
+			ctx.globalCompositeOperation = 'difference';
+			ctx.drawImage(warpCanvas, 0, 0);
+
+			ctx.globalCompositeOperation = 'source-over';
+		}
+
+		try {
+			resultUrl = outCanvas.toDataURL('image/png');
+		} catch (e: any) {
+			cvError = e?.message ?? 'Failed to export result image (CORS?)';
+		}
 	}
 
 	async function compute() {
@@ -673,7 +564,7 @@
 		cvError = null;
 		computed = null;
 
-		const baseSize = (srcSize ?? resSize)!;
+		const baseSize = srcSize!;
 		const movingSize = tgtSize!;
 		const wcv = (window as any).cv;
 
@@ -683,8 +574,17 @@
 		let mask: any = null;
 
 		try {
+			// Ensure base image is loaded for composite/difference
+			if (!baseImg || baseImg.src !== sourceUrl) {
+				baseImg = await loadImage(sourceUrl);
+			}
+
+			await ensureCanvases();
+			if (!warpCanvas) throw new Error('warpCanvas missing');
+
 			const n = pairs.length;
 
+			// H maps moving -> base
 			const srcFlat: number[] = [];
 			const dstFlat: number[] = [];
 
@@ -721,27 +621,23 @@
 				confidence = mask.rows ? inliers / mask.rows : 0;
 
 				if (!H || (typeof H.empty === 'function' && H.empty())) {
-					cvError = 'Homography failed. Add more points or fix outliers.';
-					return;
+					throw new Error('Homography failed. Add more points or fix outliers.');
 				}
 			}
 
-			ensureResultOverlay();
-			applyResultMode();
-			if (!resOverlayCanvas) {
-				cvError = 'Result overlay not ready.';
-				return;
-			}
-
+			// Warp MOVING into BASE sized output
 			const movingMat = await imreadNatural(targetUrl, wcv);
 			const dstMat = new wcv.Mat();
 			const dsize = new wcv.Size(baseSize.w, baseSize.h);
 
 			wcv.warpPerspective(movingMat, dstMat, H, dsize);
-			wcv.imshow(resOverlayCanvas, dstMat);
+			wcv.imshow(warpCanvas, dstMat);
 
 			movingMat.delete();
 			dstMat.delete();
+
+			// Render chosen mode into bitmap resultUrl
+			renderResultBitmap();
 
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
@@ -774,6 +670,12 @@
 		}
 	}
 
+	// If user changes mode/opacity after we already have a warp, re-render bitmap without recomputing OpenCV
+	$: if (warpCanvas && baseImg) {
+		// This will run on init too; safe
+		renderResultBitmap();
+	}
+
 	function save() {
 		if (!computed) return;
 		onSave?.({
@@ -782,14 +684,122 @@
 			methodData: computed.methodData
 		});
 	}
+
+	/* -------------------------------------------------
+	   Lifecycle
+	------------------------------------------------- */
+
+	onMount(async () => {
+		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+		if (srcEl) srcViewer = makeViewer(srcEl);
+		if (tgtEl) tgtViewer = makeViewer(tgtEl);
+
+		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
+		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
+
+		// Sync zoom + home
+		if (srcViewer && tgtViewer) {
+			syncZoom(srcViewer, tgtViewer);
+			syncZoom(tgtViewer, srcViewer);
+
+			syncHome(srcViewer, tgtViewer);
+			syncHome(tgtViewer, srcViewer);
+
+			// initialise sharedZoom once open
+			srcViewer.addHandler('open', () => (sharedZoom = srcViewer?.viewport.getZoom(true) ?? null));
+		}
+
+		// Add points by clicking Source (base)
+		srcViewer?.addHandler('canvas-click', (ev: any) => {
+			if (!srcViewer) return;
+			if (!ev?.quick) return;
+
+			const oe = ev.originalEvent as MouseEvent;
+			if (isMarkerEventFromOriginalEvent(oe)) return;
+			if (requireShiftToAdd && !oe.shiftKey) return;
+			if (pairs.length >= maxPairs) return;
+
+			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
+			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
+			const size = getContentSize(srcViewer);
+			if (!size) return;
+
+			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
+
+			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
+			adjustIndex = pairs.length - 1;
+
+			// focus result + centre target on new point
+			resultFocus = { ...basePt };
+			centerOn(tgtViewer, { ...basePt }, false);
+
+			computed = null;
+			refreshOverlays();
+			requestAutoCompute();
+		});
+
+		// OpenCV
+		try {
+			await ensureOpenCV();
+			cvReady = true;
+		} catch (e: any) {
+			cvError = e?.message ?? String(e);
+		}
+	});
+
+	onDestroy(() => {
+		stopDrag();
+		srcViewer?.destroy();
+		tgtViewer?.destroy();
+	});
+
+	// Re-open images if URLs change
+	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
+	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
+
+	/* -------------------------------------------------
+	   UI helpers
+	------------------------------------------------- */
+
+	function removePair(i: number) {
+		pairs = pairs.filter((_, idx) => idx !== i);
+		if (pairs.length === 0) adjustIndex = null;
+		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+		refreshOverlays();
+		requestAutoCompute();
+	}
+
+	function resetAll() {
+		pairs = [];
+		adjustIndex = null;
+		computed = null;
+		resultUrl = null;
+		resultFocus = null;
+		refreshOverlays();
+	}
+
+	function undoLast() {
+		if (!pairs.length) return;
+		pairs = pairs.slice(0, -1);
+		adjustIndex = pairs.length ? pairs.length - 1 : null;
+		refreshOverlays();
+		requestAutoCompute();
+	}
 </script>
 
 <div class="layout">
 	<div class="topbar">
-		<div class="title">Multi point alignment</div>
+		<div class="title">Affine align tool</div>
 
 		<div class="actions">
 			<div class="chip">{pairs.length}/{maxPairs} pairs</div>
+
+			{#if pairs.length === 0}
+				<button class="btn" type="button" on:click={() => addInitial4Points(0.07)}>
+					Add 4 corner points
+				</button>
+			{/if}
 
 			<label class="chip toggle">
 				<input type="checkbox" bind:checked={requireShiftToAdd} />
@@ -840,7 +850,14 @@
 					{/if}
 				</div>
 			</header>
-			<div class="osd" bind:this={resEl} />
+
+			<div class="result-shell">
+				{#if resultUrl}
+					<ResultPanel imageUrl={resultUrl} focus={resultFocus} zoom={sharedZoom} {drawer} />
+				{:else}
+					<div class="result-empty">No result yet — add points and compute.</div>
+				{/if}
+			</div>
 		</section>
 	</div>
 
@@ -855,10 +872,16 @@
 		</div>
 
 		{#if !pairs.length}
-			<div class="pairs-empty">
-				Click <b>Source</b> to add points{#if requireShiftToAdd}
-					(hold Shift){/if}. Drag markers in either view. Compute runs automatically on release.
-			</div>
+			{#if pairs.length === 0}
+				<div class="pairs-empty">
+					Click <b>Source</b> to add points (hold Shift if enabled), or start with:
+					<div class="empty-actions">
+						<button class="btn" type="button" on:click={() => addInitial4Points(0.07)}>
+							Add 4 corner points
+						</button>
+					</div>
+				</div>
+			{/if}
 		{:else}
 			<div class="pairs-list">
 				{#each pairs as p, i (i)}
@@ -1022,6 +1045,17 @@
 		background: rgba(255, 255, 255, 0.65);
 	}
 
+	.result-shell {
+		flex: 1;
+		min-height: 0;
+	}
+
+	.result-empty {
+		padding: 12px;
+		font-size: 0.85rem;
+		color: #334155;
+	}
+
 	.error {
 		border: 1px solid rgba(220, 38, 38, 0.25);
 		background: rgba(254, 226, 226, 0.7);
@@ -1161,8 +1195,10 @@
 		opacity: 0;
 	}
 
-	/* Result overlay should not block OSD wheel/drag events */
-	:global(.result-overlay) {
-		pointer-events: none;
+	.empty-actions {
+		margin-top: 8px;
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
 	}
 </style>
