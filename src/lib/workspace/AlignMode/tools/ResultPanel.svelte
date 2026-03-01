@@ -7,12 +7,20 @@
 	// Base layer (world index 0)
 	export let imageUrl: string | null = null;
 
-	// Overlay layer (world index 1) — this is the one you can swap
+	// Overlay layer (world index 1)
 	export let overlayUrl: string | null = null;
 
 	// Optional overlay appearance
 	export let overlayOpacity: number = 0.6;
 	export let overlayCompositeOperation: string | null = null;
+
+	// Bump this whenever the pixels behind imageUrl/overlayUrl change
+	// (point moved, recompute finished, etc.)
+	export let refreshKey: number = 0;
+
+	// Optional: include your render mode ("composite" | "warped" | "difference")
+	// so mode-only changes can force a refresh too.
+	export let mode: string | null = null;
 
 	// Optional: keep result zoom matched to source/target zoom
 	export let zoom: number | null = null;
@@ -25,13 +33,14 @@
 	let el: HTMLDivElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	let openedBaseUrl: string | null = null;
-	let openedOverlayUrl: string | null = null;
+	// Track what we've actually opened (url + refreshKey + mode)
+	let openedBaseSig: string | null = null;
+	let openedOverlaySig: string | null = null;
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
 			element: node,
-			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
+			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0.1/build/openseadragon/images/',
 			showNavigator: true,
 			autoResize: true,
 			drawer,
@@ -53,6 +62,30 @@
 			showHomeControl: true,
 			showZoomControl: true
 		});
+	}
+
+	function cacheBust(url: string) {
+		// For data:/blob: URLs, DO NOT append "?..." (breaks data URLs).
+		// Use a fragment instead, so the URL string changes but the data doesn't.
+		const base = url.split('#')[0];
+		const frag = `v=${refreshKey}&m=${encodeURIComponent(mode ?? '')}`;
+
+		if (base.startsWith('data:') || base.startsWith('blob:')) {
+			return `${base}#${frag}`;
+		}
+
+		// For http(s)/relative, add query params safely
+		try {
+			const u = new URL(base, window.location.href);
+			u.searchParams.set('_v', String(refreshKey));
+			if (mode) u.searchParams.set('_m', mode);
+			// keep our fragment too (harmless)
+			u.hash = frag;
+			return u.toString();
+		} catch {
+			// Fallback: don’t break the URL if parsing fails
+			return url;
+		}
 	}
 
 	function baseItem() {
@@ -81,9 +114,8 @@
 
 		viewer.addTiledImage({
 			index: 1,
-			// only use replace if the overlay exists already (OSD 5.0.1 asserts index validity) :contentReference[oaicite:2]{index=2}
 			replace: hasOverlay,
-			tileSource: { type: 'image', url },
+			tileSource: { type: 'image', url: cacheBust(url) },
 
 			// match base placement (assumes same dimensions/aspect)
 			x: b.x,
@@ -94,7 +126,7 @@
 			compositeOperation: overlayCompositeOperation ?? undefined
 		} as any);
 
-		openedOverlayUrl = url;
+		openedOverlaySig = `${url}|${refreshKey}|${mode ?? ''}`;
 	}
 
 	function removeOverlay() {
@@ -102,7 +134,7 @@
 		const item: any = overlayItem();
 		if (!item) return;
 		viewer.world.removeItem(item);
-		openedOverlayUrl = null;
+		openedOverlaySig = null;
 	}
 
 	function getContentSize() {
@@ -123,14 +155,19 @@
 
 	function applyFocus(immediate = false) {
 		if (!viewer || !focus) return;
+		if (viewer.world.getItemCount() === 0) return;
+
 		const vp = normToViewport(focus);
 		if (!vp) return;
+
 		viewer.viewport.panTo(vp, immediate);
 		viewer.viewport.applyConstraints(true);
 	}
 
 	function applyZoom(immediate = true) {
 		if (!viewer || zoom == null) return;
+		if (viewer.world.getItemCount() === 0) return;
+
 		const center = viewer.viewport.getCenter(true);
 		viewer.viewport.zoomTo(zoom, center, immediate);
 		viewer.viewport.applyConstraints(true);
@@ -142,8 +179,10 @@
 		if (!item) return;
 
 		if (item.setOpacity) item.setOpacity(overlayOpacity);
-		if (overlayCompositeOperation != null && item.setCompositeOperation) {
-			item.setCompositeOperation(overlayCompositeOperation);
+
+		// Reset to default when null
+		if (item.setCompositeOperation) {
+			item.setCompositeOperation(overlayCompositeOperation ?? 'source-over');
 		}
 	}
 
@@ -158,30 +197,42 @@
 	   Base image open (index 0)
 	--------------------------- */
 
-	$: if (viewer && imageUrl && openedBaseUrl !== imageUrl) {
-		const hadImage = viewer.world.getItemCount() > 0;
+	$: if (viewer) {
+		if (!imageUrl) {
+			if (viewer.world.getItemCount() > 0) viewer.world.removeAll();
+			openedBaseSig = null;
+			openedOverlaySig = null;
+		} else {
+			const nextBaseSig = `${imageUrl}|${refreshKey}|${mode ?? ''}`;
 
-		const prevCenter = hadImage ? viewer.viewport.getCenter(true) : null;
-		const prevZoom = hadImage ? viewer.viewport.getZoom(true) : null;
+			if (openedBaseSig !== nextBaseSig) {
+				const hadImage = viewer.world.getItemCount() > 0;
+				const prevCenter = hadImage ? viewer.viewport.getCenter(true) : null;
+				const prevZoom = hadImage ? viewer.viewport.getZoom(true) : null;
 
-		openedBaseUrl = imageUrl;
+				openedBaseSig = nextBaseSig;
 
-		// Use open() for the base, since your component already depends on it.
-		viewer.open({ type: 'image', url: imageUrl });
+				// attach handler BEFORE open
+				viewer.addOnceHandler('open', () => {
+					if (prevCenter && prevZoom != null) {
+						viewer!.viewport.panTo(prevCenter, true);
+						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
+						viewer!.viewport.applyConstraints(true);
+					}
 
-		viewer.addOnceHandler('open', () => {
-			if (prevCenter && prevZoom != null) {
-				viewer!.viewport.panTo(prevCenter, true);
-				viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
-				viewer!.viewport.applyConstraints(true);
+					// open() replaces world; ensure overlay is re-applied
+					if (overlayUrl) {
+						openedOverlaySig = null;
+						setOrReplaceOverlay(overlayUrl);
+					}
+
+					applyZoom(true);
+					applyFocus(false);
+				});
+
+				viewer.open({ type: 'image', url: cacheBust(imageUrl) });
 			}
-
-			// Ensure overlay is (re)applied after base opens
-			if (overlayUrl) setOrReplaceOverlay(overlayUrl);
-
-			applyZoom(true);
-			applyFocus(false);
-		});
+		}
 	}
 
 	/* ---------------------------
@@ -189,32 +240,41 @@
 	--------------------------- */
 
 	$: if (viewer) {
-		// remove overlay if cleared
-		if (!overlayUrl && openedOverlayUrl) {
+		if (!overlayUrl && openedOverlaySig) {
 			removeOverlay();
 		}
 
-		// swap overlay without losing viewport
-		if (overlayUrl && openedOverlayUrl !== overlayUrl) {
-			// only swap once base exists
-			if (baseItem()) setOrReplaceOverlay(overlayUrl);
-		}
+		if (overlayUrl) {
+			const nextOverlaySig = `${overlayUrl}|${refreshKey}|${mode ?? ''}`;
 
-		// update appearance live (no swap)
-		if (overlayUrl && openedOverlayUrl === overlayUrl) {
-			applyOverlayAppearance();
+			if (openedOverlaySig !== nextOverlaySig) {
+				if (baseItem()) setOrReplaceOverlay(overlayUrl);
+			}
 		}
+	}
+
+	/* ---------------------------
+	   Overlay appearance updates
+	   Make deps explicit so mode/opacity/composite changes update immediately.
+	--------------------------- */
+
+	$: if (viewer && overlayUrl) {
+		overlayOpacity;
+		overlayCompositeOperation;
+		mode;
+
+		applyOverlayAppearance();
 	}
 
 	/* ---------------------------
 	   External sync
 	--------------------------- */
 
-	$: if (viewer && focus && openedBaseUrl === imageUrl) {
+	$: if (viewer && focus) {
 		applyFocus(false);
 	}
 
-	$: if (viewer && zoom != null && openedBaseUrl === imageUrl) {
+	$: if (viewer && zoom != null) {
 		applyZoom(true);
 	}
 </script>
