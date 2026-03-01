@@ -7,6 +7,7 @@
 
 	import PrepareItemCell from './DewarpItemCell.svelte';
 	import DewarpToolRowsOSD, { type DewarpMesh } from './DewarpToolRowsOSD.svelte';
+	import DewarpToolSpineOSD from './DewarpToolSpineOSD.svelte';
 
 	const filterOptions = [{ value: 'all', label: 'All' }] as const;
 	type FilterMode = (typeof filterOptions)[number]['value'];
@@ -281,10 +282,17 @@
 		{#if selectedImage && imageUrl}
 			<div class="main">
 				<div class="osd">
-					<DewarpToolRowsOSD
+					<!-- <DewarpToolRowsOSD
 						{imageUrl}
 						rows={12}
 						cols={10}
+						onMeshChange={handleMeshChange}
+						onConfirm={handleConfirm}
+					/> -->
+					<DewarpToolSpineOSD
+						{imageUrl}
+						rows={14}
+						cols={12}
 						onMeshChange={handleMeshChange}
 						onConfirm={handleConfirm}
 					/>
