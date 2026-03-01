@@ -408,6 +408,11 @@
 		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
 		adjustIndex = 0;
 
+		// ensure UI knows we need a fresh compute
+		computed = null;
+		warpedUrl = null;
+		autoComputedOnce = false;
+
 		refreshOverlays();
 		centerOnPair(0, false);
 
@@ -477,6 +482,12 @@
 
 	let canCompute = false;
 	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
+
+	$: if (canCompute && pairs.length >= 4 && !autoComputedOnce && !computing) {
+		// only kick off once after the initial 4-point seed (or after a reset)
+		autoComputedOnce = true;
+		void compute();
+	}
 
 	let computing = false;
 	let computeQueued = false;
@@ -693,6 +704,8 @@
 	   UI helpers
 	------------------------------------------------- */
 
+	let autoComputedOnce = false;
+
 	function removePair(i: number) {
 		pairs = pairs.filter((_, idx) => idx !== i);
 		if (pairs.length === 0) adjustIndex = null;
@@ -709,6 +722,7 @@
 		warpedUrl = null;
 		warpedRefreshKey += 1;
 		resultFocus = null;
+		autoComputedOnce = false;
 		refreshOverlays();
 	}
 
@@ -718,6 +732,50 @@
 		adjustIndex = pairs.length ? pairs.length - 1 : null;
 		refreshOverlays();
 		requestAutoCompute();
+	}
+
+	function clamp(v: number, min = 0, max = 100) {
+		return Math.max(min, Math.min(max, v));
+	}
+
+	// Convert wheel delta to "pixel-ish" units (handles Shift+wheel using deltaX)
+	function wheelPixels(e: WheelEvent) {
+		const dominant =
+			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
+
+		// deltaMode: 0=pixels, 1=lines, 2=pages
+		if (e.deltaMode === 1) return dominant * 16;
+		if (e.deltaMode === 2) return dominant * 800;
+		return dominant;
+	}
+
+	let wheelPendingPx = 0;
+	let wheelRaf = 0;
+
+	function onResultWheel(e: WheelEvent) {
+		if (!e.shiftKey) return;
+		if (resultMode !== 'composite') return;
+		if (!warpedUrl) return;
+
+		e.preventDefault();
+		e.stopPropagation();
+
+		wheelPendingPx += wheelPixels(e);
+
+		if (wheelRaf) return;
+		wheelRaf = requestAnimationFrame(() => {
+			wheelRaf = 0;
+
+			// TUNE THIS:
+			// 0.05 means ~5% opacity change for a ~100px wheel tick (common for mice)
+			const sensitivityPctPerPx = 0.05;
+
+			// Scroll up/left should increase opacity
+			const deltaPct = -wheelPendingPx * sensitivityPctPerPx;
+			wheelPendingPx = 0;
+
+			overlayOpacityPct = clamp(overlayOpacityPct + deltaPct);
+		});
 	}
 </script>
 
@@ -793,7 +851,7 @@
 						</div>
 					</header>
 
-					<div class="result-shell">
+					<div class="result-wheel-capture" on:wheel|capture={onResultWheel}>
 						{#if warpedUrl}
 							<ResultPanel
 								imageUrl={resultMode === 'warped' ? warpedUrl : sourceUrl}
@@ -813,7 +871,7 @@
 			</div>
 		</div>
 
-		<SidePanel side="right" bind:open={RightPanelOpen} width={420}>
+		<SidePanel side="right" bind:open={RightPanelOpen} width={280}>
 			<svelte:fragment slot="header">
 				<div class="sidebar-header">
 					<div class="panel-title">PointPairs</div>
@@ -1088,5 +1146,9 @@
 
 	:global(.kp.dragging .kp-dot) {
 		opacity: 0;
+	}
+	.result-wheel-capture {
+		height: 100%;
+		min-height: 0;
 	}
 </style>
