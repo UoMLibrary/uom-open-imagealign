@@ -10,27 +10,35 @@
 	};
 
 	/**
-	 * IMPORTANT SEMANTICS (per your request)
-	 * - Source = BASE image (where you click to add points)
+	 * Semantics:
+	 * - Source = BASE image (click to add points)
 	 * - Target = MOVING image (warped onto Source)
+	 * - Result = OSD base layer (Source) + canvas overlay (warp) so viewport never resets
 	 */
-	export let targetUrl: string; // moving image (to align)
 	export let sourceUrl: string; // base image
+	export let targetUrl: string; // moving image (to align)
 	export let existingAlignment: ImageAlignment | null = null;
 
+	// Svelte 5 callback prop
 	export let onSave: (draft: AlignmentDraft) => void;
 
+	// OpenCV.js
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
 
+	// Drawer choice (helps reduce the WebGLDrawer readback warning if set to 'canvas')
+	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
+
+	// Point limits + RANSAC
 	export let maxPairs = 120;
 	export let ransacReprojThreshold = 4.0;
 	export let ransacMaxIters = 2000;
 	export let ransacConfidence = 0.995;
 
+	// Optional safety: require Shift+click to add points on source
 	export let requireShiftToAdd = false;
 
 	type Pt = { x: number; y: number }; // normalised 0..1
-	type Pair = { target: Pt; source: Pt }; // target=moving, source=base
+	type Pair = { source: Pt; target: Pt }; // source=base, target=moving
 
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
@@ -38,24 +46,31 @@
 	let overlayOpacity = 60;
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
+	// OpenCV state
 	let cvReady = false;
 	let cvError: string | null = null;
 
+	// Seadragon containers
 	let srcEl: HTMLDivElement | null = null;
 	let tgtEl: HTMLDivElement | null = null;
 	let resEl: HTMLDivElement | null = null;
 
-	let srcViewer: OpenSeadragon.Viewer | null = null; // base (sourceUrl)
-	let tgtViewer: OpenSeadragon.Viewer | null = null; // moving (targetUrl)
-	let resViewer: OpenSeadragon.Viewer | null = null;
+	// Seadragon viewers
+	let srcViewer: OpenSeadragon.Viewer | null = null; // base
+	let tgtViewer: OpenSeadragon.Viewer | null = null; // moving
+	let resViewer: OpenSeadragon.Viewer | null = null; // result
 
-	let srcSize: { w: number; h: number } | null = null; // base size
-	let tgtSize: { w: number; h: number } | null = null; // moving size
+	// Image sizes in pixels (from OSD content size)
+	let srcSize: { w: number; h: number } | null = null; // base size (source)
+	let tgtSize: { w: number; h: number } | null = null; // moving size (target)
+	let resSize: { w: number; h: number } | null = null; // result base size
 
-	let warpCanvas: HTMLCanvasElement | null = null;
-	let resultCanvas: HTMLCanvasElement | null = null;
-	let resultDataUrl: string | null = null;
+	// Result layering
+	let resBaseItem: any = null; // OpenSeadragon.TiledImage
+	let resOverlayCanvas: HTMLCanvasElement | null = null;
+	let resOverlayAdded = false;
 
+	// Alignment output
 	let computed: {
 		transform: ImageAlignment['transform'];
 		confidence: number;
@@ -68,10 +83,6 @@
 
 	function clamp01(v: number) {
 		return Math.max(0, Math.min(1, v));
-	}
-
-	function showToast(msg: string) {
-		console.log(msg);
 	}
 
 	function isMarkerEventFromOriginalEvent(originalEvent: any) {
@@ -111,29 +122,32 @@
 		};
 	}
 
-	function selectPair(i: number) {
-		adjustIndex = i;
-		refreshOverlays();
-
-		// ✅ new: center both viewers on selected pair
-		centerOnPair(i, false);
-	}
-
 	function centerOn(viewer: OpenSeadragon.Viewer | null, pt: Pt, immediate = false) {
 		if (!viewer) return;
-
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
-
 		viewer.viewport.panTo(vp, immediate);
 	}
 
 	function centerOnPair(i: number, immediate = false) {
 		const p = pairs[i];
 		if (!p) return;
-
 		centerOn(srcViewer, p.source, immediate);
 		centerOn(tgtViewer, p.target, immediate);
+	}
+
+	function selectPair(i: number) {
+		adjustIndex = i;
+		refreshOverlays();
+		centerOnPair(i, false);
+	}
+
+	function getMouseNavEnabled(viewer: OpenSeadragon.Viewer): boolean {
+		const v: any = viewer as any;
+		if (typeof v.isMouseNavEnabled === 'function') return v.isMouseNavEnabled();
+		// fallback if some build exposes it as a property
+		if (typeof v.mouseNavEnabled === 'boolean') return v.mouseNavEnabled;
+		return true;
 	}
 
 	/* -------------------------------------------------
@@ -146,14 +160,29 @@
 			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
 			showNavigator: true,
 			autoResize: true,
+
+			// Use canvas drawer by default to avoid WebGL-related readback noise
+			drawer,
+
+			// Zoom behaviour (matching your known-good component)
+			minZoomLevel: 0.1,
+			maxZoomLevel: 20,
+			maxZoomPixelRatio: 5,
+
 			crossOriginPolicy: 'Anonymous',
+			keyboardNavEnabled: false,
+
+			gestureSettingsKeyboard: { rotate: false },
 
 			gestureSettingsMouse: {
-				clickToZoom: false,
-				dblClickToZoom: true,
-				scrollToZoom: true,
 				dragToPan: true,
-				pinchToZoom: true
+				clickToZoom: false,
+				scrollToZoom: true,
+				dblClickToZoom: false,
+				pinchToZoom: true,
+
+				// ✅ match your working component (avoid MouseButton.* enum differences)
+				dragToPanButton: true
 			},
 
 			showFullPageControl: false,
@@ -167,20 +196,41 @@
 		viewer.addOnceHandler('open', () => {
 			if (viewer === srcViewer) srcSize = getContentSize(viewer);
 			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
+			if (viewer === resViewer) {
+				resSize = getContentSize(viewer);
+				resBaseItem = resViewer?.world.getItemAt(0) ?? null;
+				ensureResultOverlay();
+				applyResultMode();
+			}
 			refreshOverlays();
 		});
 	}
 
+	let openedSourceUrl: string | null = null;
+	let openedTargetUrl: string | null = null;
+	let openedResultBaseUrl: string | null = null;
+
 	onMount(async () => {
+		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
 		if (srcEl) srcViewer = makeViewer(srcEl);
 		if (tgtEl) tgtViewer = makeViewer(tgtEl);
 		if (resEl) resViewer = makeViewer(resEl);
 
-		// Source is BASE
-		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
-		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
+		if (srcViewer && sourceUrl) {
+			openedSourceUrl = sourceUrl;
+			openImage(srcViewer, sourceUrl);
+		}
+		if (tgtViewer && targetUrl) {
+			openedTargetUrl = targetUrl;
+			openImage(tgtViewer, targetUrl);
+		}
+		if (resViewer && sourceUrl) {
+			openedResultBaseUrl = sourceUrl;
+			openImage(resViewer, sourceUrl);
+		}
 
-		// ✅ ADD POINTS BY CLICKING SOURCE (BASE), NOT TARGET
+		// Add points by clicking SOURCE (base)
 		srcViewer?.addHandler('canvas-click', (ev: any) => {
 			if (!srcViewer) return;
 			if (!ev?.quick) return;
@@ -189,10 +239,7 @@
 			if (isMarkerEventFromOriginalEvent(oe)) return;
 			if (requireShiftToAdd && !oe.shiftKey) return;
 
-			if (pairs.length >= maxPairs) {
-				showToast(`Max ${maxPairs} point pairs`);
-				return;
-			}
+			if (pairs.length >= maxPairs) return;
 
 			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
 			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
@@ -201,18 +248,19 @@
 
 			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
 
-			// Add pair: source (base) gets click location; target (moving) starts same coords
 			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
 			adjustIndex = pairs.length - 1;
 
 			computed = null;
 			refreshOverlays();
 
-			// Center TARGET on the newly added point so it’s easy to find
+			// Center TARGET on new point so it’s easy to find
 			centerOn(tgtViewer, { ...basePt }, false);
 
-			requestAutoCompute(); // ✅ if we now have >=3 points, auto compute
+			requestAutoCompute();
 		});
+
+		resViewer?.addHandler('resize', () => ensureResultOverlay());
 
 		// OpenCV
 		try {
@@ -224,39 +272,28 @@
 	});
 
 	onDestroy(() => {
+		stopDrag();
 		srcViewer?.destroy();
 		tgtViewer?.destroy();
 		resViewer?.destroy();
-		srcViewer = null;
-		tgtViewer = null;
-		resViewer = null;
-
-		stopDrag();
 	});
 
-	// reactively re-open images if urls change
-	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
-	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
-
-	// reactively re-open result
-	$: if (resViewer && resultDataUrl) {
-		resViewer.open({ type: 'image', url: resultDataUrl });
+	$: if (srcViewer && sourceUrl && openedSourceUrl !== sourceUrl) {
+		openedSourceUrl = sourceUrl;
+		openImage(srcViewer, sourceUrl);
+	}
+	$: if (tgtViewer && targetUrl && openedTargetUrl !== targetUrl) {
+		openedTargetUrl = targetUrl;
+		openImage(tgtViewer, targetUrl);
+	}
+	$: if (resViewer && sourceUrl && openedResultBaseUrl !== sourceUrl) {
+		openedResultBaseUrl = sourceUrl;
+		openImage(resViewer, sourceUrl);
 	}
 
 	/* -------------------------------------------------
-	   Point overlays (OSD overlays)
+	   Point overlays
 	------------------------------------------------- */
-
-	type DragState = {
-		side: 'source' | 'target';
-		index: number;
-		viewer: OpenSeadragon.Viewer;
-		el: HTMLElement;
-		pointerId: number;
-		temp: Pt | null;
-	};
-
-	let drag: DragState | null = null;
 
 	function createMarkerEl(label: string, active: boolean) {
 		const el = document.createElement('div');
@@ -268,34 +305,31 @@
 		return el;
 	}
 
-	function createCrosshairEl() {
-		const el = document.createElement('div');
-		el.className = 'kp-crosshair';
-		el.innerHTML = `
-			<div class="h"></div>
-			<div class="v"></div>
-		`;
-		return el;
-	}
-
-	function placeOverlay(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+	function placeOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
-		viewer.addOverlay({
-			element: el,
-			location: vp,
-			placement: OpenSeadragon.Placement.CENTER
-		});
+		viewer.addOverlay({ element: el, location: vp, placement: OpenSeadragon.Placement.CENTER });
 	}
 
-	function updateOverlay(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+	function updateOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
 		viewer.updateOverlay(el, vp, OpenSeadragon.Placement.CENTER);
 	}
 
+	type DragState = {
+		side: 'source' | 'target';
+		index: number;
+		viewer: OpenSeadragon.Viewer;
+		el: HTMLElement;
+		pointerId: number;
+		temp: Pt | null;
+		navEnabledBefore: boolean;
+	};
+
+	let drag: DragState | null = null;
+
 	function refreshOverlays() {
-		// don't rebuild while dragging
 		if (drag) return;
 
 		srcViewer?.clearOverlays();
@@ -306,7 +340,6 @@
 		pairs.forEach((p, i) => {
 			const isActive = i === adjustIndex;
 
-			// BASE marker (source)
 			const sEl = createMarkerEl(String(i + 1), isActive);
 			sEl.addEventListener('click', (e) => {
 				e.preventDefault();
@@ -316,9 +349,8 @@
 			sEl.addEventListener('pointerdown', (e) =>
 				startDrag(e as PointerEvent, 'source', i, srcViewer!, sEl)
 			);
-			placeOverlay(srcViewer!, sEl, p.source);
+			placeOverlayPoint(srcViewer!, sEl, p.source);
 
-			// MOVING marker (target)
 			const tEl = createMarkerEl(String(i + 1), isActive);
 			tEl.addEventListener('click', (e) => {
 				e.preventDefault();
@@ -328,7 +360,7 @@
 			tEl.addEventListener('pointerdown', (e) =>
 				startDrag(e as PointerEvent, 'target', i, tgtViewer!, tEl)
 			);
-			placeOverlay(tgtViewer!, tEl, p.target);
+			placeOverlayPoint(tgtViewer!, tEl, p.target);
 		});
 	}
 
@@ -343,27 +375,18 @@
 		e.stopPropagation();
 
 		el.setPointerCapture(e.pointerId);
-
-		// “hollow” styling during drag
 		el.classList.add('dragging');
 
-		el.classList.add('active');
+		// ✅ correct API
+		const navEnabledBefore = getMouseNavEnabled(viewer);
+		viewer.setMouseNavEnabled(false);
 
-		drag = { side, index, viewer, el, pointerId: e.pointerId, temp: null };
+		drag = { side, index, viewer, el, pointerId: e.pointerId, temp: null, navEnabledBefore };
+		adjustIndex = index;
 
-		adjustIndex = index; // selection (highlight requires refresh; we avoid refresh mid-drag)
 		window.addEventListener('pointermove', onDragMove, { passive: false });
 		window.addEventListener('pointerup', onDragEnd, { passive: false });
 		window.addEventListener('pointercancel', onDragEnd, { passive: false });
-	}
-
-	function stopDrag() {
-		window.removeEventListener('pointermove', onDragMove);
-		window.removeEventListener('pointerup', onDragEnd);
-		window.removeEventListener('pointercancel', onDragEnd);
-
-		if (drag?.el) drag.el.classList.remove('dragging');
-		drag = null;
 	}
 
 	function onDragMove(e: PointerEvent) {
@@ -376,9 +399,7 @@
 		if (!pt) return;
 
 		drag.temp = pt;
-
-		// ✅ move the marker itself
-		updateOverlay(drag.viewer, drag.el, pt);
+		updateOverlayPoint(drag.viewer, drag.el, pt);
 	}
 
 	function onDragEnd(e: PointerEvent) {
@@ -387,8 +408,10 @@
 
 		e.preventDefault();
 
-		const { side, index, temp } = drag;
+		const { side, index, temp, viewer, navEnabledBefore } = drag;
 		stopDrag();
+
+		viewer.setMouseNavEnabled(navEnabledBefore);
 
 		if (!temp) {
 			refreshOverlays();
@@ -401,16 +424,26 @@
 
 		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
 		pairs = next;
-		computed = null;
 
+		computed = null;
 		refreshOverlays();
 		requestAutoCompute();
+	}
+
+	function stopDrag() {
+		window.removeEventListener('pointermove', onDragMove);
+		window.removeEventListener('pointerup', onDragEnd);
+		window.removeEventListener('pointercancel', onDragEnd);
+
+		if (drag?.el) drag.el.classList.remove('dragging');
+		drag = null;
 	}
 
 	function removePair(i: number) {
 		pairs = pairs.filter((_, idx) => idx !== i);
 		if (pairs.length === 0) adjustIndex = null;
 		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+
 		computed = null;
 		refreshOverlays();
 		requestAutoCompute();
@@ -420,18 +453,83 @@
 		pairs = [];
 		adjustIndex = null;
 		computed = null;
-		resultDataUrl = null;
 		refreshOverlays();
+		clearResultOverlay();
 	}
 
 	function undoLast() {
 		if (!pairs.length) return;
 		pairs = pairs.slice(0, -1);
 		adjustIndex = pairs.length ? pairs.length - 1 : null;
+
 		computed = null;
 		refreshOverlays();
 		requestAutoCompute();
 	}
+
+	/* -------------------------------------------------
+	   Result layer: base OSD item + overlay canvas
+	------------------------------------------------- */
+
+	function ensureResultOverlay() {
+		if (!resViewer) return;
+		if (!resBaseItem) resBaseItem = resViewer.world.getItemAt(0);
+		if (!resBaseItem) return;
+
+		const size = resSize ?? srcSize;
+		if (!size) return;
+
+		if (!resOverlayCanvas) {
+			resOverlayCanvas = document.createElement('canvas');
+			resOverlayCanvas.className = 'result-overlay';
+			resOverlayCanvas.width = size.w;
+			resOverlayCanvas.height = size.h;
+			resOverlayCanvas.getContext('2d', { willReadFrequently: true });
+		}
+
+		if (resOverlayCanvas.width !== size.w || resOverlayCanvas.height !== size.h) {
+			resOverlayCanvas.width = size.w;
+			resOverlayCanvas.height = size.h;
+			resOverlayCanvas.getContext('2d', { willReadFrequently: true });
+		}
+
+		const bounds = resBaseItem.getBounds();
+
+		if (!resOverlayAdded) {
+			resViewer.addOverlay({ element: resOverlayCanvas, location: bounds });
+			resOverlayAdded = true;
+		} else {
+			resViewer.updateOverlay(resOverlayCanvas, bounds);
+		}
+	}
+
+	function clearResultOverlay() {
+		if (!resOverlayCanvas) return;
+		const ctx = resOverlayCanvas.getContext('2d', { willReadFrequently: true });
+		if (!ctx) return;
+		ctx.clearRect(0, 0, resOverlayCanvas.width, resOverlayCanvas.height);
+	}
+
+	function applyResultMode() {
+		if (!resOverlayCanvas) return;
+
+		if (resBaseItem?.setOpacity) {
+			resBaseItem.setOpacity(resultMode === 'warped' ? 0 : 1);
+		}
+
+		if (resultMode === 'composite') {
+			resOverlayCanvas.style.opacity = String(overlayOpacity / 100);
+			resOverlayCanvas.style.mixBlendMode = 'normal';
+		} else if (resultMode === 'difference') {
+			resOverlayCanvas.style.opacity = '1';
+			resOverlayCanvas.style.mixBlendMode = 'difference';
+		} else {
+			resOverlayCanvas.style.opacity = '1';
+			resOverlayCanvas.style.mixBlendMode = 'normal';
+		}
+	}
+
+	$: applyResultMode();
 
 	/* -------------------------------------------------
 	   OpenCV loader + compute
@@ -470,10 +568,8 @@
 			script.src = opencvSrc;
 			script.async = true;
 			script.dataset.opencv = 'true';
-
 			script.onload = () => waitForReady();
 			script.onerror = () => reject(new Error('Failed to load opencv.js'));
-
 			document.head.appendChild(script);
 		});
 	}
@@ -486,8 +582,10 @@
 				const c = document.createElement('canvas');
 				c.width = img.naturalWidth;
 				c.height = img.naturalHeight;
-				const ctx = c.getContext('2d');
+
+				const ctx = c.getContext('2d', { willReadFrequently: true });
 				if (!ctx) return reject(new Error('Canvas 2D context unavailable'));
+
 				ctx.drawImage(img, 0, 0);
 				resolve(cv.imread(c));
 			};
@@ -497,7 +595,10 @@
 	}
 
 	let canCompute = false;
-	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
+	$: {
+		const base = srcSize ?? resSize;
+		canCompute = cvReady && pairs.length >= 3 && !!tgtSize && !!base;
+	}
 
 	let computing = false;
 	let computeQueued = false;
@@ -506,26 +607,23 @@
 	function requestAutoCompute() {
 		if (!canCompute) return;
 		clearTimeout(autoTimer);
-		autoTimer = setTimeout(() => {
-			void compute();
-		}, 120);
+		autoTimer = setTimeout(() => void compute(), 120);
 	}
 
 	async function compute() {
 		if (!canCompute) return;
 
-		// avoid overlapping computes (dragging + rapid moves)
 		if (computing) {
 			computeQueued = true;
 			return;
 		}
 		computing = true;
 
+		cvError = null;
 		computed = null;
 
-		const baseSize = srcSize!;
+		const baseSize = (srcSize ?? resSize)!;
 		const movingSize = tgtSize!;
-
 		const wcv = (window as any).cv;
 
 		let H: any = null;
@@ -536,13 +634,6 @@
 		try {
 			const n = pairs.length;
 
-			/**
-			 * We want to warp MOVING (targetUrl) onto BASE (sourceUrl).
-			 * So homography maps: moving -> base
-			 *
-			 * srcPts = points in moving image (p.target)
-			 * dstPts = points in base image   (p.source)
-			 */
 			const srcFlat: number[] = [];
 			const dstFlat: number[] = [];
 
@@ -579,37 +670,33 @@
 				confidence = mask.rows ? inliers / mask.rows : 0;
 
 				if (!H || (typeof H.empty === 'function' && H.empty())) {
-					showToast('Homography failed. Add more points or fix outliers.');
+					cvError = 'Homography failed. Add more points or fix outliers.';
 					return;
 				}
 			}
 
-			// Warp MOVING onto BASE size
-			warpCanvas ??= document.createElement('canvas');
-			warpCanvas.width = baseSize.w;
-			warpCanvas.height = baseSize.h;
+			ensureResultOverlay();
+			applyResultMode();
+			if (!resOverlayCanvas) {
+				cvError = 'Result overlay not ready.';
+				return;
+			}
 
 			const movingMat = await imreadNatural(targetUrl, wcv);
 			const dstMat = new wcv.Mat();
 			const dsize = new wcv.Size(baseSize.w, baseSize.h);
 
 			wcv.warpPerspective(movingMat, dstMat, H, dsize);
-			wcv.imshow(warpCanvas, dstMat);
+			wcv.imshow(resOverlayCanvas, dstMat);
 
 			movingMat.delete();
 			dstMat.delete();
-
-			// Render the display image for the result viewer
-			await renderResult();
 
 			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
 			computed = {
 				confidence,
-				transform: {
-					type: n === 3 ? 'affine' : 'homography',
-					matrix: data
-				},
+				transform: { type: n === 3 ? 'affine' : 'homography', matrix: data },
 				methodData: {
 					pointCount: n,
 					pairs,
@@ -636,55 +723,6 @@
 		}
 	}
 
-	async function renderResult() {
-		if (!warpCanvas || !srcSize) return;
-
-		// base image = sourceUrl
-		const baseImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-			const im = new Image();
-			im.crossOrigin = 'anonymous';
-			im.onload = () => resolve(im);
-			im.onerror = () => reject(new Error('Failed to load base image for result render (CORS?)'));
-			im.src = sourceUrl;
-		});
-
-		resultCanvas ??= document.createElement('canvas');
-		resultCanvas.width = srcSize.w;
-		resultCanvas.height = srcSize.h;
-
-		const ctx = resultCanvas.getContext('2d');
-		if (!ctx) return;
-
-		ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-
-		if (resultMode === 'warped') {
-			ctx.drawImage(warpCanvas, 0, 0);
-		}
-
-		if (resultMode === 'composite') {
-			ctx.globalCompositeOperation = 'source-over';
-			ctx.globalAlpha = 1;
-			ctx.drawImage(baseImg, 0, 0);
-
-			ctx.globalAlpha = overlayOpacity / 100;
-			ctx.drawImage(warpCanvas, 0, 0);
-
-			ctx.globalAlpha = 1;
-		}
-
-		if (resultMode === 'difference') {
-			ctx.globalCompositeOperation = 'source-over';
-			ctx.drawImage(baseImg, 0, 0);
-
-			ctx.globalCompositeOperation = 'difference';
-			ctx.drawImage(warpCanvas, 0, 0);
-
-			ctx.globalCompositeOperation = 'source-over';
-		}
-
-		resultDataUrl = resultCanvas.toDataURL('image/png');
-	}
-
 	function save() {
 		if (!computed) return;
 		onSave?.({
@@ -692,15 +730,6 @@
 			transform: computed.transform,
 			methodData: computed.methodData
 		});
-	}
-
-	$: if (computed && (resultMode || overlayOpacity)) {
-		void renderResult();
-	}
-
-	function onModeChange(m: 'warped' | 'composite' | 'difference') {
-		resultMode = m;
-		void renderResult();
 	}
 </script>
 
@@ -746,10 +775,7 @@
 			<header class="result-head">
 				<div>Result</div>
 				<div class="result-controls">
-					<select
-						bind:value={resultMode}
-						on:change={(e) => onModeChange((e.currentTarget as HTMLSelectElement).value as any)}
-					>
+					<select bind:value={resultMode}>
 						<option value="warped">Warped</option>
 						<option value="composite">Composite</option>
 						<option value="difference">Difference</option>
@@ -779,11 +805,8 @@
 
 		{#if !pairs.length}
 			<div class="pairs-empty">
-				Click the <b>Source (base)</b> viewer to add points.
-				{#if requireShiftToAdd}
-					(Hold Shift.)
-				{/if}
-				Drag points in either view to refine. Compute runs automatically on release.
+				Click <b>Source</b> to add points{#if requireShiftToAdd}
+					(hold Shift){/if}. Drag markers in either view. Compute runs automatically on release.
 			</div>
 		{:else}
 			<div class="pairs-list">
@@ -809,7 +832,6 @@
 </div>
 
 <style>
-	/* --- your existing layout styles unchanged (trimmed for brevity) --- */
 	.layout {
 		display: flex;
 		flex-direction: column;
@@ -850,19 +872,23 @@
 		background: white;
 		color: #0f172a;
 	}
+
 	.btn:hover {
 		background: rgba(0, 0, 0, 0.04);
 	}
+
 	.btn:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
 	}
+
 	.btn.primary {
 		background: #e0f2fe;
 		border-color: rgba(2, 132, 199, 0.25);
 		color: #075985;
 		font-weight: 700;
 	}
+
 	.btn.save {
 		background: #d1fae5;
 		color: #065f46;
@@ -880,6 +906,7 @@
 		align-items: center;
 		gap: 8px;
 	}
+
 	.toggle input {
 		transform: translateY(1px);
 	}
@@ -899,6 +926,7 @@
 		display: flex;
 		flex-direction: column;
 	}
+
 	.panel header {
 		padding: 8px 10px;
 		font-size: 0.78rem;
@@ -907,12 +935,14 @@
 		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 		background: rgba(255, 255, 255, 0.7);
 	}
+
 	.result-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
 	}
+
 	.result-controls {
 		display: flex;
 		align-items: center;
@@ -920,12 +950,14 @@
 		flex-wrap: wrap;
 		font-weight: 400;
 	}
+
 	select {
 		border: 1px solid rgba(0, 0, 0, 0.15);
 		border-radius: 8px;
 		padding: 4px 8px;
 		background: white;
 	}
+
 	.opacity {
 		display: inline-flex;
 		align-items: center;
@@ -933,6 +965,7 @@
 		font-size: 0.75rem;
 		color: #334155;
 	}
+
 	.osd {
 		flex: 1;
 		background: rgba(255, 255, 255, 0.65);
@@ -953,6 +986,7 @@
 		background: rgba(187, 247, 208, 0.45);
 		padding: 10px;
 	}
+
 	.pairs-head {
 		display: flex;
 		align-items: center;
@@ -961,16 +995,19 @@
 		font-weight: 700;
 		color: rgba(17, 24, 39, 0.85);
 	}
+
 	.pairs-empty {
 		color: #334155;
 		font-size: 0.85rem;
 		padding: 6px 0;
 	}
+
 	.pairs-list {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 	}
+
 	.row {
 		display: grid;
 		grid-template-columns: 34px 1fr auto;
@@ -982,13 +1019,16 @@
 		border: 1px solid rgba(0, 0, 0, 0.06);
 		cursor: pointer;
 	}
+
 	.row.active {
 		outline: 2px solid rgba(2, 132, 199, 0.35);
 	}
+
 	.idx {
 		font-weight: 800;
 		color: #334155;
 	}
+
 	.coords {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -996,11 +1036,13 @@
 		font-size: 0.82rem;
 		color: #0f172a;
 	}
+
 	.mono {
 		font-family:
 			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
 			monospace;
 	}
+
 	.remove {
 		all: unset;
 		cursor: pointer;
@@ -1014,9 +1056,11 @@
 
 	/* ---------- Marker styling ---------- */
 	:global(.kp) {
+		position: absolute;
 		transform: translate(-50%, -50%);
 		touch-action: none;
 		cursor: crosshair;
+		pointer-events: auto;
 	}
 
 	:global(.kp-ring) {
@@ -1059,15 +1103,15 @@
 
 	/* While dragging: remove fill + hide centre dot */
 	:global(.kp.dragging .kp-ring) {
-		background: transparent; /* was rgba(255,255,255,0.8) */
+		background: transparent;
 	}
 
 	:global(.kp.dragging .kp-dot) {
 		opacity: 0;
 	}
 
-	/* Optional: reduce “busy” look while dragging */
-	:global(.kp.dragging .kp-ring) {
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	/* Result overlay should not block OSD wheel/drag events */
+	:global(.result-overlay) {
+		pointer-events: none;
 	}
 </style>
