@@ -191,24 +191,42 @@
 	let syncingZoom = false;
 	let syncingHome = false;
 
-	function setZoomLevel(viewer: OpenSeadragon.Viewer, zoom: number) {
+	function getImageZoomTarget(viewer: OpenSeadragon.Viewer) {
+		// IMPORTANT:
+		// getZoom(false) = target zoom (spring target)
+		// getZoom(true)  = current zoom (spring current)
+		const vpTargetZoom = viewer.viewport.getZoom(false);
+		return viewer.viewport.viewportToImageZoom(vpTargetZoom);
+	}
+
+	function setImageZoomTarget(viewer: OpenSeadragon.Viewer, imageZoom: number) {
+		const vpTargetZoom = viewer.viewport.imageToViewportZoom(imageZoom);
+
+		// keep the viewer’s own center (we’re syncing zoom only)
 		const center = viewer.viewport.getCenter(true);
-		viewer.viewport.zoomTo(zoom, center, true);
-		viewer.viewport.applyConstraints(true);
+
+		// immediately = false => set spring target, let it ease (matches “momentum”)
+		viewer.viewport.zoomTo(vpTargetZoom, center, false);
 	}
 
 	function syncZoom(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
-		from.addHandler('zoom', () => {
+		const apply = () => {
 			if (syncingZoom) return;
 			syncingZoom = true;
 			try {
-				const z = from.viewport.getZoom(true);
-				sharedZoom = z;
-				setZoomLevel(to, z);
+				const iz = getImageZoomTarget(from);
+				setImageZoomTarget(to, iz);
 			} finally {
+				// release next microtask so we don’t ping-pong
 				queueMicrotask(() => (syncingZoom = false));
 			}
-		});
+		};
+
+		// During scroll / pinch (target is changing)
+		from.addHandler('zoom', apply);
+
+		// When the spring finishes, force a final match
+		from.addHandler('animation-finish', apply);
 	}
 
 	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
