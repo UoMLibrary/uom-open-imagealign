@@ -2,12 +2,9 @@
 	import { onMount, onDestroy } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 
-	/* -------------------------------------------------
-	   Types
-	------------------------------------------------- */
-
-	export type Pt = { x: number; y: number }; // normalised (but we allow slight overshoot)
+	export type Pt = { x: number; y: number }; // normalised (allow slight overshoot)
 	type UV = { u: number; v: number };
+	type Delta = { dx: number; dy: number };
 
 	export type DewarpMesh = {
 		rows: number;
@@ -19,10 +16,6 @@
 
 	type Mat3 = [number, number, number, number, number, number, number, number, number]; // row-major
 
-	/* -------------------------------------------------
-	   Props
-	------------------------------------------------- */
-
 	export let imageUrl: string;
 	export let existingMesh: DewarpMesh | null = null;
 
@@ -31,12 +24,10 @@
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
-	// Svelte 5 callback prop
 	export let onConfirm: (mesh: DewarpMesh) => void;
 
-	/* -------------------------------------------------
-	   Local State
-	------------------------------------------------- */
+	// NEW: used by workspace preview
+	export let onMeshChange: ((mesh: DewarpMesh) => void) | undefined;
 
 	let hostEl: HTMLDivElement | null = null;
 	let svgEl: SVGSVGElement | null = null;
@@ -44,31 +35,22 @@
 	let viewer: OpenSeadragon.Viewer | null = null;
 
 	let points: Pt[] = [];
-	let uvs: UV[] = []; // parameter space positions (stick to corners)
+	let uvs: UV[] = [];
+	let deltas: Delta[] = [];
+
 	let pointEls: HTMLElement[] = [];
 
 	const OVERSHOOT_MIN = -0.25;
 	const OVERSHOOT_MAX = 1.25;
 
-	/* -------------------------------------------------
-	   Basic helpers
-	------------------------------------------------- */
-
 	function clamp(v: number, a: number, b: number) {
 		return Math.max(a, Math.min(b, v));
 	}
-
 	function clampPt(p: Pt): Pt {
 		return {
 			x: clamp(p.x, OVERSHOOT_MIN, OVERSHOOT_MAX),
 			y: clamp(p.y, OVERSHOOT_MIN, OVERSHOOT_MAX)
 		};
-	}
-
-	function getMouseNavEnabled(v: OpenSeadragon.Viewer): boolean {
-		const anyV: any = v as any;
-		if (typeof anyV.isMouseNavEnabled === 'function') return anyV.isMouseNavEnabled();
-		return true;
 	}
 
 	function createDefaultUVGrid(r: number, c: number): UV[] {
@@ -98,17 +80,14 @@
 	}
 
 	/* -------------------------------------------------
-	   Homography math (unit square <-> quad)
-	   Maps (u,v) in [0..1]^2 to quad corners (x,y)
+	   Homography: unit square -> quad
 	------------------------------------------------- */
 
 	function solveLinear8x8(A: number[][], b: number[]): number[] | null {
-		// Gaussian elimination with partial pivoting
 		const n = 8;
 		const M = A.map((row, i) => [...row, b[i]]);
 
 		for (let col = 0; col < n; col++) {
-			// pivot
 			let pivot = col;
 			for (let row = col + 1; row < n; row++) {
 				if (Math.abs(M[row][col]) > Math.abs(M[pivot][col])) pivot = row;
@@ -116,11 +95,9 @@
 			if (Math.abs(M[pivot][col]) < 1e-12) return null;
 			if (pivot !== col) [M[pivot], M[col]] = [M[col], M[pivot]];
 
-			// normalize pivot row
 			const div = M[col][col];
 			for (let k = col; k <= n; k++) M[col][k] /= div;
 
-			// eliminate
 			for (let row = 0; row < n; row++) {
 				if (row === col) continue;
 				const factor = M[row][col];
@@ -133,8 +110,6 @@
 	}
 
 	function homographyFromUnitSquareToQuad(tl: Pt, tr: Pt, bl: Pt, br: Pt): Mat3 | null {
-		// Correspondences:
-		// (0,0)->tl, (1,0)->tr, (0,1)->bl, (1,1)->br
 		const src: UV[] = [
 			{ u: 0, v: 0 },
 			{ u: 1, v: 0 },
@@ -143,7 +118,6 @@
 		];
 		const dst: Pt[] = [tl, tr, bl, br];
 
-		// Unknowns: [h11,h12,h13,h21,h22,h23,h31,h32] with h33=1
 		const A: number[][] = [];
 		const b: number[] = [];
 
@@ -151,11 +125,9 @@
 			const { u, v } = src[i];
 			const { x, y } = dst[i];
 
-			// x equation
 			A.push([u, v, 1, 0, 0, 0, -x * u, -x * v]);
 			b.push(x);
 
-			// y equation
 			A.push([0, 0, 0, u, v, 1, -y * u, -y * v]);
 			b.push(y);
 		}
@@ -167,49 +139,23 @@
 		return [h11, h12, h13, h21, h22, h23, h31, h32, 1];
 	}
 
-	function invertMat3(m: Mat3): Mat3 | null {
-		const [a, b, c, d, e, f, g, h, i] = m;
-
-		const A = e * i - f * h;
-		const B = -(d * i - f * g);
-		const C = d * h - e * g;
-
-		const D = -(b * i - c * h);
-		const E = a * i - c * g;
-		const F = -(a * h - b * g);
-
-		const G = b * f - c * e;
-		const H = -(a * f - c * d);
-		const I = a * e - b * d;
-
-		const det = a * A + b * B + c * C;
-		if (Math.abs(det) < 1e-12) return null;
-
-		const invDet = 1 / det;
-		return [
-			A * invDet,
-			D * invDet,
-			G * invDet,
-			B * invDet,
-			E * invDet,
-			H * invDet,
-			C * invDet,
-			F * invDet,
-			I * invDet
-		];
-	}
-
 	function applyHomography(m: Mat3, u: number, v: number): Pt {
 		const x = m[0] * u + m[1] * v + m[2];
 		const y = m[3] * u + m[4] * v + m[5];
 		const w = m[6] * u + m[7] * v + m[8];
-		if (Math.abs(w) < 1e-12) return { x: x, y: y };
+		if (Math.abs(w) < 1e-12) return { x, y };
 		return { x: x / w, y: y / w };
 	}
 
 	/* -------------------------------------------------
-	   OSD coordinate helpers
+	   OSD coord helpers (as per AffineAlignTool)
 	------------------------------------------------- */
+
+	function getMouseNavEnabled(v: OpenSeadragon.Viewer): boolean {
+		const anyV: any = v as any;
+		if (typeof anyV.isMouseNavEnabled === 'function') return anyV.isMouseNavEnabled();
+		return true;
+	}
 
 	function getContentSize(v: OpenSeadragon.Viewer) {
 		const item = v.world.getItemAt(0);
@@ -240,10 +186,6 @@
 		return clampPt({ x: imgPoint.x / size.w, y: imgPoint.y / size.h });
 	}
 
-	/* -------------------------------------------------
-	   Viewer setup
-	------------------------------------------------- */
-
 	function makeViewer(el: HTMLElement) {
 		return OpenSeadragon({
 			element: el,
@@ -271,6 +213,10 @@
 		});
 	}
 
+	function currentMesh(): DewarpMesh {
+		return { rows, cols, points, version: 1, method: 'bspline-grid' };
+	}
+
 	let currentUrl: string | null = null;
 
 	function openImage(url: string) {
@@ -280,39 +226,35 @@
 		pointEls = [];
 
 		viewer.addOnceHandler('open', () => {
-			// initialise UVs always
 			uvs = createDefaultUVGrid(rows, cols);
 
-			// initialise points
+			// base points: either existing mesh or default identity (u,v)
 			if (
 				existingMesh &&
 				existingMesh.rows === rows &&
 				existingMesh.cols === cols &&
 				existingMesh.points?.length === rows * cols
 			) {
-				points = existingMesh.points.map((p) => clampPt({ x: p.x, y: p.y }));
-
-				// derive UVs from existing points under current corners (so later corner moves "carry" the edits)
-				const { tl, tr, bl, br } = getCornersFromPoints(points, rows, cols);
-				const H = homographyFromUnitSquareToQuad(tl, tr, bl, br);
-				const invH = H ? invertMat3(H) : null;
-
-				if (invH) {
-					const corners = cornerIndexSet(rows, cols);
-					uvs = uvs.map((uv, idx) => {
-						if (corners.has(idx)) return uv; // keep exact corner UVs
-						const p = points[idx];
-						const uv2 = applyHomography(invH, p.x, p.y);
-						return { u: uv2.x, v: uv2.y };
-					});
-				}
+				points = existingMesh.points.map((p) => clampPt(p));
 			} else {
-				// default square corners => identity mapping
 				points = uvs.map((uv) => ({ x: uv.u, y: uv.v }));
 			}
 
+			// compute deltas relative to corner homography, so corner moves "carry" edits
+			const corners = getCornersFromPoints(points, rows, cols);
+			const H = homographyFromUnitSquareToQuad(corners.tl, corners.tr, corners.bl, corners.br);
+
+			const cornerSet = cornerIndexSet(rows, cols);
+			deltas = uvs.map((uv, i) => {
+				if (!H || cornerSet.has(i)) return { dx: 0, dy: 0 };
+				const base = applyHomography(H, uv.u, uv.v);
+				return { dx: points[i].x - base.x, dy: points[i].y - base.y };
+			});
+
 			installPointOverlays();
 			scheduleRedraw();
+
+			onMeshChange?.(currentMesh());
 		});
 
 		viewer.open({ type: 'image', url });
@@ -325,9 +267,7 @@
 	function createPointEl(index: number) {
 		const el = document.createElement('div');
 		el.className = 'mp';
-
 		if (cornerIndexSet(rows, cols).has(index)) el.classList.add('corner');
-
 		el.innerHTML = `<div class="mp-ring"><div class="mp-dot"></div></div>`;
 		el.style.zIndex = '30';
 
@@ -371,9 +311,7 @@
 	}
 
 	/* -------------------------------------------------
-	   Drag behaviour
-	   - Non-corner: update its UV by inverse homography (so it "sticks" to the quad)
-	   - Corner: recompute all points from UVs using new quad homography
+	   Dragging
 	------------------------------------------------- */
 
 	type DragState =
@@ -421,14 +359,7 @@
 				tempPoints: null
 			};
 		} else {
-			drag = {
-				mode: 'single',
-				index,
-				el,
-				pointerId: e.pointerId,
-				navEnabledBefore,
-				tempPt: null
-			};
+			drag = { mode: 'single', index, el, pointerId: e.pointerId, navEnabledBefore, tempPt: null };
 		}
 
 		window.addEventListener('pointermove', onDragMove, { passive: false });
@@ -436,22 +367,36 @@
 		window.addEventListener('pointercancel', onDragEnd, { passive: false });
 	}
 
-	function computePointsFromCorners(corners: { tl: Pt; tr: Pt; bl: Pt; br: Pt }): Pt[] | null {
-		const H = homographyFromUnitSquareToQuad(corners.tl, corners.tr, corners.bl, corners.br);
+	function computePointsFromCorners(c: { tl: Pt; tr: Pt; bl: Pt; br: Pt }): Pt[] | null {
+		const H = homographyFromUnitSquareToQuad(c.tl, c.tr, c.bl, c.br);
 		if (!H) return null;
-		return uvs.map((uv) => clampPt(applyHomography(H, uv.u, uv.v)));
+
+		const corners = cornerIndexSet(rows, cols);
+
+		return uvs.map((uv, i) => {
+			const base = applyHomography(H, uv.u, uv.v);
+			if (corners.has(i)) return clampPt(base); // corners stick exactly
+			const d = deltas[i] ?? { dx: 0, dy: 0 };
+			return clampPt({ x: base.x + d.dx, y: base.y + d.dy });
+		});
 	}
 
-	function updateUVFromPoint(index: number, newPt: Pt) {
-		// derive uv for a moved interior point using inverse homography of current corners
+	function recomputeDeltaForIndex(i: number) {
 		const corners = getCornersFromPoints(points, rows, cols);
 		const H = homographyFromUnitSquareToQuad(corners.tl, corners.tr, corners.bl, corners.br);
-		const invH = H ? invertMat3(H) : null;
-		if (!invH) return;
+		if (!H) return;
 
-		const uv2 = applyHomography(invH, newPt.x, newPt.y);
-		uvs[index] = { u: uv2.x, v: uv2.y };
-		uvs = [...uvs];
+		const cornerSet = cornerIndexSet(rows, cols);
+		if (cornerSet.has(i)) {
+			deltas[i] = { dx: 0, dy: 0 };
+			deltas = [...deltas];
+			return;
+		}
+
+		const uv = uvs[i];
+		const base = applyHomography(H, uv.u, uv.v);
+		deltas[i] = { dx: points[i].x - base.x, dy: points[i].y - base.y };
+		deltas = [...deltas];
 	}
 
 	function onDragMove(e: PointerEvent) {
@@ -465,16 +410,12 @@
 
 		if (drag.mode === 'single') {
 			drag.tempPt = pt;
-
-			// live update just this point
 			updateOverlayPoint(viewer, drag.el, pt);
 			scheduleRedrawWithTempSingle(drag.index, pt);
 			return;
 		}
 
-		// corner move => create new corner set (NOT axis-locked)
 		const c = { ...drag.baseCorners };
-
 		const tlIdx = 0;
 		const trIdx = cols - 1;
 		const blIdx = (rows - 1) * cols;
@@ -489,8 +430,6 @@
 		if (!tempPoints) return;
 
 		drag.tempPoints = tempPoints;
-
-		// live update all overlays + grid
 		refreshPointOverlays(tempPoints);
 		scheduleRedrawWithTempAll(tempPoints);
 	}
@@ -509,29 +448,30 @@
 			viewer.setMouseNavEnabled(navEnabledBefore);
 
 			if (tempPt) {
-				// commit point position
 				const next = [...points];
 				next[index] = tempPt;
 				points = next;
-
-				// update its UV so it "sticks" when corners move later
-				updateUVFromPoint(index, tempPt);
-
+				recomputeDeltaForIndex(index);
 				refreshPointOverlays();
+				onMeshChange?.(currentMesh());
 			}
 
 			scheduleRedraw();
 			return;
 		}
 
-		// corner commit
 		const committed = drag.tempPoints;
 		stopDrag();
 		viewer.setMouseNavEnabled(navEnabledBefore);
 
 		if (committed) {
 			points = committed;
+
+			// corners changed; deltas still valid but ensure corner deltas are 0
+			const cs = cornerIndexSet(rows, cols);
+			deltas = deltas.map((d, i) => (cs.has(i) ? { dx: 0, dy: 0 } : d));
 			refreshPointOverlays();
+			onMeshChange?.(currentMesh());
 		}
 
 		scheduleRedraw();
@@ -558,12 +498,10 @@
 		tempOverride = null;
 		scheduleRedrawInternal();
 	}
-
 	function scheduleRedrawWithTempSingle(index: number, pt: Pt) {
 		tempOverride = { kind: 'single', index, pt };
 		scheduleRedrawInternal();
 	}
-
 	function scheduleRedrawWithTempAll(pts: Pt[]) {
 		tempOverride = { kind: 'all', pts };
 		scheduleRedrawInternal();
@@ -579,7 +517,10 @@
 	}
 
 	function redrawGrid() {
+		// ✅ guards fix your crash
 		if (!viewer || !svgEl) return;
+		if (!viewer.world.getItemAt(0)) return;
+		if (points.length !== rows * cols) return;
 
 		const rect = viewer.container.getBoundingClientRect();
 		const w = Math.max(1, Math.floor(rect.width));
@@ -589,12 +530,9 @@
 		svgEl.setAttribute('preserveAspectRatio', 'none');
 
 		let drawPts = points.map((p) => ({ ...p }));
-
-		if (tempOverride?.kind === 'single') {
-			drawPts[tempOverride.index] = tempOverride.pt;
-		} else if (tempOverride?.kind === 'all') {
-			if (tempOverride.pts.length === drawPts.length) drawPts = tempOverride.pts;
-		}
+		if (tempOverride?.kind === 'single') drawPts[tempOverride.index] = tempOverride.pt;
+		else if (tempOverride?.kind === 'all' && tempOverride.pts.length === drawPts.length)
+			drawPts = tempOverride.pts;
 
 		const pxPts = drawPts.map((pt) => {
 			const vp = normToViewportPoint(viewer!, pt);
@@ -619,9 +557,7 @@
 			g.appendChild(line);
 			existing.push(line);
 		}
-		while (existing.length > needed) {
-			existing.pop()?.remove();
-		}
+		while (existing.length > needed) existing.pop()?.remove();
 
 		let k = 0;
 
@@ -661,19 +597,14 @@
 	function resetMesh() {
 		uvs = createDefaultUVGrid(rows, cols);
 		points = uvs.map((uv) => ({ x: uv.u, y: uv.v }));
+		deltas = uvs.map(() => ({ dx: 0, dy: 0 }));
 		refreshPointOverlays();
 		scheduleRedraw();
+		onMeshChange?.(currentMesh());
 	}
 
 	function confirmMesh() {
-		const mesh: DewarpMesh = {
-			rows,
-			cols,
-			points,
-			version: 1,
-			method: 'bspline-grid'
-		};
-		onConfirm?.(mesh);
+		onConfirm?.(currentMesh());
 	}
 
 	/* -------------------------------------------------
@@ -687,7 +618,6 @@
 
 		viewer = makeViewer(hostEl);
 
-		// SVG overlay inside the OSD container so coords match exactly
 		svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		svgEl.classList.add('grid-overlay');
 		viewer.container.appendChild(svgEl);
@@ -764,11 +694,6 @@
 		cursor: pointer;
 	}
 
-	.btn:active {
-		transform: translateY(1px);
-	}
-
-	/* SVG grid overlay */
 	:global(svg.grid-overlay) {
 		position: absolute;
 		inset: 0;
@@ -784,15 +709,18 @@
 		vector-effect: non-scaling-stroke;
 	}
 
-	/* Mesh control points (OSD overlays)
-	   IMPORTANT: no translate(-50%,-50%) here because Placement.CENTER already centers */
+	/* Match your AffineAlignTool marker approach */
 	:global(.mp) {
+		position: absolute;
+		transform: translate(-50%, -50%);
+		touch-action: none;
+		cursor: grab;
+		pointer-events: auto;
+
 		width: 18px;
 		height: 18px;
 		display: grid;
 		place-items: center;
-		cursor: grab;
-		touch-action: none;
 	}
 
 	:global(.mp.dragging) {
@@ -808,11 +736,11 @@
 		width: 16px;
 		height: 16px;
 		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.2);
 		border: 2px solid rgba(255, 255, 255, 0.9);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 		display: grid;
 		place-items: center;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-		background: rgba(0, 0, 0, 0.12);
 	}
 
 	:global(.mp.corner .mp-ring) {
