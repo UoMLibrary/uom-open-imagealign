@@ -46,6 +46,8 @@
 	let overlayOpacity = 60;
 	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
+	let syncingHome = false;
+
 	// OpenCV state
 	let cvReady = false;
 	let cvError: string | null = null;
@@ -150,6 +152,45 @@
 		return true;
 	}
 
+	let syncingZoom = false;
+
+	function setZoomLevel(viewer: OpenSeadragon.Viewer, zoom: number) {
+		// zoomTo(zoom, refPoint, immediately)
+		// Use current center so it doesn’t jump position, only zoom level.
+		const center = viewer.viewport.getCenter(true);
+		viewer.viewport.zoomTo(zoom, center, true);
+		viewer.viewport.applyConstraints(true);
+	}
+
+	function syncZoom(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		from.addHandler('zoom', () => {
+			if (syncingZoom) return;
+			syncingZoom = true;
+			try {
+				const z = from.viewport.getZoom(true);
+				setZoomLevel(to, z);
+			} finally {
+				// release on next tick to avoid nested zoom events in the same call stack
+				queueMicrotask(() => (syncingZoom = false));
+			}
+		});
+	}
+
+	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		// Fired when "home" is invoked (including clicking the home button)
+		from.addHandler('home', () => {
+			if (syncingHome) return;
+			syncingHome = true;
+			try {
+				to.viewport.goHome(true); // animate
+				to.viewport.applyConstraints(true);
+			} finally {
+				// avoid ping-pong between the two viewers
+				setTimeout(() => (syncingHome = false), 0);
+			}
+		});
+	}
+
 	/* -------------------------------------------------
 	   OpenSeadragon init / teardown
 	------------------------------------------------- */
@@ -216,6 +257,16 @@
 		if (srcEl) srcViewer = makeViewer(srcEl);
 		if (tgtEl) tgtViewer = makeViewer(tgtEl);
 		if (resEl) resViewer = makeViewer(resEl);
+
+		if (srcViewer && tgtViewer) {
+			syncZoom(srcViewer, tgtViewer);
+			syncZoom(tgtViewer, srcViewer);
+		}
+
+		if (srcViewer && tgtViewer) {
+			syncHome(srcViewer, tgtViewer);
+			syncHome(tgtViewer, srcViewer);
+		}
 
 		if (srcViewer && sourceUrl) {
 			openedSourceUrl = sourceUrl;
