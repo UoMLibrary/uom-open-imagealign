@@ -4,27 +4,26 @@
 
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 	import FilterSegment from '$lib/ui/shared/FilterSegment.svelte';
-	import PrepareItemCell from './DewarpItemCell.svelte';
 
-	import DewarpToolOSD, { type DewarpMesh, type Pt } from './DewarpToolOSD.svelte';
+	import PrepareItemCell from './DewarpItemCell.svelte';
+	import DewarpToolRowsOSD, { type DewarpMesh } from './DewarpToolRowsOSD.svelte';
 
 	const filterOptions = [{ value: 'all', label: 'All' }] as const;
 	type FilterMode = (typeof filterOptions)[number]['value'];
 
 	let filter: FilterMode = 'all';
 	let selectedId: string | null = null;
-	let SidePanelOpen = true;
+	let sidePanelOpen = true;
 
 	$: totalCount = $images.length;
 
-	function getSelectedImage(images: typeof $images, id: string | null) {
-		if (!id) return null;
-		return images.find((img) => img.id === id) ?? null;
-	}
+	$: selectedImage = selectedId ? ($images.find((img) => img.id === selectedId) ?? null) : null;
 
-	$: selectedImage = getSelectedImage($images, selectedId);
+	$: imageUrl = selectedImage
+		? (selectedImage.runtimeUri ?? selectedImage.originalUri ?? selectedImage.uri)
+		: null;
 
-	// init selection like PrepareWorkspace
+	// Init selection (like PrepareWorkspace)
 	$: {
 		if ($images.length === 0) {
 			selectedId = null;
@@ -52,6 +51,7 @@
 	let previewImgUrl: string | null = null;
 
 	let liveMesh: DewarpMesh | null = null;
+
 	let previewRaf = 0;
 	let ro: ResizeObserver | null = null;
 
@@ -124,14 +124,10 @@
 
 	async function drawPreview() {
 		if (!previewCanvas || !previewWrap || !previewCtx) return;
-		if (!selectedImage || !liveMesh) return;
+		if (!imageUrl || !liveMesh) return;
 
-		const url = selectedImage.runtimeUri ?? selectedImage.originalUri ?? selectedImage.uri;
-		if (!url) return;
+		const img = await ensurePreviewImage(imageUrl);
 
-		const img = await ensurePreviewImage(url);
-
-		// resize canvas to panel size
 		const w = Math.max(1, Math.floor(previewWrap.clientWidth));
 		const h = Math.max(1, Math.floor(previewWrap.clientHeight));
 		if (previewCanvas.width !== w) previewCanvas.width = w;
@@ -145,7 +141,6 @@
 		const { rows, cols, points } = liveMesh;
 		if (points.length !== rows * cols) return;
 
-		// Compute output aspect ratio from corner edge lengths (in source pixels)
 		const idxTL = 0;
 		const idxTR = cols - 1;
 		const idxBL = (rows - 1) * cols;
@@ -158,10 +153,8 @@
 
 		const srcW = (dist(tl, tr) + dist(bl, br)) / 2;
 		const srcH = (dist(tl, bl) + dist(tr, br)) / 2;
-
 		const aspect = srcW > 1 && srcH > 1 ? srcW / srcH : 1;
 
-		// Fit rect into preview panel
 		let outW = w;
 		let outH = Math.floor(outW / aspect);
 		if (outH > h) {
@@ -172,14 +165,12 @@
 		const offX = Math.floor((w - outW) / 2);
 		const offY = Math.floor((h - outH) / 2);
 
-		// Helper to get dest node
 		function destNode(r: number, c: number) {
 			const u = cols === 1 ? 0.5 : c / (cols - 1);
 			const v = rows === 1 ? 0.5 : r / (rows - 1);
 			return { x: offX + u * outW, y: offY + v * outH };
 		}
 
-		// Helper to get src node
 		function srcNode(r: number, c: number) {
 			const i = r * cols + c;
 			return { x: points[i].x * img.naturalWidth, y: points[i].y * img.naturalHeight };
@@ -210,7 +201,6 @@
 			ctx.restore();
 		}
 
-		// Warp each cell as 2 triangles
 		for (let r = 0; r < rows - 1; r++) {
 			for (let c = 0; c < cols - 1; c++) {
 				const s00 = srcNode(r, c);
@@ -247,6 +237,11 @@
 		if (previewWrap) ro.observe(previewWrap);
 	});
 
+	$: if (ro && previewWrap) {
+		ro.disconnect();
+		ro.observe(previewWrap);
+	}
+
 	onDestroy(() => {
 		if (previewRaf) cancelAnimationFrame(previewRaf);
 		ro?.disconnect();
@@ -254,12 +249,17 @@
 </script>
 
 <div class="dewarp-layout">
-	<SidePanel side="left" bind:open={SidePanelOpen} width={280}>
+	<SidePanel side="left" bind:open={sidePanelOpen} width={280}>
 		<svelte:fragment slot="header">
 			<div class="panel-header">
 				<div class="header-row">
-					<div class="panel-title">Images</div>
-					<FilterSegment options={filterOptions as any} value={filter} onChange={() => {}} />
+					<div class="panel-title">Images ({totalCount})</div>
+
+					<FilterSegment
+						options={filterOptions as any}
+						value={filter}
+						onChange={(v) => (filter = v as FilterMode)}
+					/>
 				</div>
 			</div>
 		</svelte:fragment>
@@ -278,13 +278,13 @@
 	</SidePanel>
 
 	<div class="workspace">
-		{#if selectedImage}
+		{#if selectedImage && imageUrl}
 			<div class="main">
 				<div class="osd">
-					<DewarpToolOSD
-						imageUrl={selectedImage.runtimeUri ?? selectedImage.originalUri ?? selectedImage.uri}
-						rows={8}
-						cols={6}
+					<DewarpToolRowsOSD
+						{imageUrl}
+						rows={12}
+						cols={10}
 						onMeshChange={handleMeshChange}
 						onConfirm={handleConfirm}
 					/>
@@ -313,6 +313,7 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
+		min-height: 0;
 	}
 
 	.main {
