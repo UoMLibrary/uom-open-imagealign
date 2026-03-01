@@ -370,10 +370,11 @@
                     "type": "string",
                     "enum": [
                         "ingested",
-                        "prepared",
+                        "dewarped",
                         "grouped",
                         "aligned",
-                        "annotated"
+                        "annotated",
+                        "prepared"
                     ]
                 },
                 "updatedAt": {

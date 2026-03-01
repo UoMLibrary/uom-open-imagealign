@@ -27,10 +27,11 @@ export type WorkflowStage = NonNullable<
 // This defines progression semantics.
 export const STAGE_ORDER: WorkflowStage[] = [
     'ingested',
-    'prepared',
+    'dewarped',
     'grouped',
     'aligned',
-    'annotated'
+    'annotated',
+    'prepared'
 ];
 
 /* -------------------------------------------------

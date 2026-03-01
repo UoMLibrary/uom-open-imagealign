@@ -94,7 +94,7 @@ export interface ImagePreparation {
   rotation: number;
 }
 export interface ImageWorkflow {
-  stage: 'ingested' | 'prepared' | 'grouped' | 'aligned' | 'annotated';
+  stage: 'ingested' | 'dewarped' | 'grouped' | 'aligned' | 'annotated' | 'prepared';
   updatedAt?: string;
 }
 export interface ImageGroup {
