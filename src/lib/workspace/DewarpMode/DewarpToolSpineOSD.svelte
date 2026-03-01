@@ -35,9 +35,8 @@
 	let svgEl: SVGSVGElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	// ✅ Start with corners (first action)
+	// ✅ start in corners mode
 	let editMode: EditMode = 'corners';
-
 	let showCurves = true;
 	let showGrid = true;
 
@@ -68,9 +67,7 @@
 	let ro: ResizeObserver | null = null;
 	let currentUrl: string | null = null;
 
-	/* -------------------------------------------------
-	   Math helpers
-	------------------------------------------------- */
+	/* ---------------- math ---------------- */
 
 	function clamp(v: number, a: number, b: number) {
 		return Math.max(a, Math.min(b, v));
@@ -83,9 +80,6 @@
 	}
 	function add(a: Pt, b: Pt): Pt {
 		return { x: a.x + b.x, y: a.y + b.y };
-	}
-	function mul(a: Pt, s: number): Pt {
-		return { x: a.x * s, y: a.y * s };
 	}
 	function dot(a: Pt, b: Pt) {
 		return a.x * b.x + a.y * b.y;
@@ -115,7 +109,6 @@
 		};
 	}
 
-	// Even spacing across a quadratic curve (approx arc-length)
 	function sampleEvenQuadratic(p0: Pt, p1: Pt, p2: Pt, count: number, steps = 80): Pt[] {
 		if (count <= 1) return [p0];
 
@@ -152,20 +145,7 @@
 		return out;
 	}
 
-	// ✅ Mirror a point across the line through L->R (fixes inverted edge curves)
-	function reflectAcrossLine(p: Pt, L: Pt, R: Pt): Pt {
-		const d = sub(R, L);
-		const denom = dot(d, d);
-		if (denom < 1e-12) return p;
-
-		const t = dot(sub(p, L), d) / denom;
-		const proj = add(L, mul(d, t));
-		return { x: 2 * proj.x - p.x, y: 2 * proj.y - p.y };
-	}
-
-	/* -------------------------------------------------
-	   Geometry from state
-	------------------------------------------------- */
+	/* ---------------- geometry ---------------- */
 
 	function P0(): Pt {
 		return lerp(corners.tl, corners.tr, spine.topT);
@@ -187,32 +167,28 @@
 		};
 	}
 
-	// We still avoid t=0/1 so top/bottom rows can bow,
-	// but now we ALSO flip the edge-row bow direction.
+	// Give top/bottom rows a chance to bow by sampling slightly inside the spine ends
 	function spineTForRow(v: number) {
 		const eps = Math.min(0.06, 1 / Math.max(8, rows * 1.5));
 		return clamp(v, eps, 1 - eps);
 	}
 
-	function controlForRow(v: number, isEdgeRow: boolean, L: Pt, R: Pt): Pt {
-		const c = cubicBezier(P0(), P1(), P2(), P3(), spineTForRow(v));
-		// ✅ Flip edge curvature direction
-		return isEdgeRow ? reflectAcrossLine(c, L, R) : c;
-	}
-
 	function deriveMeshPoints(): Pt[] {
 		const out: Pt[] = [];
+		const p0 = P0();
+		const p1 = P1();
+		const p2 = P2();
+		const p3 = P3();
 
 		for (let r = 0; r < rows; r++) {
 			const v = rows === 1 ? 0.5 : r / (rows - 1);
 			const { L, R } = rowLR(v);
 
-			const isEdge = r === 0 || r === rows - 1;
-			const C = controlForRow(v, isEdge, L, R);
+			// ✅ no edge “flip” — now it moves in the direction you drag
+			const C = cubicBezier(p0, p1, p2, p3, spineTForRow(v));
 
 			out.push(...sampleEvenQuadratic(L, C, R, cols));
 		}
-
 		return out;
 	}
 
@@ -229,9 +205,7 @@
 		});
 	}
 
-	/* -------------------------------------------------
-	   OpenSeadragon helpers
-	------------------------------------------------- */
+	/* ---------------- OSD helpers ---------------- */
 
 	function getContentSize(v: OpenSeadragon.Viewer) {
 		const item = v.world.getItemAt(0);
@@ -292,9 +266,7 @@
 		return true;
 	}
 
-	/* -------------------------------------------------
-	   Overlay helpers + modes
-	------------------------------------------------- */
+	/* ---------------- overlays + mode ---------------- */
 
 	function createHandleEl(kind: 'corner' | 'anchor' | 'handle') {
 		const el = document.createElement('div');
@@ -398,9 +370,7 @@
 		if (h2El) addOrUpdateOverlay(h2El, P2());
 	}
 
-	/* -------------------------------------------------
-	   Dragging
-	------------------------------------------------- */
+	/* ---------------- drag ---------------- */
 
 	type DragTarget =
 		| { kind: 'corner'; corner: CornerKey; el: HTMLElement }
@@ -459,7 +429,6 @@
 		if (drag.target.kind === 'corner') {
 			corners = { ...corners, [drag.target.corner]: pt };
 			addOrUpdateOverlay(drag.target.el, pt);
-
 			refreshOverlayPositions();
 			scheduleRedraw();
 			scheduleEmitMesh();
@@ -519,9 +488,7 @@
 		drag = null;
 	}
 
-	/* -------------------------------------------------
-	   SVG drawing
-	------------------------------------------------- */
+	/* ---------------- draw ---------------- */
 
 	function scheduleRedraw() {
 		if (!viewer || !svgEl) return;
@@ -564,7 +531,6 @@
 		border.setAttribute('class', 'border');
 		svgEl.appendChild(border);
 
-		// spine curve + handle lines
 		const p0 = normToPixel(P0());
 		const p1 = normToPixel(P1());
 		const p2 = normToPixel(P2());
@@ -603,16 +569,14 @@
 
 				const v = rows === 1 ? 0.5 : r / (rows - 1);
 				const { L, R } = rowLR(v);
-
-				const isEdge = r === 0 || r === rows - 1;
-				const C = controlForRow(v, isEdge, L, R);
+				const C = cubicBezier(P0(), P1(), P2(), P3(), spineTForRow(v));
 
 				const a = normToPixel(L);
 				const b = normToPixel(C);
 				const c = normToPixel(R);
 
 				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-				path.setAttribute('class', isEdge ? 'curve edge-curve' : 'curve');
+				path.setAttribute('class', must.has(r) ? 'curve edge-curve' : 'curve');
 				path.setAttribute('d', `M ${a.x} ${a.y} Q ${b.x} ${b.y} ${c.x} ${c.y}`);
 				svgEl.appendChild(path);
 			}
@@ -654,9 +618,7 @@
 		}
 	}
 
-	/* -------------------------------------------------
-	   Actions
-	------------------------------------------------- */
+	/* ---------------- actions ---------------- */
 
 	function reset() {
 		corners = {
@@ -671,8 +633,6 @@
 			h1: { x: 0.0, y: 0.18 },
 			h2: { x: 0.0, y: -0.18 }
 		};
-
-		// keep starting mode "corners"
 		editMode = 'corners';
 		rebuildOverlays();
 	}
@@ -686,9 +646,7 @@
 		applyEditMode();
 	}
 
-	/* -------------------------------------------------
-	   Lifecycle
-	------------------------------------------------- */
+	/* ---------------- lifecycle ---------------- */
 
 	onMount(() => {
 		if (!hostEl) return;
@@ -727,9 +685,7 @@
 		ro?.disconnect();
 		try {
 			viewer?.destroy();
-		} catch {
-			// ignore
-		}
+		} catch {}
 		viewer = null;
 	});
 </script>
@@ -742,14 +698,8 @@
 			Edit: {editMode === 'corners' ? 'Corners' : 'Curve'}
 		</button>
 
-		<label class="tog">
-			<input type="checkbox" bind:checked={showCurves} />
-			Curves
-		</label>
-		<label class="tog">
-			<input type="checkbox" bind:checked={showGrid} />
-			Grid
-		</label>
+		<label class="tog"><input type="checkbox" bind:checked={showCurves} /> Curves</label>
+		<label class="tog"><input type="checkbox" bind:checked={showGrid} /> Grid</label>
 
 		<button class="btn" on:click={reset}>Reset</button>
 		<button class="btn" on:click={confirm}>Confirm</button>
@@ -764,7 +714,6 @@
 		background: #000;
 		overflow: hidden;
 	}
-
 	.viewer {
 		position: absolute;
 		inset: 0;
@@ -858,17 +807,14 @@
 	:global(.h.dragging) {
 		cursor: grabbing;
 	}
-
 	:global(.h.corner) {
 		width: 26px;
 		height: 26px;
 	}
-
 	:global(.h.anchor) {
 		width: 22px;
 		height: 22px;
 	}
-
 	:global(.h.handle) {
 		width: 18px;
 		height: 18px;

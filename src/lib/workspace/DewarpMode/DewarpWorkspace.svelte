@@ -6,8 +6,8 @@
 	import FilterSegment from '$lib/ui/shared/FilterSegment.svelte';
 
 	import PrepareItemCell from './DewarpItemCell.svelte';
-	import DewarpToolRowsOSD, { type DewarpMesh } from './DewarpToolRowsOSD.svelte';
 	import DewarpToolSpineOSD from './DewarpToolSpineOSD.svelte';
+	import DewarpPreview from './DewarpPreview.svelte';
 
 	const filterOptions = [{ value: 'all', label: 'All' }] as const;
 	type FilterMode = (typeof filterOptions)[number]['value'];
@@ -293,7 +293,8 @@
 
 				<div class="preview" bind:this={previewWrap}>
 					<div class="preview-title">Preview</div>
-					<canvas class="preview-canvas" bind:this={previewCanvas}></canvas>
+					<!-- <canvas class="preview-canvas" bind:this={previewCanvas}></canvas> -->
+					<DewarpPreview sourceUrl={imageUrl} mesh={liveMesh} />
 				</div>
 			</div>
 		{:else}
