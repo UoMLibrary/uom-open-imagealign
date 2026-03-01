@@ -229,16 +229,41 @@
 		from.addHandler('animation-finish', apply);
 	}
 
+	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
+		// getHomeZoom is viewport zoom; convert to image zoom so different image sizes still match
+		const homeVpZoom = viewer.viewport.getHomeZoom();
+		return viewer.viewport.viewportToImageZoom(homeVpZoom);
+	}
+
 	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
 		from.addHandler('home', () => {
 			if (syncingHome) return;
 			syncingHome = true;
-			try {
-				to.viewport.goHome(true);
-				to.viewport.applyConstraints(true);
-			} finally {
-				setTimeout(() => (syncingHome = false), 0);
-			}
+
+			// Canonical home zoom derived from the viewer whose Home was pressed
+			const homeImageZoom = getHomeImageZoom(from);
+
+			// Home both (pan + default zoom)
+			from.viewport.goHome(false);
+			to.viewport.goHome(false);
+
+			// Force both to share the same home zoom target
+			setImageZoomTarget(from, homeImageZoom);
+			setImageZoomTarget(to, homeImageZoom);
+
+			// Release once both animations finish (fallback timeout as safety)
+			let remaining = 2;
+			const done = () => {
+				remaining -= 1;
+				if (remaining <= 0) syncingHome = false;
+			};
+
+			from.addOnceHandler('animation-finish', done);
+			to.addOnceHandler('animation-finish', done);
+
+			setTimeout(() => {
+				syncingHome = false;
+			}, 700);
 		});
 	}
 
