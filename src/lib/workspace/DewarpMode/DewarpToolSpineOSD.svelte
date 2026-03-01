@@ -18,7 +18,7 @@
 	type SpineState = {
 		topT: number; // along TL->TR
 		bottomT: number; // along BL->BR
-		h1: Pt; // handle offset from P0 (absolute offset in normalised coords)
+		h1: Pt; // handle offset from P0
 		h2: Pt; // handle offset from P3
 	};
 
@@ -35,7 +35,9 @@
 	let svgEl: SVGSVGElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	let editMode: EditMode = 'curve';
+	// ✅ Start with corners (first action)
+	let editMode: EditMode = 'corners';
+
 	let showCurves = true;
 	let showGrid = true;
 
@@ -113,6 +115,7 @@
 		};
 	}
 
+	// Even spacing across a quadratic curve (approx arc-length)
 	function sampleEvenQuadratic(p0: Pt, p1: Pt, p2: Pt, count: number, steps = 80): Pt[] {
 		if (count <= 1) return [p0];
 
@@ -149,6 +152,17 @@
 		return out;
 	}
 
+	// ✅ Mirror a point across the line through L->R (fixes inverted edge curves)
+	function reflectAcrossLine(p: Pt, L: Pt, R: Pt): Pt {
+		const d = sub(R, L);
+		const denom = dot(d, d);
+		if (denom < 1e-12) return p;
+
+		const t = dot(sub(p, L), d) / denom;
+		const proj = add(L, mul(d, t));
+		return { x: 2 * proj.x - p.x, y: 2 * proj.y - p.y };
+	}
+
 	/* -------------------------------------------------
 	   Geometry from state
 	------------------------------------------------- */
@@ -173,19 +187,32 @@
 		};
 	}
 
+	// We still avoid t=0/1 so top/bottom rows can bow,
+	// but now we ALSO flip the edge-row bow direction.
+	function spineTForRow(v: number) {
+		const eps = Math.min(0.06, 1 / Math.max(8, rows * 1.5));
+		return clamp(v, eps, 1 - eps);
+	}
+
+	function controlForRow(v: number, isEdgeRow: boolean, L: Pt, R: Pt): Pt {
+		const c = cubicBezier(P0(), P1(), P2(), P3(), spineTForRow(v));
+		// ✅ Flip edge curvature direction
+		return isEdgeRow ? reflectAcrossLine(c, L, R) : c;
+	}
+
 	function deriveMeshPoints(): Pt[] {
 		const out: Pt[] = [];
-		const p0 = P0();
-		const p1 = P1();
-		const p2 = P2();
-		const p3 = P3();
 
 		for (let r = 0; r < rows; r++) {
 			const v = rows === 1 ? 0.5 : r / (rows - 1);
 			const { L, R } = rowLR(v);
-			const C = cubicBezier(p0, p1, p2, p3, v); // control column “near spine”
+
+			const isEdge = r === 0 || r === rows - 1;
+			const C = controlForRow(v, isEdge, L, R);
+
 			out.push(...sampleEvenQuadratic(L, C, R, cols));
 		}
+
 		return out;
 	}
 
@@ -401,7 +428,6 @@
 	function startDrag(e: PointerEvent, target: DragTarget) {
 		if (!viewer) return;
 
-		// mode guard
 		if (editMode === 'corners' && target.kind !== 'corner') return;
 		if (editMode === 'curve' && target.kind === 'corner') return;
 
@@ -441,7 +467,6 @@
 		}
 
 		if (drag.target.kind === 'p0') {
-			// constrain to top edge TL->TR
 			const t = projectToEdgeT(pt, corners.tl, corners.tr);
 			spine = { ...spine, topT: clamp(t, -0.1, 1.1) };
 			refreshOverlayPositions();
@@ -451,7 +476,6 @@
 		}
 
 		if (drag.target.kind === 'p3') {
-			// constrain to bottom edge BL->BR
 			const t = projectToEdgeT(pt, corners.bl, corners.br);
 			spine = { ...spine, bottomT: clamp(t, -0.1, 1.1) };
 			refreshOverlayPositions();
@@ -540,7 +564,7 @@
 		border.setAttribute('class', 'border');
 		svgEl.appendChild(border);
 
-		// spine curve
+		// spine curve + handle lines
 		const p0 = normToPixel(P0());
 		const p1 = normToPixel(P1());
 		const p2 = normToPixel(P2());
@@ -571,19 +595,24 @@
 		svgEl.appendChild(spinePath);
 
 		if (showCurves) {
-			// draw a subset of row curves so it’s readable
-			const step = Math.max(1, Math.floor(rows / 12));
-			for (let r = 0; r < rows; r += step) {
+			const step = Math.max(1, Math.floor(rows / 10));
+			const must = new Set([0, rows - 1]);
+
+			for (let r = 0; r < rows; r++) {
+				if (!must.has(r) && r % step !== 0) continue;
+
 				const v = rows === 1 ? 0.5 : r / (rows - 1);
 				const { L, R } = rowLR(v);
-				const C = cubicBezier(P0(), P1(), P2(), P3(), v);
+
+				const isEdge = r === 0 || r === rows - 1;
+				const C = controlForRow(v, isEdge, L, R);
 
 				const a = normToPixel(L);
 				const b = normToPixel(C);
 				const c = normToPixel(R);
 
 				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-				path.setAttribute('class', 'curve');
+				path.setAttribute('class', isEdge ? 'curve edge-curve' : 'curve');
 				path.setAttribute('d', `M ${a.x} ${a.y} Q ${b.x} ${b.y} ${c.x} ${c.y}`);
 				svgEl.appendChild(path);
 			}
@@ -643,6 +672,8 @@
 			h2: { x: 0.0, y: -0.18 }
 		};
 
+		// keep starting mode "corners"
+		editMode = 'corners';
 		rebuildOverlays();
 	}
 
@@ -650,8 +681,8 @@
 		onConfirm?.(currentMesh());
 	}
 
-	function setMode(mode: EditMode) {
-		editMode = mode;
+	function toggleMode() {
+		editMode = editMode === 'corners' ? 'curve' : 'corners';
 		applyEditMode();
 	}
 
@@ -707,14 +738,8 @@
 	<div class="viewer" bind:this={hostEl}></div>
 
 	<div class="toolbar">
-		<button
-			class="btn {editMode === 'corners' ? 'active' : ''}"
-			on:click={() => setMode('corners')}
-		>
-			Corners
-		</button>
-		<button class="btn {editMode === 'curve' ? 'active' : ''}" on:click={() => setMode('curve')}>
-			Curve
+		<button class="btn" on:click={toggleMode}>
+			Edit: {editMode === 'corners' ? 'Corners' : 'Curve'}
 		</button>
 
 		<label class="tog">
@@ -764,10 +789,6 @@
 		cursor: pointer;
 	}
 
-	.btn.active {
-		outline: 2px solid rgba(76, 159, 254, 0.8);
-	}
-
 	.tog {
 		display: inline-flex;
 		gap: 0.35rem;
@@ -813,6 +834,10 @@
 		stroke: rgba(76, 159, 254, 0.35);
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
+	}
+
+	:global(.edge-curve) {
+		stroke: rgba(76, 159, 254, 0.7);
 	}
 
 	:global(.grid) {

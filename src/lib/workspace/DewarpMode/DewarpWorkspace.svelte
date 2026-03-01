@@ -282,13 +282,6 @@
 		{#if selectedImage && imageUrl}
 			<div class="main">
 				<div class="osd">
-					<!-- <DewarpToolRowsOSD
-						{imageUrl}
-						rows={12}
-						cols={10}
-						onMeshChange={handleMeshChange}
-						onConfirm={handleConfirm}
-					/> -->
 					<DewarpToolSpineOSD
 						{imageUrl}
 						rows={14}
