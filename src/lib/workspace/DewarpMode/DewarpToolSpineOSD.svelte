@@ -9,17 +9,24 @@
 		cols: number;
 		points: Pt[];
 		version: 1;
-		method: 'spine-cubic-v1';
+		method: 'spine-cubic-v2';
 	};
 
 	type CornerKey = 'tl' | 'tr' | 'bl' | 'br';
 	type EditMode = 'corners' | 'curve';
 
 	type SpineState = {
+		// where the spine bar attaches horizontally
 		topT: number; // along TL->TR
 		bottomT: number; // along BL->BR
-		h1: Pt; // handle offset from P0
-		h2: Pt; // handle offset from P3
+
+		// how far the endpoints extend beyond the top/bottom in the "down" direction basis
+		topExtend: number; // + means above (against downDir)
+		bottomExtend: number; // + means below (along downDir)
+
+		// cubic handles as offsets from P0 and P3
+		h1: Pt; // offset from P0
+		h2: Pt; // offset from P3
 	};
 
 	export let imageUrl: string;
@@ -35,8 +42,9 @@
 	let svgEl: SVGSVGElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	// ✅ start in corners mode
+	// Start in corners mode (first thing you do)
 	let editMode: EditMode = 'corners';
+
 	let showCurves = true;
 	let showGrid = true;
 
@@ -47,16 +55,21 @@
 		br: { x: 0.88, y: 0.92 }
 	};
 
+	// Default: slightly above + slightly below the quad
 	let spine: SpineState = {
 		topT: 0.22,
 		bottomT: 0.26,
+		topExtend: 0.04,
+		bottomExtend: 0.04,
 		h1: { x: 0.0, y: 0.18 },
 		h2: { x: 0.0, y: -0.18 }
 	};
 
+	// OSD overlay handles
 	let cornerEls: Partial<Record<CornerKey, HTMLElement>> = {};
 	let p0El: HTMLElement | null = null;
 	let p3El: HTMLElement | null = null;
+	let midEl: HTMLElement | null = null;
 	let h1El: HTMLElement | null = null;
 	let h2El: HTMLElement | null = null;
 
@@ -67,7 +80,9 @@
 	let ro: ResizeObserver | null = null;
 	let currentUrl: string | null = null;
 
-	/* ---------------- math ---------------- */
+	/* -------------------------------------------------
+	   Math helpers
+	------------------------------------------------- */
 
 	function clamp(v: number, a: number, b: number) {
 		return Math.max(a, Math.min(b, v));
@@ -81,11 +96,18 @@
 	function add(a: Pt, b: Pt): Pt {
 		return { x: a.x + b.x, y: a.y + b.y };
 	}
+	function mul(a: Pt, s: number): Pt {
+		return { x: a.x * s, y: a.y * s };
+	}
 	function dot(a: Pt, b: Pt) {
 		return a.x * b.x + a.y * b.y;
 	}
 	function len(a: Pt) {
 		return Math.sqrt(a.x * a.x + a.y * a.y);
+	}
+	function norm(a: Pt): Pt {
+		const l = len(a);
+		return l < 1e-9 ? { x: 0, y: 1 } : { x: a.x / l, y: a.y / l };
 	}
 
 	function cubicBezier(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
@@ -94,7 +116,6 @@
 		const tt = t * t;
 		const uuu = uu * u;
 		const ttt = tt * t;
-
 		return {
 			x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
 			y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
@@ -109,6 +130,7 @@
 		};
 	}
 
+	// Even spacing across a quadratic curve (approx arc-length)
 	function sampleEvenQuadratic(p0: Pt, p1: Pt, p2: Pt, count: number, steps = 80): Pt[] {
 		if (count <= 1) return [p0];
 
@@ -145,14 +167,39 @@
 		return out;
 	}
 
-	/* ---------------- geometry ---------------- */
+	/* -------------------------------------------------
+	   Spine geometry with extend above/below
+	------------------------------------------------- */
 
-	function P0(): Pt {
+	function downDir(): Pt {
+		const midTop = lerp(corners.tl, corners.tr, 0.5);
+		const midBot = lerp(corners.bl, corners.br, 0.5);
+		const d = sub(midBot, midTop);
+		const nd = norm(d);
+		// fallback if degenerate
+		if (Math.abs(nd.x) < 1e-9 && Math.abs(nd.y) < 1e-9) return { x: 0, y: 1 };
+		return nd;
+	}
+
+	function topEdgePoint(): Pt {
 		return lerp(corners.tl, corners.tr, spine.topT);
 	}
-	function P3(): Pt {
+	function bottomEdgePoint(): Pt {
 		return lerp(corners.bl, corners.br, spine.bottomT);
 	}
+
+	// P0 is above the top edge by topExtend along -downDir
+	function P0(): Pt {
+		const d = downDir();
+		return add(topEdgePoint(), mul(d, -spine.topExtend));
+	}
+
+	// P3 is below the bottom edge by bottomExtend along +downDir
+	function P3(): Pt {
+		const d = downDir();
+		return add(bottomEdgePoint(), mul(d, spine.bottomExtend));
+	}
+
 	function P1(): Pt {
 		return add(P0(), spine.h1);
 	}
@@ -167,7 +214,7 @@
 		};
 	}
 
-	// Give top/bottom rows a chance to bow by sampling slightly inside the spine ends
+	// Control point sampled slightly inside to let top/bottom rows bow
 	function spineTForRow(v: number) {
 		const eps = Math.min(0.06, 1 / Math.max(8, rows * 1.5));
 		return clamp(v, eps, 1 - eps);
@@ -183,17 +230,15 @@
 		for (let r = 0; r < rows; r++) {
 			const v = rows === 1 ? 0.5 : r / (rows - 1);
 			const { L, R } = rowLR(v);
-
-			// ✅ no edge “flip” — now it moves in the direction you drag
 			const C = cubicBezier(p0, p1, p2, p3, spineTForRow(v));
-
 			out.push(...sampleEvenQuadratic(L, C, R, cols));
 		}
+
 		return out;
 	}
 
 	function currentMesh(): DewarpMesh {
-		return { rows, cols, points: deriveMeshPoints(), version: 1, method: 'spine-cubic-v1' };
+		return { rows, cols, points: deriveMeshPoints(), version: 1, method: 'spine-cubic-v2' };
 	}
 
 	function scheduleEmitMesh() {
@@ -205,7 +250,9 @@
 		});
 	}
 
-	/* ---------------- OSD helpers ---------------- */
+	/* -------------------------------------------------
+	   OpenSeadragon helpers + zoom controls
+	------------------------------------------------- */
 
 	function getContentSize(v: OpenSeadragon.Viewer) {
 		const item = v.world.getItemAt(0);
@@ -245,6 +292,12 @@
 			drawer,
 			crossOriginPolicy: 'Anonymous',
 			keyboardNavEnabled: false,
+
+			// ✅ allow zooming out beyond home
+			visibilityRatio: 0.0,
+			constrainDuringPan: false,
+			minZoomImageRatio: 0.05,
+
 			gestureSettingsKeyboard: { rotate: false },
 			gestureSettingsMouse: {
 				dragToPan: true,
@@ -266,9 +319,22 @@
 		return true;
 	}
 
-	/* ---------------- overlays + mode ---------------- */
+	function zoomBy(f: number) {
+		if (!viewer) return;
+		const z = viewer.viewport.getZoom(true);
+		viewer.viewport.zoomTo(z * f, undefined, true);
+	}
 
-	function createHandleEl(kind: 'corner' | 'anchor' | 'handle') {
+	function fitHome() {
+		if (!viewer) return;
+		viewer.viewport.goHome(true);
+	}
+
+	/* -------------------------------------------------
+	   Overlay helpers + modes
+	------------------------------------------------- */
+
+	function createHandleEl(kind: 'corner' | 'anchor' | 'mid' | 'handle') {
 		const el = document.createElement('div');
 		el.className = `h ${kind}`;
 		el.innerHTML = `<div class="ring"><div class="dot"></div></div>`;
@@ -305,6 +371,7 @@
 
 		if (p0El) setInteractive(p0El, curveEnabled);
 		if (p3El) setInteractive(p3El, curveEnabled);
+		if (midEl) setInteractive(midEl, curveEnabled);
 		if (h1El) setInteractive(h1El, curveEnabled);
 		if (h2El) setInteractive(h2El, curveEnabled);
 	}
@@ -316,7 +383,7 @@
 		overlaySet = new WeakSet();
 
 		cornerEls = {};
-		p0El = p3El = h1El = h2El = null;
+		p0El = p3El = midEl = h1El = h2El = null;
 
 		(['tl', 'tr', 'bl', 'br'] as CornerKey[]).forEach((k) => {
 			const el = createHandleEl('corner');
@@ -338,6 +405,12 @@
 			startDrag(e as PointerEvent, { kind: 'p3', el: p3El! })
 		);
 		addOrUpdateOverlay(p3El, P3());
+
+		midEl = createHandleEl('mid');
+		midEl.addEventListener('pointerdown', (e) =>
+			startDrag(e as PointerEvent, { kind: 'mid', el: midEl! })
+		);
+		addOrUpdateOverlay(midEl, lerp(P0(), P3(), 0.5));
 
 		h1El = createHandleEl('handle');
 		h1El.addEventListener('pointerdown', (e) =>
@@ -366,16 +439,66 @@
 
 		if (p0El) addOrUpdateOverlay(p0El, P0());
 		if (p3El) addOrUpdateOverlay(p3El, P3());
+		if (midEl) addOrUpdateOverlay(midEl, lerp(P0(), P3(), 0.5));
 		if (h1El) addOrUpdateOverlay(h1El, P1());
 		if (h2El) addOrUpdateOverlay(h2El, P2());
 	}
 
-	/* ---------------- drag ---------------- */
+	/* -------------------------------------------------
+	   Converting dragged points back into (t,extend)
+	------------------------------------------------- */
+
+	function projectTOnSegment(pt: Pt, a: Pt, b: Pt) {
+		const ab = sub(b, a);
+		const ap = sub(pt, a);
+		const denom = dot(ab, ab);
+		if (denom < 1e-12) return 0.5;
+		return dot(ap, ab) / denom;
+	}
+
+	function setP0FromPoint(pt: Pt) {
+		const t = projectTOnSegment(pt, corners.tl, corners.tr);
+		const tClamped = clamp(t, -0.2, 1.2);
+
+		const edgePt = lerp(corners.tl, corners.tr, tClamped);
+		const d = downDir();
+
+		// pt = edgePt + (-topExtend)*d  => topExtend = -dot(pt-edgePt, d)
+		const topExtend = -dot(sub(pt, edgePt), d);
+
+		spine = {
+			...spine,
+			topT: tClamped,
+			topExtend: clamp(topExtend, -0.25, 0.5)
+		};
+	}
+
+	function setP3FromPoint(pt: Pt) {
+		const t = projectTOnSegment(pt, corners.bl, corners.br);
+		const tClamped = clamp(t, -0.2, 1.2);
+
+		const edgePt = lerp(corners.bl, corners.br, tClamped);
+		const d = downDir();
+
+		// pt = edgePt + bottomExtend*d  => bottomExtend = dot(pt-edgePt, d)
+		const bottomExtend = dot(sub(pt, edgePt), d);
+
+		spine = {
+			...spine,
+			bottomT: tClamped,
+			bottomExtend: clamp(bottomExtend, -0.25, 0.5)
+		};
+	}
+
+	/* -------------------------------------------------
+	   Dragging
+	------------------------------------------------- */
 
 	type DragTarget =
 		| { kind: 'corner'; corner: CornerKey; el: HTMLElement }
 		| { kind: 'p0'; el: HTMLElement }
 		| { kind: 'p3'; el: HTMLElement }
+		| { kind: 'mid'; el: HTMLElement }
 		| { kind: 'h1'; el: HTMLElement }
 		| { kind: 'h2'; el: HTMLElement };
 
@@ -383,17 +506,13 @@
 		target: DragTarget;
 		pointerId: number;
 		navEnabledBefore: boolean;
+		// for mid-drag
+		startMid?: Pt;
+		startP0?: Pt;
+		startP3?: Pt;
 	};
 
 	let drag: DragState | null = null;
-
-	function projectToEdgeT(pt: Pt, a: Pt, b: Pt) {
-		const ab = sub(b, a);
-		const ap = sub(pt, a);
-		const denom = dot(ab, ab);
-		if (denom < 1e-9) return 0.5;
-		return dot(ap, ab) / denom;
-	}
 
 	function startDrag(e: PointerEvent, target: DragTarget) {
 		if (!viewer) return;
@@ -410,7 +529,20 @@
 		const navEnabledBefore = getMouseNavEnabled(viewer);
 		viewer.setMouseNavEnabled(false);
 
-		drag = { target, pointerId: e.pointerId, navEnabledBefore };
+		if (target.kind === 'mid') {
+			const p0 = P0();
+			const p3 = P3();
+			drag = {
+				target,
+				pointerId: e.pointerId,
+				navEnabledBefore,
+				startMid: lerp(p0, p3, 0.5),
+				startP0: p0,
+				startP3: p3
+			};
+		} else {
+			drag = { target, pointerId: e.pointerId, navEnabledBefore };
+		}
 
 		window.addEventListener('pointermove', onDragMove, { passive: false });
 		window.addEventListener('pointerup', onDragEnd, { passive: false });
@@ -436,8 +568,7 @@
 		}
 
 		if (drag.target.kind === 'p0') {
-			const t = projectToEdgeT(pt, corners.tl, corners.tr);
-			spine = { ...spine, topT: clamp(t, -0.1, 1.1) };
+			setP0FromPoint(pt);
 			refreshOverlayPositions();
 			scheduleRedraw();
 			scheduleEmitMesh();
@@ -445,8 +576,24 @@
 		}
 
 		if (drag.target.kind === 'p3') {
-			const t = projectToEdgeT(pt, corners.bl, corners.br);
-			spine = { ...spine, bottomT: clamp(t, -0.1, 1.1) };
+			setP3FromPoint(pt);
+			refreshOverlayPositions();
+			scheduleRedraw();
+			scheduleEmitMesh();
+			return;
+		}
+
+		if (drag.target.kind === 'mid') {
+			if (!drag.startMid || !drag.startP0 || !drag.startP3) return;
+
+			const delta = sub(pt, drag.startMid);
+			const newP0 = add(drag.startP0, delta);
+			const newP3 = add(drag.startP3, delta);
+
+			// Convert back to (t,extend)
+			setP0FromPoint(newP0);
+			setP3FromPoint(newP3);
+
 			refreshOverlayPositions();
 			scheduleRedraw();
 			scheduleEmitMesh();
@@ -488,7 +635,9 @@
 		drag = null;
 	}
 
-	/* ---------------- draw ---------------- */
+	/* -------------------------------------------------
+	   SVG drawing
+	------------------------------------------------- */
 
 	function scheduleRedraw() {
 		if (!viewer || !svgEl) return;
@@ -531,10 +680,24 @@
 		border.setAttribute('class', 'border');
 		svgEl.appendChild(border);
 
-		const p0 = normToPixel(P0());
-		const p1 = normToPixel(P1());
-		const p2 = normToPixel(P2());
-		const p3 = normToPixel(P3());
+		// draw bar (P0->P3) + spine curve + handle lines
+		const P0p = P0();
+		const P1p = P1();
+		const P2p = P2();
+		const P3p = P3();
+
+		const p0 = normToPixel(P0p);
+		const p1 = normToPixel(P1p);
+		const p2 = normToPixel(P2p);
+		const p3 = normToPixel(P3p);
+
+		const barLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		barLine.setAttribute('class', 'bar');
+		barLine.setAttribute('x1', String(p0.x));
+		barLine.setAttribute('y1', String(p0.y));
+		barLine.setAttribute('x2', String(p3.x));
+		barLine.setAttribute('y2', String(p3.y));
+		svgEl.appendChild(barLine);
 
 		const hLine1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 		hLine1.setAttribute('class', 'handle-line');
@@ -560,6 +723,7 @@
 		);
 		svgEl.appendChild(spinePath);
 
+		// optionally draw a subset of row curves
 		if (showCurves) {
 			const step = Math.max(1, Math.floor(rows / 10));
 			const must = new Set([0, rows - 1]);
@@ -569,7 +733,7 @@
 
 				const v = rows === 1 ? 0.5 : r / (rows - 1);
 				const { L, R } = rowLR(v);
-				const C = cubicBezier(P0(), P1(), P2(), P3(), spineTForRow(v));
+				const C = cubicBezier(P0p, P1p, P2p, P3p, spineTForRow(v));
 
 				const a = normToPixel(L);
 				const b = normToPixel(C);
@@ -582,6 +746,7 @@
 			}
 		}
 
+		// derived grid
 		if (showGrid) {
 			const pts = deriveMeshPoints();
 			if (pts.length === rows * cols) {
@@ -618,7 +783,9 @@
 		}
 	}
 
-	/* ---------------- actions ---------------- */
+	/* -------------------------------------------------
+	   Actions
+	------------------------------------------------- */
 
 	function reset() {
 		corners = {
@@ -630,9 +797,12 @@
 		spine = {
 			topT: 0.22,
 			bottomT: 0.26,
+			topExtend: 0.04,
+			bottomExtend: 0.04,
 			h1: { x: 0.0, y: 0.18 },
 			h2: { x: 0.0, y: -0.18 }
 		};
+
 		editMode = 'corners';
 		rebuildOverlays();
 	}
@@ -646,7 +816,9 @@
 		applyEditMode();
 	}
 
-	/* ---------------- lifecycle ---------------- */
+	/* -------------------------------------------------
+	   Lifecycle
+	------------------------------------------------- */
 
 	onMount(() => {
 		if (!hostEl) return;
@@ -669,6 +841,12 @@
 		currentUrl = imageUrl;
 		viewer.addOnceHandler('open', () => rebuildOverlays());
 		viewer.open({ type: 'image', url: imageUrl });
+
+		// start slightly zoomed out for context
+		viewer.addOnceHandler('open', () => {
+			const home = viewer!.viewport.getHomeZoom();
+			viewer!.viewport.zoomTo(home * 0.85, undefined, true);
+		});
 	});
 
 	$: if (viewer && imageUrl && imageUrl !== currentUrl) {
@@ -694,9 +872,13 @@
 	<div class="viewer" bind:this={hostEl}></div>
 
 	<div class="toolbar">
-		<button class="btn" on:click={toggleMode}>
-			Edit: {editMode === 'corners' ? 'Corners' : 'Curve'}
-		</button>
+		<button class="btn" on:click={toggleMode}
+			>Edit: {editMode === 'corners' ? 'Corners' : 'Curve'}</button
+		>
+
+		<button class="btn" on:click={() => zoomBy(0.8)}>Zoom -</button>
+		<button class="btn" on:click={() => zoomBy(1.25)}>Zoom +</button>
+		<button class="btn" on:click={fitHome}>Fit</button>
 
 		<label class="tog"><input type="checkbox" bind:checked={showCurves} /> Curves</label>
 		<label class="tog"><input type="checkbox" bind:checked={showGrid} /> Grid</label>
@@ -714,6 +896,7 @@
 		background: #000;
 		overflow: hidden;
 	}
+
 	.viewer {
 		position: absolute;
 		inset: 0;
@@ -765,6 +948,12 @@
 		vector-effect: non-scaling-stroke;
 	}
 
+	:global(.bar) {
+		stroke: rgba(255, 255, 255, 0.32);
+		stroke-width: 2;
+		vector-effect: non-scaling-stroke;
+	}
+
 	:global(.spine) {
 		fill: none;
 		stroke: rgba(76, 159, 254, 0.85);
@@ -807,14 +996,22 @@
 	:global(.h.dragging) {
 		cursor: grabbing;
 	}
+
 	:global(.h.corner) {
 		width: 26px;
 		height: 26px;
 	}
+
 	:global(.h.anchor) {
 		width: 22px;
 		height: 22px;
 	}
+
+	:global(.h.mid) {
+		width: 22px;
+		height: 22px;
+	}
+
 	:global(.h.handle) {
 		width: 18px;
 		height: 18px;
@@ -843,7 +1040,8 @@
 		background: #4c9ffe;
 	}
 
-	:global(.h.anchor .dot) {
+	:global(.h.anchor .dot),
+	:global(.h.mid .dot) {
 		width: 8px;
 		height: 8px;
 	}
