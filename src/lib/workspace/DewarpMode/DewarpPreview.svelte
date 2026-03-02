@@ -8,8 +8,11 @@
 	export let sourceUrl: string | null = null;
 	export let mesh: DewarpMesh | null = null;
 
-	// Guide lines
-	export let showGuides = true;
+	// View mode
+	export let showDewarped = true; // toggle dewarped vs original
+
+	// Row lines toggle + count
+	export let showRowLines = true;
 	export let guideCount = 20;
 
 	let guideTop = 0.08;
@@ -29,8 +32,15 @@
 
 	let topKnob: HTMLElement | null = null;
 	let bottomKnob: HTMLElement | null = null;
+	let topOverlayAdded = false;
+	let bottomOverlayAdded = false;
 
 	let ro: ResizeObserver | null = null;
+
+	// Track what the preview was generated from (reference equality is enough)
+	let previewFor: { sourceUrl: string; meshRef: DewarpMesh } | null = null;
+	let openedMode: 'original' | 'dewarped' | null = null;
+	let openedUrl: string | null = null;
 
 	function clamp(v: number, a: number, b: number) {
 		return Math.max(a, Math.min(b, v));
@@ -134,27 +144,39 @@
 			);
 		}
 
-		// add overlays if not present
 		const size = getContentSize(viewer);
 		if (!size) return;
 
 		const midX = size.w * 0.5;
 
-		viewer.addOverlay({
-			element: topKnob,
-			location: viewer.viewport.imageToViewportCoordinates(
-				new OpenSeadragon.Point(midX, guideTop * size.h)
-			),
-			placement: OpenSeadragon.Placement.CENTER
-		});
+		const topLoc = viewer.viewport.imageToViewportCoordinates(
+			new OpenSeadragon.Point(midX, guideTop * size.h)
+		);
+		const botLoc = viewer.viewport.imageToViewportCoordinates(
+			new OpenSeadragon.Point(midX, guideBottom * size.h)
+		);
 
-		viewer.addOverlay({
-			element: bottomKnob,
-			location: viewer.viewport.imageToViewportCoordinates(
-				new OpenSeadragon.Point(midX, guideBottom * size.h)
-			),
-			placement: OpenSeadragon.Placement.CENTER
-		});
+		if (topKnob && !topOverlayAdded) {
+			viewer.addOverlay({
+				element: topKnob,
+				location: topLoc,
+				placement: OpenSeadragon.Placement.CENTER
+			});
+			topOverlayAdded = true;
+		} else if (topKnob) {
+			viewer.updateOverlay(topKnob, topLoc, OpenSeadragon.Placement.CENTER);
+		}
+
+		if (bottomKnob && !bottomOverlayAdded) {
+			viewer.addOverlay({
+				element: bottomKnob,
+				location: botLoc,
+				placement: OpenSeadragon.Placement.CENTER
+			});
+			bottomOverlayAdded = true;
+		} else if (bottomKnob) {
+			viewer.updateOverlay(bottomKnob, botLoc, OpenSeadragon.Placement.CENTER);
+		}
 	}
 
 	function updateKnobPositions() {
@@ -180,6 +202,7 @@
 
 	function redrawGuides() {
 		if (!viewer || !svgEl) return;
+
 		const item = viewer.world.getItemAt(0);
 		if (!item) return;
 
@@ -192,7 +215,11 @@
 
 		while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
 
-		if (!showGuides || guideCount < 2) return;
+		// knobs always visible + tracking
+		updateKnobPositions();
+
+		// row lines toggle
+		if (!showRowLines || guideCount < 2) return;
 
 		const topY = clamp(guideTop, 0, 1);
 		const botY = clamp(guideBottom, 0, 1);
@@ -223,8 +250,6 @@
 			);
 			svgEl.appendChild(line);
 		}
-
-		updateKnobPositions();
 	}
 
 	type GuideDrag = { which: 'top' | 'bottom'; pointerId: number; nav: boolean } | null;
@@ -277,7 +302,38 @@
 		gdrag = null;
 	}
 
+	function openInViewer(url: string, mode: 'original' | 'dewarped') {
+		if (!viewer) return;
+		if (openedMode === mode && openedUrl === url) return;
+
+		openedMode = mode;
+		openedUrl = url;
+
+		viewer.addOnceHandler('open', () => {
+			ensureSvgOverlay();
+			ensureKnobs();
+			scheduleGuidesRedraw();
+		});
+
+		viewer.open({ type: 'image', url });
+	}
+
+	function openOriginal() {
+		if (!viewer || !sourceUrl) return;
+		openInViewer(sourceUrl, 'original');
+	}
+
+	function openPreviewIfFresh() {
+		if (!viewer || !previewUrl || !sourceUrl || !mesh) return;
+		if (!previewFor) return;
+		if (previewFor.sourceUrl !== sourceUrl) return;
+		if (previewFor.meshRef !== mesh) return;
+
+		openInViewer(previewUrl, 'dewarped');
+	}
+
 	async function generatePreview() {
+		if (!showDewarped) return;
 		if (generating) {
 			pending = true;
 			return;
@@ -292,7 +348,6 @@
 
 			const { rows, cols, points } = mesh;
 
-			// aspect from corner distances
 			const idxTL = 0;
 			const idxTR = cols - 1;
 			const idxBL = (rows - 1) * cols;
@@ -307,7 +362,6 @@
 			const srcH = (dist(tl, bl) + dist(tr, br)) / 2;
 			const aspect = srcW > 1 && srcH > 1 ? srcW / srcH : 1;
 
-			// choose output width based on panel size
 			const panelW = hostEl?.clientWidth ?? 900;
 			const dpr = window.devicePixelRatio || 1;
 			const outW = Math.floor(clamp(panelW * dpr, 900, 2400));
@@ -387,12 +441,9 @@
 			if (previewUrl) URL.revokeObjectURL(previewUrl);
 			previewUrl = URL.createObjectURL(blob);
 
-			viewer.open({ type: 'image', url: previewUrl });
-			viewer.addOnceHandler('open', () => {
-				ensureSvgOverlay();
-				ensureKnobs();
-				scheduleGuidesRedraw();
-			});
+			previewFor = { sourceUrl, meshRef: mesh };
+
+			openInViewer(previewUrl, 'dewarped');
 		} finally {
 			generating = false;
 			if (pending) {
@@ -402,9 +453,26 @@
 		}
 	}
 
-	// reactive trigger
-	$: if (viewer && sourceUrl && mesh) {
-		void generatePreview();
+	// Reactive: choose which image is shown
+	$: if (viewer && sourceUrl) {
+		if (showDewarped) {
+			if (previewUrl && previewFor?.sourceUrl === sourceUrl && previewFor.meshRef === mesh) {
+				openPreviewIfFresh();
+			} else if (mesh) {
+				void generatePreview();
+			} else {
+				openOriginal();
+			}
+		} else {
+			openOriginal();
+		}
+	}
+
+	// IMPORTANT: force redraw when row toggle / count changes (fixes “only after pan/zoom”)
+	$: if (viewer) {
+		showRowLines;
+		guideCount;
+		scheduleGuidesRedraw();
 	}
 
 	onMount(() => {
@@ -439,11 +507,16 @@
 		viewer.addHandler('pan', redraw);
 		viewer.addHandler('resize', redraw);
 
-		ro = new ResizeObserver(() => {
-			// (optional) could regenerate at new size; for now just redraw guides
+		ro = new ResizeObserver(() => scheduleGuidesRedraw());
+		ro.observe(hostEl);
+
+		// Make sure knobs exist once the first image opens
+		viewer.addOnceHandler('open', () => {
+			ensureKnobs();
 			scheduleGuidesRedraw();
 		});
-		ro.observe(hostEl);
+
+		if (sourceUrl && !showDewarped) openOriginal();
 	});
 
 	onDestroy(() => {
@@ -461,7 +534,18 @@
 	<div class="viewer" bind:this={hostEl}></div>
 
 	<div class="toolbar">
-		<label><input type="checkbox" bind:checked={showGuides} /> Guides</label>
+		<label class="toggle">
+			<input type="checkbox" bind:checked={showDewarped} />
+			<span>{showDewarped ? 'Dewarped' : 'Original'}</span>
+		</label>
+
+		<span class="sep" />
+
+		<label>
+			<input type="checkbox" bind:checked={showRowLines} on:change={scheduleGuidesRedraw} />
+			Row lines
+		</label>
+
 		<label>
 			Lines
 			<input
@@ -470,6 +554,7 @@
 				max="80"
 				step="1"
 				bind:value={guideCount}
+				disabled={!showRowLines}
 				on:input={scheduleGuidesRedraw}
 			/>
 		</label>
@@ -492,12 +577,17 @@
 
 	.toolbar {
 		position: absolute;
-		top: 10px;
 		left: 10px;
+		bottom: 10px;
 		z-index: 50;
+
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 		align-items: center;
+
+		max-width: calc(100% - 20px);
+
 		background: rgba(0, 0, 0, 0.35);
 		backdrop-filter: blur(4px);
 		padding: 0.35rem 0.5rem;
@@ -510,10 +600,26 @@
 		gap: 0.4rem;
 		align-items: center;
 		font-size: 0.82rem;
+		white-space: nowrap;
 	}
 
 	.toolbar input[type='number'] {
 		width: 72px;
+	}
+
+	.toolbar input:disabled {
+		opacity: 0.6;
+	}
+
+	.sep {
+		width: 1px;
+		height: 18px;
+		background: rgba(255, 255, 255, 0.18);
+		margin: 0 0.1rem;
+	}
+
+	.toggle {
+		user-select: none;
 	}
 
 	:global(svg.guide-overlay) {
