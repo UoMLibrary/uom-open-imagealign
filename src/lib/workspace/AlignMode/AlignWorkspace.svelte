@@ -9,7 +9,7 @@
 	import AlignToolbar, { type AlignStrategy } from './AlignToolbar.svelte';
 
 	// Tools
-	import ManualAlignTool from './tools/ManualAlignTool.svelte';
+	import ManualAlignTool from './tools/Manual/ManualAlignTool.svelte';
 
 	let LeftPanelOpen = true;
 	let strategy: AlignStrategy = 'manual';

@@ -1193,7 +1193,7 @@
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		border-radius: 10px;
 		overflow: hidden;
-		background: rgba(253, 186, 200, 0.35);
+		background: white;
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
