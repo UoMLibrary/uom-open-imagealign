@@ -6,6 +6,7 @@
 	import ResultPanel from './ResultPanel.svelte';
 	import PointPairs from './PointPairs.svelte';
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
+	import OsdPointPanel, { type Pt } from './OsdPointPanel.svelte';
 
 	export type AlignmentDraft = {
 		confidence?: number;
@@ -29,11 +30,18 @@
 
 	export let requireShiftToAdd = true;
 
-	type Pt = { x: number; y: number }; // normalised 0..1
 	type Pair = { source: Pt; target: Pt };
 
 	let pairs: Pair[] = [];
 	let adjustIndex: number | null = null;
+
+	// Derived arrays (so we don't do pairs.map(...) inline in markup every render)
+	let sourcePoints: Pt[] = [];
+	let targetPoints: Pt[] = [];
+	$: {
+		sourcePoints = pairs.map((p) => p.source);
+		targetPoints = pairs.map((p) => p.target);
+	}
 
 	let overlayOpacityPct = 60; // 0..100 (UI)
 	let resultMode: 'warped' | 'composite' | 'difference' = 'difference';
@@ -42,13 +50,11 @@
 	let cvReady = false;
 	let cvError: string | null = null;
 
-	// OSD
-	let srcEl: HTMLDivElement | null = null;
-	let tgtEl: HTMLDivElement | null = null;
-
+	// OSD viewers (created inside OsdPointPanel, bound back to us)
 	let srcViewer: OpenSeadragon.Viewer | null = null;
 	let tgtViewer: OpenSeadragon.Viewer | null = null;
 
+	// Image sizes (reported by OsdPointPanel on open)
 	let srcSize: { w: number; h: number } | null = null;
 	let tgtSize: { w: number; h: number } | null = null;
 
@@ -78,11 +84,6 @@
 		return Math.max(0, Math.min(1, v));
 	}
 
-	function isMarkerEventFromOriginalEvent(originalEvent: any) {
-		const el = (originalEvent?.target as HTMLElement | null) ?? null;
-		return !!el?.closest?.('.kp');
-	}
-
 	function getContentSize(viewer: OpenSeadragon.Viewer) {
 		const item = viewer.world.getItemAt(0);
 		if (!item) return null;
@@ -97,21 +98,6 @@
 		return viewer.viewport.imageToViewportCoordinates(imgPoint);
 	}
 
-	function clientToNorm(viewer: OpenSeadragon.Viewer, clientX: number, clientY: number): Pt | null {
-		const size = getContentSize(viewer);
-		if (!size) return null;
-
-		const rect = viewer.container.getBoundingClientRect();
-		const px = clientX - rect.left;
-		const py = clientY - rect.top;
-
-		const pixelPoint = new OpenSeadragon.Point(px, py);
-		const vpPoint = viewer.viewport.pointFromPixel(pixelPoint, true);
-		const imgPoint = viewer.viewport.viewportToImageCoordinates(vpPoint);
-
-		return { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
-	}
-
 	function centerOn(viewer: OpenSeadragon.Viewer | null, pt: Pt, immediate = false) {
 		if (!viewer) return;
 		const vp = normToViewportPoint(viewer, pt);
@@ -119,11 +105,67 @@
 		viewer.viewport.panTo(vp, immediate);
 	}
 
-	function centerOnPair(i: number, immediate = false) {
+	function zoomAndCenterOn(
+		viewer: OpenSeadragon.Viewer | null,
+		pt: Pt,
+		imageZoom: number,
+		immediate = false
+	) {
+		if (!viewer) return;
+
+		const vp = normToViewportPoint(viewer, pt);
+		if (!vp) return;
+
+		const vpZoom = viewer.viewport.imageToViewportZoom(imageZoom);
+		viewer.viewport.zoomTo(vpZoom, vp, immediate);
+		viewer.viewport.panTo(vp, immediate);
+	}
+
+	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
+		const homeVpZoom = viewer.viewport.getHomeZoom();
+		return viewer.viewport.viewportToImageZoom(homeVpZoom);
+	}
+
+	// Zoom tuning
+	const SEED_ZOOM_MULT = 4; // initial 4-point seed zoom
+	const SELECT_ZOOM_MULT = 8; // selecting a point pair zoom
+
+	function withBothOpen(fn: () => void) {
+		let pending = 0;
+
+		function done() {
+			pending -= 1;
+			if (pending <= 0) fn();
+		}
+
+		const sReady = !!srcViewer?.world?.getItemAt?.(0);
+		const tReady = !!tgtViewer?.world?.getItemAt?.(0);
+
+		if (!sReady && srcViewer) {
+			pending += 1;
+			srcViewer.addOnceHandler('open', done);
+		}
+		if (!tReady && tgtViewer) {
+			pending += 1;
+			tgtViewer.addOnceHandler('open', done);
+		}
+
+		if (pending === 0) fn();
+	}
+
+	function focusPairZoom(i: number, immediate = false, zoomMult = SELECT_ZOOM_MULT) {
 		const p = pairs[i];
 		if (!p) return;
+		if (!srcViewer || !tgtViewer) return;
 
-		centerOn(srcViewer, p.source, immediate);
+		// Use source home zoom as stable baseline
+		const baseZoom = getHomeImageZoom(srcViewer);
+		const targetImageZoom = baseZoom * zoomMult;
+
+		// Drive zoom from source (syncZoom will propagate zoom to target)
+		zoomAndCenterOn(srcViewer, p.source, targetImageZoom, immediate);
+
+		// Pan target to its point (zoom comes from syncZoom)
 		centerOn(tgtViewer, p.target, immediate);
 
 		resultFocus = { ...p.source };
@@ -131,54 +173,7 @@
 
 	function selectPair(i: number) {
 		adjustIndex = i;
-		refreshOverlays();
-		centerOnPair(i, false);
-	}
-
-	function getMouseNavEnabled(viewer: OpenSeadragon.Viewer): boolean {
-		const v: any = viewer as any;
-		if (typeof v.isMouseNavEnabled === 'function') return v.isMouseNavEnabled();
-		return true;
-	}
-
-	/* -------------------------------------------------
-	   OSD viewer setup
-	------------------------------------------------- */
-
-	function makeViewer(el: HTMLElement) {
-		return OpenSeadragon({
-			element: el,
-			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
-			showNavigator: true,
-			autoResize: true,
-			drawer,
-			crossOriginPolicy: 'Anonymous',
-			keyboardNavEnabled: false,
-			gestureSettingsKeyboard: { rotate: false },
-			gestureSettingsMouse: {
-				dragToPan: true,
-				clickToZoom: false,
-				scrollToZoom: true,
-				dblClickToZoom: false,
-				pinchToZoom: true,
-				dragToPanButton: true
-			},
-			minZoomLevel: 0.1,
-			maxZoomLevel: 20,
-			maxZoomPixelRatio: 5,
-			showFullPageControl: false,
-			showHomeControl: true,
-			showZoomControl: true
-		});
-	}
-
-	function openImage(viewer: OpenSeadragon.Viewer, url: string) {
-		viewer.addOnceHandler('open', () => {
-			if (viewer === srcViewer) srcSize = getContentSize(viewer);
-			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
-			refreshOverlays();
-		});
-		viewer.open({ type: 'image', url });
+		withBothOpen(() => focusPairZoom(i, false, SELECT_ZOOM_MULT));
 	}
 
 	/* -------------------------------------------------
@@ -215,11 +210,6 @@
 		from.addHandler('animation-finish', apply);
 	}
 
-	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
-		const homeVpZoom = viewer.viewport.getHomeZoom();
-		return viewer.viewport.viewportToImageZoom(homeVpZoom);
-	}
-
 	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
 		from.addHandler('home', () => {
 			if (syncingHome) return;
@@ -246,152 +236,65 @@
 		});
 	}
 
+	let osdLinked = false;
+	$: if (srcViewer && tgtViewer && !osdLinked) {
+		syncZoom(srcViewer, tgtViewer);
+		syncZoom(tgtViewer, srcViewer);
+
+		syncHome(srcViewer, tgtViewer);
+		syncHome(tgtViewer, srcViewer);
+
+		osdLinked = true;
+	}
+
 	/* -------------------------------------------------
-	   Markers
+	   Pair mutations (used by OsdPointPanel callbacks)
 	------------------------------------------------- */
 
-	function createMarkerEl(label: string, active: boolean) {
-		const el = document.createElement('div');
-		el.className = 'kp' + (active ? ' active' : '');
-		el.innerHTML = `
-			<div class="kp-ring"><div class="kp-dot"></div></div>
-			<div class="kp-label">${label}</div>
-		`;
-		return el;
+	function addPairFromSource(pt: Pt) {
+		if (pairs.length >= maxPairs) return;
+
+		pairs = [...pairs, { source: pt, target: { ...pt } }];
+		adjustIndex = pairs.length - 1;
+
+		computed = null;
+		warpedUrl = null;
+		autoComputedOnce = false;
+
+		// Focus newly added point
+		withBothOpen(() => focusPairZoom(adjustIndex!, false, SELECT_ZOOM_MULT));
+
+		requestAutoCompute();
 	}
 
-	function placeOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
-		const vp = normToViewportPoint(viewer, pt);
-		if (!vp) return;
-		viewer.addOverlay({ element: el, location: vp, placement: OpenSeadragon.Placement.CENTER });
-	}
-
-	function updateOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
-		const vp = normToViewportPoint(viewer, pt);
-		if (!vp) return;
-		viewer.updateOverlay(el, vp, OpenSeadragon.Placement.CENTER);
-	}
-
-	type DragState = {
-		side: 'source' | 'target';
-		index: number;
-		viewer: OpenSeadragon.Viewer;
-		el: HTMLElement;
-		pointerId: number;
-		temp: Pt | null;
-		navEnabledBefore: boolean;
-	};
-
-	let drag: DragState | null = null;
-
-	function refreshOverlays() {
-		if (drag) return;
-
-		srcViewer?.clearOverlays();
-		tgtViewer?.clearOverlays();
-
-		if (!srcViewer || !tgtViewer) return;
-
-		pairs.forEach((p, i) => {
-			const isActive = i === adjustIndex;
-
-			const sEl = createMarkerEl(String(i + 1), isActive);
-			sEl.addEventListener('click', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				selectPair(i);
-			});
-			sEl.addEventListener('pointerdown', (e) =>
-				startDrag(e as PointerEvent, 'source', i, srcViewer!, sEl)
-			);
-			placeOverlayPoint(srcViewer!, sEl, p.source);
-
-			const tEl = createMarkerEl(String(i + 1), isActive);
-			tEl.addEventListener('click', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				selectPair(i);
-			});
-			tEl.addEventListener('pointerdown', (e) =>
-				startDrag(e as PointerEvent, 'target', i, tgtViewer!, tEl)
-			);
-			placeOverlayPoint(tgtViewer!, tEl, p.target);
-		});
-	}
-
-	function startDrag(
-		e: PointerEvent,
-		side: 'target' | 'source',
-		index: number,
-		viewer: OpenSeadragon.Viewer,
-		el: HTMLElement
-	) {
-		e.preventDefault();
-		e.stopPropagation();
-
-		el.setPointerCapture(e.pointerId);
-		el.classList.add('dragging');
-
-		const navEnabledBefore = getMouseNavEnabled(viewer);
-		viewer.setMouseNavEnabled(false);
-
-		drag = { side, index, viewer, el, pointerId: e.pointerId, temp: null, navEnabledBefore };
-		adjustIndex = index;
-
-		window.addEventListener('pointermove', onDragMove, { passive: false });
-		window.addEventListener('pointerup', onDragEnd, { passive: false });
-		window.addEventListener('pointercancel', onDragEnd, { passive: false });
-	}
-
-	function onDragMove(e: PointerEvent) {
-		if (!drag) return;
-		if (e.pointerId !== drag.pointerId) return;
-
-		e.preventDefault();
-
-		const pt = clientToNorm(drag.viewer, e.clientX, e.clientY);
-		if (!pt) return;
-
-		drag.temp = pt;
-		updateOverlayPoint(drag.viewer, drag.el, pt);
-	}
-
-	function onDragEnd(e: PointerEvent) {
-		if (!drag) return;
-		if (e.pointerId !== drag.pointerId) return;
-
-		e.preventDefault();
-
-		const { side, index, temp, viewer, navEnabledBefore } = drag;
-		stopDrag();
-		viewer.setMouseNavEnabled(navEnabledBefore);
-
-		if (!temp) {
-			refreshOverlays();
-			return;
-		}
-
+	function moveSourcePoint(index: number, pt: Pt) {
 		const next = [...pairs];
 		const p = next[index];
 		if (!p) return;
 
-		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
+		next[index] = { ...p, source: pt };
 		pairs = next;
 
-		resultFocus = { ...next[index].source };
+		adjustIndex = index;
+		resultFocus = { ...pt };
 
 		computed = null;
-		refreshOverlays();
 		requestAutoCompute();
 	}
 
-	function stopDrag() {
-		window.removeEventListener('pointermove', onDragMove);
-		window.removeEventListener('pointerup', onDragEnd);
-		window.removeEventListener('pointercancel', onDragEnd);
+	function moveTargetPoint(index: number, pt: Pt) {
+		const next = [...pairs];
+		const p = next[index];
+		if (!p) return;
 
-		if (drag?.el) drag.el.classList.remove('dragging');
-		drag = null;
+		next[index] = { ...p, target: pt };
+		pairs = next;
+
+		adjustIndex = index;
+		resultFocus = { ...next[index].source };
+
+		computed = null;
+		requestAutoCompute();
 	}
 
 	/* -------------------------------------------------
@@ -414,13 +317,11 @@
 		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
 		adjustIndex = 0;
 
-		// ensure UI knows we need a fresh compute
 		computed = null;
 		warpedUrl = null;
 		autoComputedOnce = false;
 
-		refreshOverlays();
-		centerOnPair(0, false);
+		withBothOpen(() => focusPairZoom(0, false, SEED_ZOOM_MULT));
 		requestAutoCompute();
 	}
 
@@ -429,32 +330,13 @@
 		seedFromPts(makeInsetCornerPoints(inset));
 	}
 
-	/**
-	 * Smart version (with ROI inset to reduce edge/background noise):
-	 * - Picks a square ROI in each corner on each image, but inset away from the image edges
-	 * - Uses ORB feature matching ROI-to-ROI (TL↔TL etc.)
-	 * - If matches look good, uses the median matched keypoint as the corner point
-	 * - Otherwise falls back to the usual inset-corner point for that corner
-	 *
-	 * NOTE: This expects `cornerRectPx(...)` to accept an extra `insetFrac`:
-	 *   cornerRectPx(w, h, corner, roiFrac, insetFrac, cv)
-	 */
 	async function addInitial4PointsSmart(inset = 0.07) {
 		if (pairs.length) return;
 
 		const fallbackPts = makeInsetCornerPoints(inset);
-		const fallbackPairs = fallbackPts.map((p) => ({ source: { ...p }, target: { ...p } }));
 
-		// If OpenCV isn't ready (yet), just do the existing behaviour.
 		if (!cvReady) {
-			pairs = fallbackPairs;
-			adjustIndex = 0;
-			computed = null;
-			warpedUrl = null;
-			autoComputedOnce = false;
-			refreshOverlays();
-			centerOnPair(0, false);
-			requestAutoCompute();
+			seedFromPts(fallbackPts);
 			return;
 		}
 
@@ -465,8 +347,8 @@
 		}
 
 		// Tuning knobs
-		const cornerRoiFrac = 0.35; // ROI size (fraction of "safe" min dimension if using inset-aware cornerRectPx)
-		const cornerInsetFrac = Math.max(0, Math.min(0.15, inset)); // inset ROI away from image edges (use inset param, clamped)
+		const cornerRoiFrac = 0.35;
+		const cornerInsetFrac = Math.max(0, Math.min(0.15, inset));
 		const minGoodMatches = 4;
 		const maxAcceptableDistance = 60;
 
@@ -494,7 +376,6 @@
 				const c = corners[i];
 				const fallback = fallbackPts[i];
 
-				// Inset ROIs to avoid desk/binding noise around the image edges
 				const baseRect = cornerRectPx(baseW, baseH, c, cornerRoiFrac, cornerInsetFrac, cv);
 				const movRect = cornerRectPx(movW, movH, c, cornerRoiFrac, cornerInsetFrac, cv);
 
@@ -503,7 +384,7 @@
 					maxAcceptableDistance
 				});
 
-				// Optional "second chance": if inset ROI fails, try the edge-pinned ROI before falling back
+				// second chance: edge-pinned
 				if (!match && cornerInsetFrac > 0) {
 					const baseRect2 = cornerRectPx(baseW, baseH, c, cornerRoiFrac, 0, cv);
 					const movRect2 = cornerRectPx(movW, movH, c, cornerRoiFrac, 0, cv);
@@ -531,21 +412,10 @@
 			warpedUrl = null;
 			autoComputedOnce = false;
 
-			refreshOverlays();
-			centerOnPair(0, false);
+			withBothOpen(() => focusPairZoom(0, false, SEED_ZOOM_MULT));
 			requestAutoCompute();
-		} catch (err) {
-			// any failure → behave exactly like the old button
-			pairs = fallbackPairs;
-			adjustIndex = 0;
-
-			computed = null;
-			warpedUrl = null;
-			autoComputedOnce = false;
-
-			refreshOverlays();
-			centerOnPair(0, false);
-			requestAutoCompute();
+		} catch {
+			seedFromPts(fallbackPts);
 		} finally {
 			try {
 				baseRGBA?.delete?.();
@@ -561,11 +431,10 @@
 	function rgbaToGray(rgba: any, cv: any) {
 		const gray = new cv.Mat();
 		cv.cvtColor(rgba, gray, cv.COLOR_RGBA2GRAY, 0);
-		// mild normalize to help across lighting differences
 		try {
 			cv.equalizeHist(gray, gray);
 		} catch {
-			// equalizeHist can fail if type isn't 8U; cvtColor should make it 8U though
+			// ignore
 		}
 		return gray;
 	}
@@ -580,15 +449,12 @@
 	) {
 		const inset = Math.max(0, Math.round(Math.min(w, h) * clamp01(insetFrac)));
 
-		// available "safe" area after inset (like your diagram)
 		const safeW = Math.max(1, w - inset * 2);
 		const safeH = Math.max(1, h - inset * 2);
 		const safeMin = Math.min(safeW, safeH);
 
-		// ROI side length as a fraction of the safe area
 		const s = Math.max(64, Math.round(safeMin * clamp01(roiFrac)));
 
-		// Clamp to safe area in case of small images / large inset
 		const ww = Math.max(1, Math.min(s, safeW));
 		const hh = Math.max(1, Math.min(s, safeH));
 
@@ -599,17 +465,12 @@
 	}
 
 	function createORB(cv: any) {
-		// OpenCV.js builds differ; try common creation patterns
 		try {
 			if (cv.ORB && typeof cv.ORB.create === 'function') return cv.ORB.create();
-		} catch {
-			// ignore
-		}
+		} catch {}
 		try {
 			if (typeof cv.ORB === 'function') return new cv.ORB();
-		} catch {
-			// ignore
-		}
+		} catch {}
 		return null;
 	}
 
@@ -669,7 +530,6 @@
 			const mCount = matches.size();
 			if (!mCount || mCount < opts.minGoodMatches) return null;
 
-			// gather + sort by distance
 			const ms: { queryIdx: number; trainIdx: number; distance: number }[] = [];
 			for (let i = 0; i < mCount; i++) {
 				const m = matches.get(i);
@@ -681,7 +541,6 @@
 			if (!best) return null;
 			if (best.distance > opts.maxAcceptableDistance) return null;
 
-			// Keep a small "good" set near the best match to reduce outliers
 			const distGate = Math.min(opts.maxAcceptableDistance, best.distance * 1.5 + 8);
 			const good = ms.filter((m) => m.distance <= distGate).slice(0, 20);
 
@@ -730,13 +589,13 @@
 				matcher?.delete?.();
 				matches?.delete?.();
 			} catch {
-				// ignore cleanup failures
+				// ignore
 			}
 		}
 	}
 
 	/* -------------------------------------------------
-	   OpenCV
+	   OpenCV loading + compute
 	------------------------------------------------- */
 
 	function ensureOpenCV(): Promise<void> {
@@ -799,15 +658,15 @@
 	let canCompute = false;
 	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
 
-	$: if (canCompute && pairs.length >= 4 && !autoComputedOnce && !computing) {
-		// only kick off once after the initial 4-point seed (or after a reset)
-		autoComputedOnce = true;
-		void compute();
-	}
-
+	let autoComputedOnce = false;
 	let computing = false;
 	let computeQueued = false;
 	let autoTimer: any = null;
+
+	$: if (canCompute && pairs.length >= 4 && !autoComputedOnce && !computing) {
+		autoComputedOnce = true;
+		void compute();
+	}
 
 	function requestAutoCompute() {
 		if (!canCompute) return;
@@ -906,7 +765,6 @@
 			movingMat.delete();
 			dstMat.delete();
 
-			// ✅ Only compute the warped bitmap once per compute
 			warpedUrl = warpCanvas.toDataURL('image/png');
 			warpedRefreshKey += 1;
 
@@ -955,50 +813,6 @@
 	------------------------------------------------- */
 
 	onMount(async () => {
-		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-		if (srcEl) srcViewer = makeViewer(srcEl);
-		if (tgtEl) tgtViewer = makeViewer(tgtEl);
-
-		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
-		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
-
-		if (srcViewer && tgtViewer) {
-			syncZoom(srcViewer, tgtViewer);
-			syncZoom(tgtViewer, srcViewer);
-
-			syncHome(srcViewer, tgtViewer);
-			syncHome(tgtViewer, srcViewer);
-		}
-
-		// Add points by clicking Source (base)
-		srcViewer?.addHandler('canvas-click', (ev: any) => {
-			if (!srcViewer) return;
-			if (!ev?.quick) return;
-
-			const oe = ev.originalEvent as MouseEvent;
-			if (isMarkerEventFromOriginalEvent(oe)) return;
-			if (requireShiftToAdd && !oe.shiftKey) return;
-			if (pairs.length >= maxPairs) return;
-
-			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
-			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
-			const size = getContentSize(srcViewer);
-			if (!size) return;
-
-			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
-
-			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
-			adjustIndex = pairs.length - 1;
-
-			resultFocus = { ...basePt };
-			centerOn(tgtViewer, { ...basePt }, false);
-
-			computed = null;
-			refreshOverlays();
-			requestAutoCompute();
-		});
-
 		try {
 			await ensureOpenCV();
 			cvReady = true;
@@ -1008,26 +822,19 @@
 	});
 
 	onDestroy(() => {
-		stopDrag();
-		srcViewer?.destroy();
-		tgtViewer?.destroy();
+		clearTimeout(autoTimer);
 	});
-
-	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
-	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
 
 	/* -------------------------------------------------
 	   UI helpers
 	------------------------------------------------- */
-
-	let autoComputedOnce = false;
 
 	function removePair(i: number) {
 		pairs = pairs.filter((_, idx) => idx !== i);
 		if (pairs.length === 0) adjustIndex = null;
 		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
 
-		refreshOverlays();
+		computed = null;
 		requestAutoCompute();
 	}
 
@@ -1039,14 +846,13 @@
 		warpedRefreshKey += 1;
 		resultFocus = null;
 		autoComputedOnce = false;
-		refreshOverlays();
 	}
 
 	function undoLast() {
 		if (!pairs.length) return;
 		pairs = pairs.slice(0, -1);
 		adjustIndex = pairs.length ? pairs.length - 1 : null;
-		refreshOverlays();
+		computed = null;
 		requestAutoCompute();
 	}
 
@@ -1054,12 +860,10 @@
 		return Math.max(min, Math.min(max, v));
 	}
 
-	// Convert wheel delta to "pixel-ish" units (handles Shift+wheel using deltaX)
 	function wheelPixels(e: WheelEvent) {
 		const dominant =
 			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
 
-		// deltaMode: 0=pixels, 1=lines, 2=pages
 		if (e.deltaMode === 1) return dominant * 16;
 		if (e.deltaMode === 2) return dominant * 800;
 		return dominant;
@@ -1082,11 +886,7 @@
 		wheelRaf = requestAnimationFrame(() => {
 			wheelRaf = 0;
 
-			// TUNE THIS:
-			// 0.05 means ~5% opacity change for a ~100px wheel tick (common for mice)
 			const sensitivityPctPerPx = 0.05;
-
-			// Scroll up/left should increase opacity
 			const deltaPct = -wheelPendingPx * sensitivityPctPerPx;
 			wheelPendingPx = 0;
 
@@ -1132,15 +932,34 @@
 		<div class="workspace">
 			<div class="pink-row">
 				<div class="stack">
-					<section class="panel">
-						<header>Source (base)</header>
-						<div class="osd" bind:this={srcEl} />
-					</section>
+					<OsdPointPanel
+						title="Source (base)"
+						url={sourceUrl}
+						{drawer}
+						points={sourcePoints}
+						activeIndex={adjustIndex}
+						allowAdd={true}
+						{requireShiftToAdd}
+						maxPoints={maxPairs}
+						onAdd={addPairFromSource}
+						onSelect={selectPair}
+						onMove={moveSourcePoint}
+						onOpen={(s) => (srcSize = s)}
+						bind:viewer={srcViewer}
+					/>
 
-					<section class="panel">
-						<header>Target (moving)</header>
-						<div class="osd" bind:this={tgtEl} />
-					</section>
+					<OsdPointPanel
+						title="Target (moving)"
+						url={targetUrl}
+						{drawer}
+						points={targetPoints}
+						activeIndex={adjustIndex}
+						allowAdd={false}
+						onSelect={selectPair}
+						onMove={moveTargetPoint}
+						onOpen={(s) => (tgtSize = s)}
+						bind:viewer={tgtViewer}
+					/>
 				</div>
 
 				<section class="panel">
@@ -1321,7 +1140,7 @@
 
 	.pink-row {
 		display: grid;
-		grid-template-columns: 0.95fr 1.4fr; /* left stack, bigger result */
+		grid-template-columns: 0.95fr 1.4fr;
 		gap: 10px;
 		min-height: 420px;
 		height: 100%;
@@ -1330,7 +1149,7 @@
 
 	.stack {
 		display: grid;
-		grid-template-rows: 1fr 1fr; /* Source above Target */
+		grid-template-rows: 1fr 1fr;
 		gap: 10px;
 		min-height: 0;
 	}
@@ -1384,16 +1203,6 @@
 		color: #334155;
 	}
 
-	.osd {
-		flex: 1;
-		background: rgba(255, 255, 255, 0.65);
-	}
-
-	.result-shell {
-		flex: 1;
-		min-height: 0;
-	}
-
 	.result-empty {
 		padding: 12px;
 		font-size: 0.85rem;
@@ -1418,60 +1227,6 @@
 		padding: 0.75rem;
 	}
 
-	/* ---------- Marker styling ---------- */
-	:global(.kp) {
-		position: absolute;
-		transform: translate(-50%, -50%);
-		touch-action: none;
-		cursor: crosshair;
-		pointer-events: auto;
-	}
-
-	:global(.kp-ring) {
-		width: 18px;
-		height: 18px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.8);
-		border: 2px solid rgba(17, 24, 39, 0.75);
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-		display: grid;
-		place-items: center;
-	}
-
-	:global(.kp-dot) {
-		width: 4px;
-		height: 4px;
-		border-radius: 999px;
-		background: rgba(17, 24, 39, 0.95);
-	}
-
-	:global(.kp-label) {
-		position: absolute;
-		left: 100%;
-		top: 0;
-		transform: translate(6px, -8px);
-		padding: 2px 6px;
-		border-radius: 999px;
-		font-size: 11px;
-		font-weight: 800;
-		background: rgba(17, 24, 39, 0.9);
-		color: white;
-		border: 1px solid rgba(255, 255, 255, 0.22);
-		pointer-events: none;
-	}
-
-	:global(.kp.active .kp-ring) {
-		outline: 2px solid rgba(2, 132, 199, 0.85);
-		outline-offset: 2px;
-	}
-
-	:global(.kp.dragging .kp-ring) {
-		background: transparent;
-	}
-
-	:global(.kp.dragging .kp-dot) {
-		opacity: 0;
-	}
 	.result-wheel-capture {
 		height: 100%;
 		min-height: 0;
