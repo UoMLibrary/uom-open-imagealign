@@ -15,7 +15,7 @@
 
 	let LeftPanelOpen = true;
 
-	let strategy: AlignStrategy = 'affine';
+	let strategy: AlignStrategy = 'manual';
 
 	let selectedGroupId: string | null = null;
 

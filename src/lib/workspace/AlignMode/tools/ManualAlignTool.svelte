@@ -1,53 +1,66 @@
-<script context="module" lang="ts">
+<script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+	import OpenSeadragon from 'openseadragon';
 	import type { ImageAlignment } from '$lib/core/types';
+
+	import ResultPanel from './ResultPanel.svelte';
+	import PointPairs from './PointPairs.svelte';
+	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 
 	export type AlignmentDraft = {
 		confidence?: number;
 		transform: ImageAlignment['transform'];
 		methodData?: Record<string, any>;
 	};
-</script>
 
-<script lang="ts">
-	import { onMount } from 'svelte';
-
-	export let targetUrl: string;
-	export let sourceUrl: string;
+	export let sourceUrl: string; // base
+	export let targetUrl: string; // moving
 	export let existingAlignment: ImageAlignment | null = null;
 
-	// Svelte 5 callback prop
 	export let onSave: (draft: AlignmentDraft) => void;
 
 	export let opencvSrc = 'https://docs.opencv.org/4.x/opencv.js';
+	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
-	export let maxPairs = 80;
-
+	export let maxPairs = 120;
 	export let ransacReprojThreshold = 4.0;
 	export let ransacMaxIters = 2000;
 	export let ransacConfidence = 0.995;
 
-	export let defaultGridRows = 4;
-	export let defaultGridCols = 4;
-	export let defaultGridMargin = 0.08;
+	export let requireShiftToAdd = true;
 
 	type Pt = { x: number; y: number }; // normalised 0..1
-	type GridMeta = { row: number; col: number } | null;
-	type Pair = { target: Pt; source: Pt; grid: GridMeta };
+	type Pair = { source: Pt; target: Pt };
 
-	let targetImg: HTMLImageElement | null = null;
-	let sourceImg: HTMLImageElement | null = null;
-	let targetWrap: HTMLDivElement | null = null;
-	let sourceWrap: HTMLDivElement | null = null;
+	let pairs: Pair[] = [];
+	let adjustIndex: number | null = null;
 
-	let previewCanvas: HTMLCanvasElement | null = null;
+	let overlayOpacityPct = 60; // 0..100 (UI)
+	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
 
+	// OpenCV
 	let cvReady = false;
 	let cvError: string | null = null;
 
-	let pairs: Pair[] = [];
-	let overlayOpacity = 60;
+	// OSD
+	let srcEl: HTMLDivElement | null = null;
+	let tgtEl: HTMLDivElement | null = null;
 
-	let adjustIndex: number | null = null;
+	let srcViewer: OpenSeadragon.Viewer | null = null;
+	let tgtViewer: OpenSeadragon.Viewer | null = null;
+
+	let srcSize: { w: number; h: number } | null = null;
+	let tgtSize: { w: number; h: number } | null = null;
+
+	// Warped output (data URL) + refresh key
+	let warpedUrl: string | null = null;
+	let warpedRefreshKey = 0;
+
+	// Focus point for result panel (in source/base normalised space)
+	let resultFocus: Pt | null = null;
+
+	// Cached canvas for warp output
+	let warpCanvas: HTMLCanvasElement | null = null;
 
 	let computed: {
 		transform: ImageAlignment['transform'];
@@ -55,286 +68,675 @@
 		methodData?: any;
 	} | null = null;
 
-	let toast: string | null = null;
-	let toastTimer: any = null;
+	let RightPanelOpen = true;
 
-	let gridRows = defaultGridRows;
-	let gridCols = defaultGridCols;
-	let gridMargin = defaultGridMargin;
-
-	let lockToGridCells = true;
-	let gridActive = false;
-
-	let gridXs: number[] | null = null;
-	let gridYs: number[] | null = null;
-
-	function showToast(msg: string) {
-		toast = msg;
-		clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toast = null), 1800);
-	}
+	/* -------------------------------------------------
+	   Helpers
+	------------------------------------------------- */
 
 	function clamp01(v: number) {
 		return Math.max(0, Math.min(1, v));
 	}
 
-	function pointFromEvent(e: MouseEvent | PointerEvent, wrap: HTMLDivElement): Pt {
-		const r = wrap.getBoundingClientRect();
-		const x = clamp01((e.clientX - r.left) / r.width);
-		const y = clamp01((e.clientY - r.top) / r.height);
-		return { x, y };
-	}
-
-	function toPx(pt: Pt, img: HTMLImageElement) {
-		return {
-			x: pt.x * img.naturalWidth,
-			y: pt.y * img.naturalHeight
-		};
-	}
-
-	/** ✅ True if the event started from a marker (prevents wrapper click adding points). */
-	function isMarkerEvent(e: Event) {
-		const el = e.target as HTMLElement | null;
+	function isMarkerEventFromOriginalEvent(originalEvent: any) {
+		const el = (originalEvent?.target as HTMLElement | null) ?? null;
 		return !!el?.closest?.('.kp');
 	}
 
+	function getContentSize(viewer: OpenSeadragon.Viewer) {
+		const item = viewer.world.getItemAt(0);
+		if (!item) return null;
+		const sz = item.getContentSize();
+		return { w: sz.x, h: sz.y };
+	}
+
+	function normToViewportPoint(viewer: OpenSeadragon.Viewer, pt: Pt) {
+		const size = getContentSize(viewer);
+		if (!size) return null;
+		const imgPoint = new OpenSeadragon.Point(pt.x * size.w, pt.y * size.h);
+		return viewer.viewport.imageToViewportCoordinates(imgPoint);
+	}
+
+	function clientToNorm(viewer: OpenSeadragon.Viewer, clientX: number, clientY: number): Pt | null {
+		const size = getContentSize(viewer);
+		if (!size) return null;
+
+		const rect = viewer.container.getBoundingClientRect();
+		const px = clientX - rect.left;
+		const py = clientY - rect.top;
+
+		const pixelPoint = new OpenSeadragon.Point(px, py);
+		const vpPoint = viewer.viewport.pointFromPixel(pixelPoint, true);
+		const imgPoint = viewer.viewport.viewportToImageCoordinates(vpPoint);
+
+		return { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
+	}
+
+	function centerOn(viewer: OpenSeadragon.Viewer | null, pt: Pt, immediate = false) {
+		if (!viewer) return;
+		const vp = normToViewportPoint(viewer, pt);
+		if (!vp) return;
+		viewer.viewport.panTo(vp, immediate);
+	}
+
+	function centerOnPair(i: number, immediate = false) {
+		const p = pairs[i];
+		if (!p) return;
+
+		centerOn(srcViewer, p.source, immediate);
+		centerOn(tgtViewer, p.target, immediate);
+
+		resultFocus = { ...p.source };
+	}
+
+	function selectPair(i: number) {
+		adjustIndex = i;
+		refreshOverlays();
+		centerOnPair(i, false);
+	}
+
+	function getMouseNavEnabled(viewer: OpenSeadragon.Viewer): boolean {
+		const v: any = viewer as any;
+		if (typeof v.isMouseNavEnabled === 'function') return v.isMouseNavEnabled();
+		return true;
+	}
+
 	/* -------------------------------------------------
-	   Grid helpers
+	   OSD viewer setup
 	------------------------------------------------- */
 
-	function linspace(n: number, a: number, b: number) {
-		if (n <= 1) return [0.5 * (a + b)];
-		const out: number[] = [];
-		for (let i = 0; i < n; i++) out.push(a + (i * (b - a)) / (n - 1));
-		return out;
+	function makeViewer(el: HTMLElement) {
+		return OpenSeadragon({
+			element: el,
+			prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@5.0/build/openseadragon/images/',
+			showNavigator: true,
+			autoResize: true,
+			drawer,
+			crossOriginPolicy: 'Anonymous',
+			keyboardNavEnabled: false,
+			gestureSettingsKeyboard: { rotate: false },
+			gestureSettingsMouse: {
+				dragToPan: true,
+				clickToZoom: false,
+				scrollToZoom: true,
+				dblClickToZoom: false,
+				pinchToZoom: true,
+				dragToPanButton: true
+			},
+			minZoomLevel: 0.1,
+			maxZoomLevel: 20,
+			maxZoomPixelRatio: 5,
+			showFullPageControl: false,
+			showHomeControl: true,
+			showZoomControl: true
+		});
 	}
 
-	function cellBounds(axis: number[], idx: number) {
-		const left = idx === 0 ? 0 : (axis[idx - 1] + axis[idx]) / 2;
-		const right = idx === axis.length - 1 ? 1 : (axis[idx] + axis[idx + 1]) / 2;
-		return { left, right };
+	function openImage(viewer: OpenSeadragon.Viewer, url: string) {
+		viewer.addOnceHandler('open', () => {
+			if (viewer === srcViewer) srcSize = getContentSize(viewer);
+			if (viewer === tgtViewer) tgtSize = getContentSize(viewer);
+			refreshOverlays();
+		});
+		viewer.open({ type: 'image', url });
 	}
 
-	function clampToCell(pt: Pt, meta: GridMeta) {
-		if (!meta || !gridXs || !gridYs) return pt;
+	/* -------------------------------------------------
+	   Zoom sync + home sync (Source <-> Target)
+	------------------------------------------------- */
 
-		const xb = cellBounds(gridXs, meta.col);
-		const yb = cellBounds(gridYs, meta.row);
+	let syncingZoom = false;
+	let syncingHome = false;
 
-		return {
-			x: clamp01(Math.max(xb.left, Math.min(xb.right, pt.x))),
-			y: clamp01(Math.max(yb.left, Math.min(yb.right, pt.y)))
-		};
+	function getImageZoomTarget(viewer: OpenSeadragon.Viewer) {
+		const vpTargetZoom = viewer.viewport.getZoom(false);
+		return viewer.viewport.viewportToImageZoom(vpTargetZoom);
 	}
 
-	function seedGrid() {
-		if (gridRows < 2 || gridCols < 2) {
-			showToast('Grid needs at least 2×2');
-			return;
-		}
+	function setImageZoomTarget(viewer: OpenSeadragon.Viewer, imageZoom: number) {
+		const vpTargetZoom = viewer.viewport.imageToViewportZoom(imageZoom);
+		const center = viewer.viewport.getCenter(true);
+		viewer.viewport.zoomTo(vpTargetZoom, center, false);
+	}
 
-		const m = clamp01(gridMargin);
-		gridXs = linspace(gridCols, m, 1 - m);
-		gridYs = linspace(gridRows, m, 1 - m);
-
-		const next: Pair[] = [];
-		for (let r = 0; r < gridRows; r++) {
-			for (let c = 0; c < gridCols; c++) {
-				if (next.length >= maxPairs) break;
-				const p = { x: gridXs[c], y: gridYs[r] };
-				next.push({
-					target: { ...p },
-					source: { ...p },
-					grid: { row: r, col: c }
-				});
+	function syncZoom(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		const apply = () => {
+			if (syncingZoom) return;
+			syncingZoom = true;
+			try {
+				const iz = getImageZoomTarget(from);
+				setImageZoomTarget(to, iz);
+			} finally {
+				queueMicrotask(() => (syncingZoom = false));
 			}
-		}
+		};
 
-		pairs = next;
-		adjustIndex = pairs.length ? 0 : null;
-		gridActive = true;
-		computed = null;
-
-		showToast(`Seeded ${pairs.length} grid points`);
+		from.addHandler('zoom', apply);
+		from.addHandler('animation-finish', apply);
 	}
 
-	function clearGrid() {
-		gridActive = false;
-		gridXs = null;
-		gridYs = null;
-		lockToGridCells = true;
+	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
+		const homeVpZoom = viewer.viewport.getHomeZoom();
+		return viewer.viewport.viewportToImageZoom(homeVpZoom);
 	}
 
-	/* -------------------------------------------------
-	   Add points (manual) - TARGET ONLY
-	   ✅ Wrapper click adds new points, but marker interactions don't.
-	------------------------------------------------- */
+	function syncHome(from: OpenSeadragon.Viewer, to: OpenSeadragon.Viewer) {
+		from.addHandler('home', () => {
+			if (syncingHome) return;
+			syncingHome = true;
 
-	function onTargetClick(e: MouseEvent) {
-		if (!targetWrap) return;
+			const homeImageZoom = getHomeImageZoom(from);
 
-		// ✅ Don’t add points when the user clicked/dragged a marker
-		if (isMarkerEvent(e)) return;
-		if (drag) return;
+			from.viewport.goHome(false);
+			to.viewport.goHome(false);
 
-		if (pairs.length >= maxPairs) {
-			showToast(`Max ${maxPairs} point pairs`);
-			return;
-		}
+			setImageZoomTarget(from, homeImageZoom);
+			setImageZoomTarget(to, homeImageZoom);
 
-		const pt = pointFromEvent(e, targetWrap);
-
-		pairs = [...pairs, { target: pt, source: { ...pt }, grid: null }];
-		adjustIndex = pairs.length - 1;
-		computed = null;
-	}
-
-	function undoLast() {
-		if (pairs.length === 0) return;
-		pairs = pairs.slice(0, -1);
-		adjustIndex = pairs.length ? pairs.length - 1 : null;
-		computed = null;
-	}
-
-	function resetAll() {
-		pairs = [];
-		adjustIndex = null;
-		computed = null;
-		clearGrid();
-	}
-
-	function removePair(idx: number) {
-		pairs = pairs.filter((_, i) => i !== idx);
-		if (pairs.length === 0) {
-			adjustIndex = null;
-		} else if (adjustIndex != null) {
-			adjustIndex = Math.min(adjustIndex, pairs.length - 1);
-		}
-		computed = null;
-	}
-
-	/* -------------------------------------------------
-	   Bulk “grid-ish” transforms for SOURCE points
-	------------------------------------------------- */
-
-	function centroid(pts: Pt[]) {
-		if (pts.length === 0) return { x: 0.5, y: 0.5 };
-		let sx = 0,
-			sy = 0;
-		for (const p of pts) {
-			sx += p.x;
-			sy += p.y;
-		}
-		return { x: sx / pts.length, y: sy / pts.length };
-	}
-
-	function translateSource(dx: number, dy: number) {
-		if (pairs.length === 0) return;
-		const next = pairs.map((p) => {
-			let s = { x: clamp01(p.source.x + dx), y: clamp01(p.source.y + dy) };
-			if (lockToGridCells) s = clampToCell(s, p.grid);
-			return { ...p, source: s };
-		});
-		pairs = next;
-		computed = null;
-	}
-
-	function scaleSource(f: number) {
-		if (pairs.length === 0) return;
-		const c = centroid(pairs.map((p) => p.source));
-		const next = pairs.map((p) => {
-			let s = {
-				x: clamp01(c.x + (p.source.x - c.x) * f),
-				y: clamp01(c.y + (p.source.y - c.y) * f)
+			let remaining = 2;
+			const done = () => {
+				remaining -= 1;
+				if (remaining <= 0) syncingHome = false;
 			};
-			if (lockToGridCells) s = clampToCell(s, p.grid);
-			return { ...p, source: s };
+
+			from.addOnceHandler('animation-finish', done);
+			to.addOnceHandler('animation-finish', done);
+
+			setTimeout(() => (syncingHome = false), 700);
 		});
-		pairs = next;
-		computed = null;
-	}
-
-	function rotateSource(deg: number) {
-		if (pairs.length === 0) return;
-		const rad = (deg * Math.PI) / 180;
-		const c = centroid(pairs.map((p) => p.source));
-		const cos = Math.cos(rad);
-		const sin = Math.sin(rad);
-
-		const next = pairs.map((p) => {
-			const x = p.source.x - c.x;
-			const y = p.source.y - c.y;
-			let s = {
-				x: clamp01(c.x + x * cos - y * sin),
-				y: clamp01(c.y + x * sin + y * cos)
-			};
-			if (lockToGridCells) s = clampToCell(s, p.grid);
-			return { ...p, source: s };
-		});
-
-		pairs = next;
-		computed = null;
 	}
 
 	/* -------------------------------------------------
-	   Dragging points (updates normalised coords)
-	   ✅ Source points are adjusted by dragging ONLY.
+	   Markers
 	------------------------------------------------- */
+
+	function createMarkerEl(label: string, active: boolean) {
+		const el = document.createElement('div');
+		el.className = 'kp' + (active ? ' active' : '');
+		el.innerHTML = `
+			<div class="kp-ring"><div class="kp-dot"></div></div>
+			<div class="kp-label">${label}</div>
+		`;
+		return el;
+	}
+
+	function placeOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+		const vp = normToViewportPoint(viewer, pt);
+		if (!vp) return;
+		viewer.addOverlay({ element: el, location: vp, placement: OpenSeadragon.Placement.CENTER });
+	}
+
+	function updateOverlayPoint(viewer: OpenSeadragon.Viewer, el: HTMLElement, pt: Pt) {
+		const vp = normToViewportPoint(viewer, pt);
+		if (!vp) return;
+		viewer.updateOverlay(el, vp, OpenSeadragon.Placement.CENTER);
+	}
 
 	type DragState = {
-		side: 'target' | 'source';
+		side: 'source' | 'target';
 		index: number;
+		viewer: OpenSeadragon.Viewer;
+		el: HTMLElement;
 		pointerId: number;
+		temp: Pt | null;
+		navEnabledBefore: boolean;
 	};
 
 	let drag: DragState | null = null;
+
+	function refreshOverlays() {
+		if (drag) return;
+
+		srcViewer?.clearOverlays();
+		tgtViewer?.clearOverlays();
+
+		if (!srcViewer || !tgtViewer) return;
+
+		pairs.forEach((p, i) => {
+			const isActive = i === adjustIndex;
+
+			const sEl = createMarkerEl(String(i + 1), isActive);
+			sEl.addEventListener('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				selectPair(i);
+			});
+			sEl.addEventListener('pointerdown', (e) =>
+				startDrag(e as PointerEvent, 'source', i, srcViewer!, sEl)
+			);
+			placeOverlayPoint(srcViewer!, sEl, p.source);
+
+			const tEl = createMarkerEl(String(i + 1), isActive);
+			tEl.addEventListener('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				selectPair(i);
+			});
+			tEl.addEventListener('pointerdown', (e) =>
+				startDrag(e as PointerEvent, 'target', i, tgtViewer!, tEl)
+			);
+			placeOverlayPoint(tgtViewer!, tEl, p.target);
+		});
+	}
 
 	function startDrag(
 		e: PointerEvent,
 		side: 'target' | 'source',
 		index: number,
-		wrap: HTMLDivElement
+		viewer: OpenSeadragon.Viewer,
+		el: HTMLElement
 	) {
 		e.preventDefault();
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-		drag = { side, index, pointerId: e.pointerId };
+		e.stopPropagation();
 
-		if (side === 'source') adjustIndex = index;
+		el.setPointerCapture(e.pointerId);
+		el.classList.add('dragging');
 
-		let pt = pointFromEvent(e, wrap);
-		const p = pairs[index];
-		if (p && lockToGridCells) pt = clampToCell(pt, p.grid);
+		const navEnabledBefore = getMouseNavEnabled(viewer);
+		viewer.setMouseNavEnabled(false);
 
-		updatePoint(side, index, pt);
+		drag = { side, index, viewer, el, pointerId: e.pointerId, temp: null, navEnabledBefore };
+		adjustIndex = index;
+
+		window.addEventListener('pointermove', onDragMove, { passive: false });
+		window.addEventListener('pointerup', onDragEnd, { passive: false });
+		window.addEventListener('pointercancel', onDragEnd, { passive: false });
 	}
 
-	function moveDrag(e: PointerEvent, wrap: HTMLDivElement) {
+	function onDragMove(e: PointerEvent) {
 		if (!drag) return;
+		if (e.pointerId !== drag.pointerId) return;
 
-		let pt = pointFromEvent(e, wrap);
-		const p = pairs[drag.index];
-		if (p && lockToGridCells) pt = clampToCell(pt, p.grid);
+		e.preventDefault();
 
-		updatePoint(drag.side, drag.index, pt);
+		const pt = clientToNorm(drag.viewer, e.clientX, e.clientY);
+		if (!pt) return;
+
+		drag.temp = pt;
+		updateOverlayPoint(drag.viewer, drag.el, pt);
 	}
 
-	function endDrag() {
+	function onDragEnd(e: PointerEvent) {
 		if (!drag) return;
-		drag = null;
-		computed = null;
-	}
+		if (e.pointerId !== drag.pointerId) return;
 
-	function updatePoint(side: 'target' | 'source', index: number, pt: Pt) {
-		const p = pairs[index];
-		if (!p) return;
+		e.preventDefault();
+
+		const { side, index, temp, viewer, navEnabledBefore } = drag;
+		stopDrag();
+		viewer.setMouseNavEnabled(navEnabledBefore);
+
+		if (!temp) {
+			refreshOverlays();
+			return;
+		}
 
 		const next = [...pairs];
-		next[index] = side === 'target' ? { ...p, target: pt } : { ...p, source: pt };
+		const p = next[index];
+		if (!p) return;
+
+		next[index] = side === 'source' ? { ...p, source: temp } : { ...p, target: temp };
 		pairs = next;
+
+		resultFocus = { ...next[index].source };
+
+		computed = null;
+		refreshOverlays();
+		requestAutoCompute();
+	}
+
+	function stopDrag() {
+		window.removeEventListener('pointermove', onDragMove);
+		window.removeEventListener('pointerup', onDragEnd);
+		window.removeEventListener('pointercancel', onDragEnd);
+
+		if (drag?.el) drag.el.classList.remove('dragging');
+		drag = null;
 	}
 
 	/* -------------------------------------------------
-	   OpenCV loader
+	   Initial 4 points (plain + smart-match)
+	------------------------------------------------- */
+
+	type Corner = 'tl' | 'tr' | 'br' | 'bl';
+
+	function makeInsetCornerPoints(inset = 0.07): Pt[] {
+		const d = clamp01(inset);
+		return [
+			{ x: d, y: d }, // tl
+			{ x: 1 - d, y: d }, // tr
+			{ x: 1 - d, y: 1 - d }, // br
+			{ x: d, y: 1 - d } // bl
+		];
+	}
+
+	function seedFromPts(pts: Pt[]) {
+		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
+		adjustIndex = 0;
+
+		// ensure UI knows we need a fresh compute
+		computed = null;
+		warpedUrl = null;
+		autoComputedOnce = false;
+
+		refreshOverlays();
+		centerOnPair(0, false);
+		requestAutoCompute();
+	}
+
+	function addInitial4Points(inset = 0.07) {
+		if (pairs.length) return;
+		seedFromPts(makeInsetCornerPoints(inset));
+	}
+
+	/**
+	 * Smart version (with ROI inset to reduce edge/background noise):
+	 * - Picks a square ROI in each corner on each image, but inset away from the image edges
+	 * - Uses ORB feature matching ROI-to-ROI (TL↔TL etc.)
+	 * - If matches look good, uses the median matched keypoint as the corner point
+	 * - Otherwise falls back to the usual inset-corner point for that corner
+	 *
+	 * NOTE: This expects `cornerRectPx(...)` to accept an extra `insetFrac`:
+	 *   cornerRectPx(w, h, corner, roiFrac, insetFrac, cv)
+	 */
+	async function addInitial4PointsSmart(inset = 0.07) {
+		if (pairs.length) return;
+
+		const fallbackPts = makeInsetCornerPoints(inset);
+		const fallbackPairs = fallbackPts.map((p) => ({ source: { ...p }, target: { ...p } }));
+
+		// If OpenCV isn't ready (yet), just do the existing behaviour.
+		if (!cvReady) {
+			pairs = fallbackPairs;
+			adjustIndex = 0;
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+			return;
+		}
+
+		const cv = (window as any).cv as any;
+		if (!cv) {
+			seedFromPts(fallbackPts);
+			return;
+		}
+
+		// Tuning knobs
+		const cornerRoiFrac = 0.35; // ROI size (fraction of "safe" min dimension if using inset-aware cornerRectPx)
+		const cornerInsetFrac = Math.max(0, Math.min(0.15, inset)); // inset ROI away from image edges (use inset param, clamped)
+		const minGoodMatches = 4;
+		const maxAcceptableDistance = 60;
+
+		let baseRGBA: any = null;
+		let movRGBA: any = null;
+		let baseGray: any = null;
+		let movGray: any = null;
+
+		try {
+			baseRGBA = await imreadNatural(sourceUrl, cv);
+			movRGBA = await imreadNatural(targetUrl, cv);
+
+			baseGray = rgbaToGray(baseRGBA, cv);
+			movGray = rgbaToGray(movRGBA, cv);
+
+			const baseW = baseGray.cols;
+			const baseH = baseGray.rows;
+			const movW = movGray.cols;
+			const movH = movGray.rows;
+
+			const corners: Corner[] = ['tl', 'tr', 'br', 'bl'];
+			const nextPairs: Pair[] = [];
+
+			for (let i = 0; i < corners.length; i++) {
+				const c = corners[i];
+				const fallback = fallbackPts[i];
+
+				// Inset ROIs to avoid desk/binding noise around the image edges
+				const baseRect = cornerRectPx(baseW, baseH, c, cornerRoiFrac, cornerInsetFrac, cv);
+				const movRect = cornerRectPx(movW, movH, c, cornerRoiFrac, cornerInsetFrac, cv);
+
+				let match = matchCornerROI(baseGray, movGray, baseRect, movRect, cv, {
+					minGoodMatches,
+					maxAcceptableDistance
+				});
+
+				// Optional "second chance": if inset ROI fails, try the edge-pinned ROI before falling back
+				if (!match && cornerInsetFrac > 0) {
+					const baseRect2 = cornerRectPx(baseW, baseH, c, cornerRoiFrac, 0, cv);
+					const movRect2 = cornerRectPx(movW, movH, c, cornerRoiFrac, 0, cv);
+
+					match = matchCornerROI(baseGray, movGray, baseRect2, movRect2, cv, {
+						minGoodMatches,
+						maxAcceptableDistance
+					});
+				}
+
+				if (match) {
+					nextPairs.push({
+						source: { x: clamp01(match.base.x / baseW), y: clamp01(match.base.y / baseH) },
+						target: { x: clamp01(match.moving.x / movW), y: clamp01(match.moving.y / movH) }
+					});
+				} else {
+					nextPairs.push({ source: { ...fallback }, target: { ...fallback } });
+				}
+			}
+
+			pairs = nextPairs;
+			adjustIndex = 0;
+
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+		} catch (err) {
+			// any failure → behave exactly like the old button
+			pairs = fallbackPairs;
+			adjustIndex = 0;
+
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+		} finally {
+			try {
+				baseRGBA?.delete?.();
+				movRGBA?.delete?.();
+				baseGray?.delete?.();
+				movGray?.delete?.();
+			} catch {
+				// ignore
+			}
+		}
+	}
+
+	function rgbaToGray(rgba: any, cv: any) {
+		const gray = new cv.Mat();
+		cv.cvtColor(rgba, gray, cv.COLOR_RGBA2GRAY, 0);
+		// mild normalize to help across lighting differences
+		try {
+			cv.equalizeHist(gray, gray);
+		} catch {
+			// equalizeHist can fail if type isn't 8U; cvtColor should make it 8U though
+		}
+		return gray;
+	}
+
+	function cornerRectPx(
+		w: number,
+		h: number,
+		corner: Corner,
+		roiFrac: number,
+		insetFrac: number,
+		cv: any
+	) {
+		const inset = Math.max(0, Math.round(Math.min(w, h) * clamp01(insetFrac)));
+
+		// available "safe" area after inset (like your diagram)
+		const safeW = Math.max(1, w - inset * 2);
+		const safeH = Math.max(1, h - inset * 2);
+		const safeMin = Math.min(safeW, safeH);
+
+		// ROI side length as a fraction of the safe area
+		const s = Math.max(64, Math.round(safeMin * clamp01(roiFrac)));
+
+		// Clamp to safe area in case of small images / large inset
+		const ww = Math.max(1, Math.min(s, safeW));
+		const hh = Math.max(1, Math.min(s, safeH));
+
+		const x0 = corner === 'tr' || corner === 'br' ? inset + (safeW - ww) : inset;
+		const y0 = corner === 'bl' || corner === 'br' ? inset + (safeH - hh) : inset;
+
+		return new cv.Rect(x0, y0, ww, hh);
+	}
+
+	function createORB(cv: any) {
+		// OpenCV.js builds differ; try common creation patterns
+		try {
+			if (cv.ORB && typeof cv.ORB.create === 'function') return cv.ORB.create();
+		} catch {
+			// ignore
+		}
+		try {
+			if (typeof cv.ORB === 'function') return new cv.ORB();
+		} catch {
+			// ignore
+		}
+		return null;
+	}
+
+	function median(values: number[]) {
+		if (!values.length) return 0;
+		const a = [...values].sort((x, y) => x - y);
+		const mid = Math.floor(a.length / 2);
+		return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+	}
+
+	function matchCornerROI(
+		baseGray: any,
+		movingGray: any,
+		baseRect: any,
+		movingRect: any,
+		cv: any,
+		opts: { minGoodMatches: number; maxAcceptableDistance: number }
+	): { base: { x: number; y: number }; moving: { x: number; y: number } } | null {
+		const orb = createORB(cv);
+		if (!orb) return null;
+
+		let baseRoi: any = null;
+		let movRoi: any = null;
+
+		let kp1: any = null;
+		let kp2: any = null;
+		let des1: any = null;
+		let des2: any = null;
+
+		let mask1: any = null;
+		let mask2: any = null;
+
+		let matcher: any = null;
+		let matches: any = null;
+
+		try {
+			baseRoi = baseGray.roi(baseRect);
+			movRoi = movingGray.roi(movingRect);
+
+			kp1 = new cv.KeyPointVector();
+			kp2 = new cv.KeyPointVector();
+			des1 = new cv.Mat();
+			des2 = new cv.Mat();
+			mask1 = new cv.Mat();
+			mask2 = new cv.Mat();
+
+			orb.detectAndCompute(baseRoi, mask1, kp1, des1);
+			orb.detectAndCompute(movRoi, mask2, kp2, des2);
+
+			if (!des1.rows || !des2.rows || des1.empty?.() || des2.empty?.()) return null;
+			if (!kp1.size?.() || !kp2.size?.()) return null;
+
+			matcher = new cv.BFMatcher(cv.NORM_HAMMING, true);
+			matches = new cv.DMatchVector();
+			matcher.match(des1, des2, matches);
+
+			const mCount = matches.size();
+			if (!mCount || mCount < opts.minGoodMatches) return null;
+
+			// gather + sort by distance
+			const ms: { queryIdx: number; trainIdx: number; distance: number }[] = [];
+			for (let i = 0; i < mCount; i++) {
+				const m = matches.get(i);
+				ms.push({ queryIdx: m.queryIdx, trainIdx: m.trainIdx, distance: m.distance });
+			}
+			ms.sort((a, b) => a.distance - b.distance);
+
+			const best = ms[0];
+			if (!best) return null;
+			if (best.distance > opts.maxAcceptableDistance) return null;
+
+			// Keep a small "good" set near the best match to reduce outliers
+			const distGate = Math.min(opts.maxAcceptableDistance, best.distance * 1.5 + 8);
+			const good = ms.filter((m) => m.distance <= distGate).slice(0, 20);
+
+			if (good.length < opts.minGoodMatches) return null;
+
+			const baseXs: number[] = [];
+			const baseYs: number[] = [];
+			const movXs: number[] = [];
+			const movYs: number[] = [];
+
+			for (const m of good) {
+				const k1 = kp1.get(m.queryIdx);
+				const k2 = kp2.get(m.trainIdx);
+
+				const p1 = k1.pt;
+				const p2 = k2.pt;
+
+				baseXs.push(baseRect.x + p1.x);
+				baseYs.push(baseRect.y + p1.y);
+				movXs.push(movingRect.x + p2.x);
+				movYs.push(movingRect.y + p2.y);
+			}
+
+			return {
+				base: { x: median(baseXs), y: median(baseYs) },
+				moving: { x: median(movXs), y: median(movYs) }
+			};
+		} catch {
+			return null;
+		} finally {
+			try {
+				orb?.delete?.();
+
+				baseRoi?.delete?.();
+				movRoi?.delete?.();
+
+				kp1?.delete?.();
+				kp2?.delete?.();
+
+				des1?.delete?.();
+				des2?.delete?.();
+
+				mask1?.delete?.();
+				mask2?.delete?.();
+
+				matcher?.delete?.();
+				matches?.delete?.();
+			} catch {
+				// ignore cleanup failures
+			}
+		}
+	}
+
+	/* -------------------------------------------------
+	   OpenCV
 	------------------------------------------------- */
 
 	function ensureOpenCV(): Promise<void> {
@@ -370,81 +772,96 @@
 			script.src = opencvSrc;
 			script.async = true;
 			script.dataset.opencv = 'true';
-
 			script.onload = () => waitForReady();
 			script.onerror = () => reject(new Error('Failed to load opencv.js'));
-
 			document.head.appendChild(script);
 		});
 	}
 
-	onMount(async () => {
-		try {
-			await ensureOpenCV();
-			cvReady = true;
-		} catch (e: any) {
-			cvError = e?.message ?? String(e);
-		}
-	});
-
-	function imreadNatural(img: HTMLImageElement, cv: any) {
-		const c = document.createElement('canvas');
-		c.width = img.naturalWidth;
-		c.height = img.naturalHeight;
-
-		const ctx = c.getContext('2d');
-		if (!ctx) throw new Error('Canvas 2D context unavailable');
-
-		ctx.drawImage(img, 0, 0, c.width, c.height);
-		return cv.imread(c);
+	function imreadNatural(url: string, cv: any): Promise<any> {
+		return new Promise((resolve, reject) => {
+			const img = new Image();
+			img.crossOrigin = 'anonymous';
+			img.onload = () => {
+				const c = document.createElement('canvas');
+				c.width = img.naturalWidth;
+				c.height = img.naturalHeight;
+				const ctx = c.getContext('2d', { willReadFrequently: true });
+				if (!ctx) return reject(new Error('Canvas 2D context unavailable'));
+				ctx.drawImage(img, 0, 0);
+				resolve(cv.imread(c));
+			};
+			img.onerror = () => reject(new Error('Failed to load image for OpenCV (CORS?)'));
+			img.src = url;
+		});
 	}
 
-	/* -------------------------------------------------
-	   Compute transform + preview
-	------------------------------------------------- */
+	let canCompute = false;
+	$: canCompute = cvReady && pairs.length >= 3 && !!srcSize && !!tgtSize;
+
+	$: if (canCompute && pairs.length >= 4 && !autoComputedOnce && !computing) {
+		// only kick off once after the initial 4-point seed (or after a reset)
+		autoComputedOnce = true;
+		void compute();
+	}
+
+	let computing = false;
+	let computeQueued = false;
+	let autoTimer: any = null;
+
+	function requestAutoCompute() {
+		if (!canCompute) return;
+		clearTimeout(autoTimer);
+		autoTimer = setTimeout(() => void compute(), 120);
+	}
+
+	async function ensureWarpCanvas() {
+		if (!srcSize) return;
+		if (!warpCanvas) {
+			warpCanvas = document.createElement('canvas');
+			warpCanvas.getContext('2d', { willReadFrequently: true });
+		}
+		if (warpCanvas.width !== srcSize.w || warpCanvas.height !== srcSize.h) {
+			warpCanvas.width = srcSize.w;
+			warpCanvas.height = srcSize.h;
+			warpCanvas.getContext('2d', { willReadFrequently: true });
+		}
+	}
 
 	async function compute() {
+		if (!canCompute) return;
+
+		if (computing) {
+			computeQueued = true;
+			return;
+		}
+		computing = true;
+
+		cvError = null;
 		computed = null;
 
-		if (!cvReady) {
-			cvError ??= 'OpenCV not ready yet.';
-			return;
-		}
-		if (!targetImg || !sourceImg || !previewCanvas) return;
-
-		if (!targetImg.naturalWidth || !sourceImg.naturalWidth) {
-			showToast('Images not fully loaded yet');
-			return;
-		}
-
-		const n = pairs.length;
-		if (n < 3) {
-			showToast('Need at least 3 point pairs');
-			return;
-		}
-		if (n > maxPairs) {
-			showToast(`Max ${maxPairs} point pairs`);
-			return;
-		}
-
+		const baseSize = srcSize!;
+		const movingSize = tgtSize!;
 		const wcv = (window as any).cv;
 
 		let H: any = null;
-		let transformType: 'affine' | 'homography' = 'homography';
-
 		let srcPts: any = null;
 		let dstPts: any = null;
 		let mask: any = null;
 
 		try {
+			await ensureWarpCanvas();
+			if (!warpCanvas) throw new Error('warpCanvas missing');
+
+			const n = pairs.length;
+
+			// H maps moving -> base
 			const srcFlat: number[] = [];
 			const dstFlat: number[] = [];
 
 			for (const p of pairs) {
-				const s = toPx(p.source, sourceImg);
-				const t = toPx(p.target, targetImg);
-				srcFlat.push(s.x, s.y);
-				dstFlat.push(t.x, t.y);
+				srcFlat.push(p.target.x * movingSize.w, p.target.y * movingSize.h);
+				dstFlat.push(p.source.x * baseSize.w, p.source.y * baseSize.h);
 			}
 
 			srcPts = wcv.matFromArray(n, 1, wcv.CV_32FC2, srcFlat);
@@ -453,49 +870,13 @@
 			let confidence = 1;
 
 			if (n === 3) {
-				transformType = 'affine';
-
-				if (typeof wcv.estimateAffine2D === 'function') {
-					const inliers = new wcv.Mat();
-					const A = wcv.estimateAffine2D(
-						srcPts,
-						dstPts,
-						inliers,
-						wcv.RANSAC,
-						ransacReprojThreshold,
-						ransacMaxIters,
-						ransacConfidence
-					);
-
-					let inl = 0;
-					for (let i = 0; i < inliers.rows; i++) inl += inliers.ucharPtr(i, 0)[0] ? 1 : 0;
-					confidence = inliers.rows ? inl / inliers.rows : 1;
-
-					const a = A.data64F && A.data64F.length ? Array.from(A.data64F) : Array.from(A.data32F);
-
-					const m3 = [a[0], a[1], a[2], a[3], a[4], a[5], 0, 0, 1];
-					H = wcv.matFromArray(3, 3, wcv.CV_64F, m3);
-
-					inliers.delete();
-					A.delete();
-				} else {
-					const src3 = wcv.matFromArray(3, 1, wcv.CV_32FC2, srcFlat.slice(0, 6));
-					const dst3 = wcv.matFromArray(3, 1, wcv.CV_32FC2, dstFlat.slice(0, 6));
-
-					const A = wcv.getAffineTransform(src3, dst3);
-					const a = A.data64F && A.data64F.length ? Array.from(A.data64F) : Array.from(A.data32F);
-
-					const m3 = [a[0], a[1], a[2], a[3], a[4], a[5], 0, 0, 1];
-					H = wcv.matFromArray(3, 3, wcv.CV_64F, m3);
-
-					src3.delete();
-					dst3.delete();
-					A.delete();
-				}
+				const A = wcv.getAffineTransform(srcPts, dstPts);
+				const a = A.data64F && A.data64F.length ? Array.from(A.data64F) : Array.from(A.data32F);
+				const m3 = [a[0], a[1], a[2], a[3], a[4], a[5], 0, 0, 1];
+				H = wcv.matFromArray(3, 3, wcv.CV_64F, m3);
+				A.delete();
 			} else {
-				transformType = 'homography';
 				mask = new wcv.Mat();
-
 				H = wcv.findHomography(
 					srcPts,
 					dstPts,
@@ -511,62 +892,52 @@
 				confidence = mask.rows ? inliers / mask.rows : 0;
 
 				if (!H || (typeof H.empty === 'function' && H.empty())) {
-					showToast('Homography failed. Try more points or adjust outliers.');
-					return;
+					throw new Error('Homography failed. Add more points or fix outliers.');
 				}
 			}
 
-			previewCanvas.width = targetImg.naturalWidth;
-			previewCanvas.height = targetImg.naturalHeight;
-
-			const srcMat = imreadNatural(sourceImg, wcv);
+			const movingMat = await imreadNatural(targetUrl, wcv);
 			const dstMat = new wcv.Mat();
-			const dsize = new wcv.Size(targetImg.naturalWidth, targetImg.naturalHeight);
+			const dsize = new wcv.Size(baseSize.w, baseSize.h);
 
-			wcv.warpPerspective(srcMat, dstMat, H, dsize);
-			wcv.imshow(previewCanvas, dstMat);
+			wcv.warpPerspective(movingMat, dstMat, H, dsize);
+			wcv.imshow(warpCanvas, dstMat);
 
-			const dataArray =
-				H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
-			const data = dataArray.slice(0, 9) as [
-				number,
-				number,
-				number,
-				number,
-				number,
-				number,
-				number,
-				number,
-				number
-			];
+			movingMat.delete();
+			dstMat.delete();
+
+			// ✅ Only compute the warped bitmap once per compute
+			warpedUrl = warpCanvas.toDataURL('image/png');
+			warpedRefreshKey += 1;
+
+			const data = H.data64F && H.data64F.length ? Array.from(H.data64F) : Array.from(H.data32F);
 
 			computed = {
 				confidence,
-				transform: {
-					type: transformType,
-					matrix: data
-				},
+				transform: { type: n === 3 ? 'affine' : 'homography', matrix: data },
 				methodData: {
 					pointCount: n,
-					gridActive,
-					lockToGridCells,
-					grid: gridActive ? { rows: gridRows, cols: gridCols, margin: gridMargin } : null,
+					pairs,
 					ransac:
 						n >= 4 ? { reprojThreshold: ransacReprojThreshold, maxIters: ransacMaxIters } : null,
-					pairs
+					base: 'source',
+					moving: 'target'
 				}
 			};
-
-			srcMat.delete();
-			dstMat.delete();
-		} catch (err) {
+		} catch (err: any) {
 			console.error(err);
-			cvError = 'Alignment failed (see console).';
+			cvError = err?.message ?? 'Alignment failed (see console).';
 		} finally {
 			if (srcPts) srcPts.delete();
 			if (dstPts) dstPts.delete();
 			if (mask) mask.delete();
 			if (H) H.delete?.();
+
+			computing = false;
+			if (computeQueued) {
+				computeQueued = false;
+				requestAutoCompute();
+			}
 		}
 	}
 
@@ -579,338 +950,300 @@
 		});
 	}
 
-	async function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
-		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-		if (!blob) return;
+	/* -------------------------------------------------
+	   Lifecycle
+	------------------------------------------------- */
 
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
+	onMount(async () => {
+		await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+		if (srcEl) srcViewer = makeViewer(srcEl);
+		if (tgtEl) tgtViewer = makeViewer(tgtEl);
+
+		if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
+		if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
+
+		if (srcViewer && tgtViewer) {
+			syncZoom(srcViewer, tgtViewer);
+			syncZoom(tgtViewer, srcViewer);
+
+			syncHome(srcViewer, tgtViewer);
+			syncHome(tgtViewer, srcViewer);
+		}
+
+		// Add points by clicking Source (base)
+		srcViewer?.addHandler('canvas-click', (ev: any) => {
+			if (!srcViewer) return;
+			if (!ev?.quick) return;
+
+			const oe = ev.originalEvent as MouseEvent;
+			if (isMarkerEventFromOriginalEvent(oe)) return;
+			if (requireShiftToAdd && !oe.shiftKey) return;
+			if (pairs.length >= maxPairs) return;
+
+			const vpPoint = srcViewer.viewport.pointFromPixel(ev.position, true);
+			const imgPoint = srcViewer.viewport.viewportToImageCoordinates(vpPoint);
+			const size = getContentSize(srcViewer);
+			if (!size) return;
+
+			const basePt: Pt = { x: clamp01(imgPoint.x / size.w), y: clamp01(imgPoint.y / size.h) };
+
+			pairs = [...pairs, { source: basePt, target: { ...basePt } }];
+			adjustIndex = pairs.length - 1;
+
+			resultFocus = { ...basePt };
+			centerOn(tgtViewer, { ...basePt }, false);
+
+			computed = null;
+			refreshOverlays();
+			requestAutoCompute();
+		});
+
+		try {
+			await ensureOpenCV();
+			cvReady = true;
+		} catch (e: any) {
+			cvError = e?.message ?? String(e);
+		}
+	});
+
+	onDestroy(() => {
+		stopDrag();
+		srcViewer?.destroy();
+		tgtViewer?.destroy();
+	});
+
+	$: if (srcViewer && sourceUrl) openImage(srcViewer, sourceUrl);
+	$: if (tgtViewer && targetUrl) openImage(tgtViewer, targetUrl);
+
+	/* -------------------------------------------------
+	   UI helpers
+	------------------------------------------------- */
+
+	let autoComputedOnce = false;
+
+	function removePair(i: number) {
+		pairs = pairs.filter((_, idx) => idx !== i);
+		if (pairs.length === 0) adjustIndex = null;
+		else if (adjustIndex != null) adjustIndex = Math.min(adjustIndex, pairs.length - 1);
+
+		refreshOverlays();
+		requestAutoCompute();
 	}
 
-	async function exportWarped() {
-		if (!previewCanvas || !computed) return;
-		await downloadCanvas(previewCanvas, 'aligned-warped.png');
+	function resetAll() {
+		pairs = [];
+		adjustIndex = null;
+		computed = null;
+		warpedUrl = null;
+		warpedRefreshKey += 1;
+		resultFocus = null;
+		autoComputedOnce = false;
+		refreshOverlays();
 	}
 
-	async function exportComposite() {
-		if (!previewCanvas || !targetImg || !computed) return;
-
-		const out = document.createElement('canvas');
-		out.width = previewCanvas.width;
-		out.height = previewCanvas.height;
-
-		const ctx = out.getContext('2d');
-		if (!ctx) return;
-
-		ctx.globalAlpha = 1;
-		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
-
-		ctx.globalAlpha = overlayOpacity / 100;
-		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
-
-		ctx.globalAlpha = 1;
-
-		await downloadCanvas(out, 'aligned-composite.png');
+	function undoLast() {
+		if (!pairs.length) return;
+		pairs = pairs.slice(0, -1);
+		adjustIndex = pairs.length ? pairs.length - 1 : null;
+		refreshOverlays();
+		requestAutoCompute();
 	}
 
-	async function exportDifference() {
-		if (!previewCanvas || !targetImg || !computed) return;
+	function clamp(v: number, min = 0, max = 100) {
+		return Math.max(min, Math.min(max, v));
+	}
 
-		const out = document.createElement('canvas');
-		out.width = previewCanvas.width;
-		out.height = previewCanvas.height;
+	// Convert wheel delta to "pixel-ish" units (handles Shift+wheel using deltaX)
+	function wheelPixels(e: WheelEvent) {
+		const dominant =
+			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
 
-		const ctx = out.getContext('2d');
-		if (!ctx) return;
+		// deltaMode: 0=pixels, 1=lines, 2=pages
+		if (e.deltaMode === 1) return dominant * 16;
+		if (e.deltaMode === 2) return dominant * 800;
+		return dominant;
+	}
 
-		ctx.globalCompositeOperation = 'source-over';
-		ctx.drawImage(targetImg, 0, 0, out.width, out.height);
+	let wheelPendingPx = 0;
+	let wheelRaf = 0;
 
-		ctx.globalCompositeOperation = 'difference';
-		ctx.drawImage(previewCanvas, 0, 0, out.width, out.height);
+	function onResultWheel(e: WheelEvent) {
+		if (!e.shiftKey) return;
+		if (resultMode !== 'composite') return;
+		if (!warpedUrl) return;
 
-		ctx.globalCompositeOperation = 'source-over';
+		e.preventDefault();
+		e.stopPropagation();
 
-		await downloadCanvas(out, 'aligned-difference.png');
+		wheelPendingPx += wheelPixels(e);
+
+		if (wheelRaf) return;
+		wheelRaf = requestAnimationFrame(() => {
+			wheelRaf = 0;
+
+			// TUNE THIS:
+			// 0.05 means ~5% opacity change for a ~100px wheel tick (common for mice)
+			const sensitivityPctPerPx = 0.05;
+
+			// Scroll up/left should increase opacity
+			const deltaPct = -wheelPendingPx * sensitivityPctPerPx;
+			wheelPendingPx = 0;
+
+			overlayOpacityPct = clamp(overlayOpacityPct + deltaPct);
+		});
 	}
 </script>
 
-<div class="tool">
-	<div class="tool-header">
-		<div class="left">
-			<div class="name">Multi-point alignment</div>
-			<div class="hint">
-				Seed a <b>grid</b> (recommended) or click the <b>target</b> to add pairs. Adjust points on
-				the <b>source</b> by <b>dragging markers</b> (no click-to-move).
-			</div>
-		</div>
+<div class="layout">
+	<div class="topbar">
+		<div class="title">Affine align tool</div>
 
-		<div class="right">
-			<span class="chip">{pairs.length}/{maxPairs} pairs</span>
+		<div class="actions">
+			<div class="chip">{pairs.length}/{maxPairs} pairs</div>
 
-			<button class="btn" type="button" on:click={undoLast} disabled={pairs.length === 0}
-				>Undo</button
-			>
-			<button class="btn" type="button" on:click={resetAll} disabled={pairs.length === 0}
-				>Reset</button
-			>
+			{#if pairs.length === 0}
+				<button class="btn" type="button" on:click={() => void addInitial4PointsSmart(0.07)}>
+					Add 4 corner points
+				</button>
+			{/if}
 
-			<button
-				class="btn primary"
-				type="button"
-				on:click={compute}
-				disabled={!cvReady || pairs.length < 3}
-			>
-				Compute
+			<label class="chip toggle">
+				<input type="checkbox" bind:checked={requireShiftToAdd} />
+				Shift+click to add
+			</label>
+
+			<button class="btn" type="button" on:click={undoLast} disabled={!pairs.length}>UNDO</button>
+			<button class="btn" type="button" on:click={resetAll} disabled={!pairs.length}>RESET</button>
+
+			<button class="btn primary" type="button" on:click={() => compute()} disabled={!canCompute}>
+				COMPUTE
 			</button>
 
-			<button class="btn" type="button" on:click={exportWarped} disabled={!computed}
-				>Export warped</button
-			>
-			<button class="btn" type="button" on:click={exportComposite} disabled={!computed}
-				>Export composite</button
-			>
-			<button class="btn" type="button" on:click={exportDifference} disabled={!computed}
-				>Export difference</button
-			>
-
-			<button class="btn save" type="button" on:click={save} disabled={!computed}
-				>Save alignment</button
-			>
+			<button class="btn save" type="button" on:click={save} disabled={!computed}>SAVE</button>
 		</div>
 	</div>
 
 	{#if cvError}
-		<div class="error">
-			{cvError}
-			<div class="small">
-				If you don’t want remote loading, pass a local <code>opencvSrc</code> prop or load opencv.js globally.
-			</div>
-		</div>
+		<div class="error">{cvError}</div>
 	{/if}
 
-	<div class="gridbar">
-		<div class="grid-left">
-			<div class="grid-title">Grid seed</div>
+	<div class="content">
+		<div class="workspace">
+			<div class="pink-row">
+				<section class="panel">
+					<header>Source (base)</header>
+					<div class="osd" bind:this={srcEl} />
+				</section>
 
-			<label class="field"
-				>Rows <input type="number" min="2" max="12" bind:value={gridRows} /></label
-			>
-			<label class="field"
-				>Cols <input type="number" min="2" max="12" bind:value={gridCols} /></label
-			>
-			<label class="field">
-				Margin <input type="number" min="0" max="0.2" step="0.01" bind:value={gridMargin} />
-			</label>
+				<section class="panel">
+					<header>Target (moving)</header>
+					<div class="osd" bind:this={tgtEl} />
+				</section>
 
-			<button class="btn" type="button" on:click={seedGrid}>Seed grid</button>
+				<section class="panel">
+					<header class="result-head">
+						<div>Result</div>
+						<div class="result-controls">
+							<select bind:value={resultMode}>
+								<option value="warped">Warped</option>
+								<option value="composite">Composite</option>
+								<option value="difference">Difference</option>
+							</select>
 
-			<label class="toggle">
-				<input type="checkbox" bind:checked={lockToGridCells} />
-				Lock to grid cells
-			</label>
-		</div>
-
-		<div class="grid-right">
-			{#if gridActive}
-				<div class="grid-tools">
-					<div class="grid-title">Nudge / scale / rotate source grid</div>
-
-					<div class="row">
-						<button class="btn" type="button" on:click={() => translateSource(0, -0.005)}>↑</button>
-						<button class="btn" type="button" on:click={() => translateSource(-0.005, 0)}>←</button>
-						<button class="btn" type="button" on:click={() => translateSource(0.005, 0)}>→</button>
-						<button class="btn" type="button" on:click={() => translateSource(0, 0.005)}>↓</button>
-					</div>
-
-					<div class="row">
-						<button class="btn" type="button" on:click={() => scaleSource(0.98)}>- scale</button>
-						<button class="btn" type="button" on:click={() => scaleSource(1.02)}>+ scale</button>
-						<button class="btn" type="button" on:click={() => rotateSource(-1)}>- rot</button>
-						<button class="btn" type="button" on:click={() => rotateSource(1)}>+ rot</button>
-					</div>
-				</div>
-			{:else}
-				<div class="grid-hint">
-					Tip: seeding a 4×4 or 5×5 grid usually gets you a good alignment fast, then you just tweak
-					a few points.
-				</div>
-			{/if}
-		</div>
-	</div>
-
-	<div class="selectors">
-		<div class="img-block">
-			<div class="block-title">Target (base)</div>
-
-			<div
-				class="img-wrap"
-				bind:this={targetWrap}
-				on:click={onTargetClick}
-				on:pointermove={(e) => targetWrap && drag?.side === 'target' && moveDrag(e, targetWrap)}
-			>
-				<img bind:this={targetImg} src={targetUrl} alt="Target image" draggable="false" />
-
-				{#each pairs as p, i (i)}
-					<div
-						class="kp"
-						class:active={i === adjustIndex}
-						style="left: {p.target.x * 100}%; top: {p.target.y * 100}%"
-						on:click|stopPropagation={() => (adjustIndex = i)}
-						on:pointerdown|stopPropagation={(e) =>
-							targetWrap && startDrag(e, 'target', i, targetWrap)}
-						on:pointerup|stopPropagation={endDrag}
-						on:pointercancel|stopPropagation={endDrag}
-					>
-						<div class="kp-ring" aria-hidden="true">
-							<div class="kp-dot" aria-hidden="true" />
+							{#if resultMode === 'composite'}
+								<label class="opacity">
+									Opacity
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={overlayOpacityPct}
+										on:input={(e) =>
+											(overlayOpacityPct = Number((e.currentTarget as HTMLInputElement).value))}
+									/>
+								</label>
+							{/if}
 						</div>
-						<div class="kp-label" aria-hidden="true">{i + 1}</div>
+					</header>
+
+					<div class="result-wheel-capture" on:wheel|capture={onResultWheel}>
+						{#if warpedUrl}
+							<ResultPanel
+								imageUrl={resultMode === 'warped' ? warpedUrl : sourceUrl}
+								overlayUrl={resultMode === 'warped' ? null : warpedUrl}
+								overlayOpacity={overlayOpacityPct / 100}
+								overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
+								refreshKey={warpedRefreshKey}
+								mode={resultMode}
+								focus={resultFocus}
+								{drawer}
+							/>
+						{:else}
+							<div class="result-empty">No result yet — add points and compute.</div>
+						{/if}
 					</div>
-				{/each}
+				</section>
 			</div>
 		</div>
 
-		<div class="img-block">
-			<div class="block-title">Source (to align)</div>
-
-			<!-- ✅ NO wrapper click handler here -->
-			<div
-				class="img-wrap source"
-				bind:this={sourceWrap}
-				on:pointermove={(e) => sourceWrap && drag?.side === 'source' && moveDrag(e, sourceWrap)}
-			>
-				<img bind:this={sourceImg} src={sourceUrl} alt="Source image" draggable="false" />
-
-				{#each pairs as p, i (i)}
-					<div
-						class="kp"
-						class:active={i === adjustIndex}
-						style="left: {p.source.x * 100}%; top: {p.source.y * 100}%"
-						on:click|stopPropagation={() => (adjustIndex = i)}
-						on:pointerdown|stopPropagation={(e) =>
-							sourceWrap && startDrag(e, 'source', i, sourceWrap)}
-						on:pointerup|stopPropagation={endDrag}
-						on:pointercancel|stopPropagation={endDrag}
-					>
-						<div class="kp-ring" aria-hidden="true">
-							<div class="kp-dot" aria-hidden="true" />
+		<SidePanel side="right" bind:open={RightPanelOpen} width={280}>
+			<svelte:fragment slot="header">
+				<div class="sidebar-header">
+					<div class="panel-title">PointPairs</div>
+					{#if computed}
+						<div class="chip">
+							{computed.transform.type} • conf {computed.confidence.toFixed(2)}
 						</div>
-						<div class="kp-label" aria-hidden="true">{i + 1}</div>
-					</div>
-				{/each}
+					{/if}
+				</div>
+			</svelte:fragment>
+
+			<div class="sidebar-body">
+				<PointPairs
+					{pairs}
+					{maxPairs}
+					activeIndex={adjustIndex}
+					onSelect={selectPair}
+					onRemove={removePair}
+					onAddCorners={() => void addInitial4PointsSmart(0.07)}
+				/>
 			</div>
-		</div>
-	</div>
-
-	<div class="pairs">
-		<div class="pairs-title">Point pairs</div>
-
-		{#if pairs.length === 0}
-			<div class="pairs-empty">Seed a grid, or click the target image to add point #1.</div>
-		{:else}
-			{#each pairs as p, i (i)}
-				<div class="pair-row" class:active={i === adjustIndex} on:click={() => (adjustIndex = i)}>
-					<div class="pair-idx">{i + 1}</div>
-					<div class="pair-coords">
-						<div>
-							T: <span class="mono">{p.target.x.toFixed(3)}, {p.target.y.toFixed(3)}</span>
-						</div>
-						<div>
-							S: <span class="mono">{p.source.x.toFixed(3)}, {p.source.y.toFixed(3)}</span>
-						</div>
-					</div>
-					<button class="remove" type="button" on:click|stopPropagation={() => removePair(i)}>
-						Remove
-					</button>
-				</div>
-			{/each}
-		{/if}
-	</div>
-
-	{#if toast}
-		<div class="toast">{toast}</div>
-	{/if}
-
-	<div class="preview">
-		<div class="preview-header">
-			<div class="block-title">Preview (source warped onto target)</div>
-
-			<label class="opacity">
-				Opacity
-				<input type="range" min="0" max="100" bind:value={overlayOpacity} />
-			</label>
-
-			{#if computed}
-				<div class="chip">
-					{computed.transform.type}
-					<span class="sep">•</span>
-					conf: {computed.confidence.toFixed(2)}
-				</div>
-			{/if}
-		</div>
-
-		<div class="preview-wrap">
-			{#if targetUrl}
-				<img class="base" src={targetUrl} alt="Target preview" draggable="false" />
-			{/if}
-			<canvas class="overlay" bind:this={previewCanvas} style="opacity: {overlayOpacity / 100}" />
-		</div>
-
-		{#if existingAlignment}
-			<details class="debug">
-				<summary>Existing alignment (debug)</summary>
-				<pre>{JSON.stringify(existingAlignment, null, 2)}</pre>
-			</details>
-		{/if}
+		</SidePanel>
 	</div>
 </div>
 
 <style>
-	/* (same styles as before, plus small source cursor tweak) */
-
-	.tool {
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 12px;
-		padding: 0.75rem;
+	.layout {
 		display: flex;
 		flex-direction: column;
-		gap: 0.8rem;
+		gap: 10px;
+		padding: 10px;
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.92);
+		height: 100%;
+		min-height: 0;
 	}
 
-	.tool-header {
+	.topbar {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		gap: 12px;
 		flex-wrap: wrap;
 	}
 
-	.name {
+	.title {
 		font-weight: 700;
 		color: #111827;
-		font-size: 0.95rem;
 	}
 
-	.hint {
-		font-size: 0.78rem;
-		color: #64748b;
-		margin-top: 0.2rem;
-		max-width: 75ch;
-	}
-
-	.right {
+	.actions {
 		display: flex;
-		gap: 0.4rem;
-		flex-wrap: wrap;
+		gap: 8px;
 		align-items: center;
+		flex-wrap: wrap;
 	}
 
 	.btn {
@@ -940,10 +1273,6 @@
 		font-weight: 700;
 	}
 
-	.btn.primary:hover {
-		background: #bae6fd;
-	}
-
 	.btn.save {
 		background: #d1fae5;
 		color: #065f46;
@@ -951,353 +1280,191 @@
 		font-weight: 700;
 	}
 
-	.btn.save:hover {
-		background: #a7f3d0;
-	}
-
 	.chip {
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		color: #334155;
 		background: rgba(0, 0, 0, 0.06);
-		padding: 0.15rem 0.45rem;
+		padding: 0.15rem 0.5rem;
 		border-radius: 999px;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		white-space: nowrap;
 	}
 
-	.sep {
-		opacity: 0.6;
-		margin: 0 0.15rem;
-	}
-
-	.toast {
-		position: sticky;
-		top: 0;
-		z-index: 20;
-		background: rgba(17, 24, 39, 0.92);
-		color: white;
-		padding: 0.45rem 0.6rem;
-		border-radius: 10px;
-		font-size: 0.85rem;
+	.toggle input {
+		transform: translateY(1px);
 	}
 
 	.error {
 		border: 1px solid rgba(220, 38, 38, 0.25);
 		background: rgba(254, 226, 226, 0.7);
 		color: #7f1d1d;
-		padding: 0.6rem 0.7rem;
+		padding: 8px 10px;
 		border-radius: 10px;
 		font-size: 0.85rem;
 	}
 
-	.small {
-		margin-top: 0.25rem;
-		font-size: 0.75rem;
-		opacity: 0.85;
-	}
-
-	.gridbar {
-		display: grid;
-		grid-template-columns: 1.2fr 1fr;
-		gap: 0.75rem;
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 12px;
-		padding: 0.6rem 0.7rem;
-		background: rgba(255, 255, 255, 0.75);
-	}
-
-	.grid-left,
-	.grid-right {
+	.content {
+		flex: 1;
+		min-height: 0;
 		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		flex-wrap: wrap;
-	}
-
-	.grid-title {
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: #6b7280;
-		margin-right: 0.15rem;
-	}
-
-	.field {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.78rem;
-		color: #334155;
-	}
-
-	.field input {
-		width: 64px;
-		padding: 0.2rem 0.35rem;
-		border-radius: 8px;
-		border: 1px solid rgba(0, 0, 0, 0.12);
-	}
-
-	.toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.78rem;
-		color: #334155;
-	}
-
-	.grid-tools {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-	}
-
-	.grid-tools .row {
-		display: flex;
-		gap: 0.35rem;
-		flex-wrap: wrap;
-	}
-
-	.grid-hint {
-		font-size: 0.8rem;
-		color: #64748b;
-	}
-
-	.selectors {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
-	}
-
-	.img-block {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-		min-width: 0;
-	}
-
-	.block-title {
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: #6b7280;
-	}
-
-	.img-wrap {
+		gap: 10px;
 		position: relative;
-		border: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	.workspace {
+		flex: 1;
+		min-height: 0;
+	}
+
+	.pink-row {
+		display: grid;
+		grid-template-columns: 1.15fr 1.15fr 1fr;
+		gap: 10px;
+		min-height: 420px;
+		height: 100%;
+	}
+
+	.panel {
+		border: 1px solid rgba(0, 0, 0, 0.12);
 		border-radius: 10px;
 		overflow: hidden;
-		background: #f3f4f6;
-		cursor: crosshair;
-		min-height: 240px;
+		background: rgba(253, 186, 200, 0.35);
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
 	}
 
-	/* ✅ Source should not imply click-to-place */
-	.img-wrap.source {
-		cursor: default;
-	}
-
-	.img-wrap img {
-		width: 100%;
-		height: auto;
-		display: block;
-		user-select: none;
-	}
-
-	.kp {
-		position: absolute;
-		transform: translate(-50%, -50%);
-		z-index: 5;
-		touch-action: none;
-		cursor: crosshair;
-	}
-
-	.kp-ring {
-		--s: 18px;
-
-		width: var(--s);
-		height: var(--s);
-		border-radius: 999px;
-
-		background: rgba(255, 255, 255, 0.75);
-		border: 2px solid rgba(17, 24, 39, 0.75);
-
-		box-shadow:
-			0 1px 3px rgba(0, 0, 0, 0.35),
-			0 0 0 1px rgba(255, 255, 255, 0.35);
-
-		display: grid;
-		place-items: center;
-	}
-
-	.kp-dot {
-		width: 4px;
-		height: 4px;
-		border-radius: 999px;
-		background: rgba(17, 24, 39, 0.95);
-		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
-	}
-
-	.kp-label {
-		position: absolute;
-		left: 100%;
-		top: 0;
-		transform: translate(6px, -8px);
-
-		padding: 0.12rem 0.38rem;
-		border-radius: 999px;
-
-		font-size: 11px;
+	.panel header {
+		padding: 8px 10px;
+		font-size: 0.78rem;
 		font-weight: 700;
-		line-height: 1;
-
-		background: rgba(17, 24, 39, 0.9);
-		color: white;
-
-		border: 1px solid rgba(255, 255, 255, 0.22);
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-
-		pointer-events: none;
+		color: rgba(17, 24, 39, 0.85);
+		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+		background: rgba(255, 255, 255, 0.7);
 	}
 
-	.kp.active .kp-ring {
-		outline: 2px solid rgba(2, 132, 199, 0.85);
-		outline-offset: 2px;
-	}
-
-	.pairs {
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 12px;
-		padding: 0.6rem 0.7rem;
-		background: rgba(255, 255, 255, 0.75);
-	}
-
-	.pairs-title {
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: #111827;
-		margin-bottom: 0.35rem;
-	}
-
-	.pairs-empty {
-		font-size: 0.8rem;
-		color: #64748b;
-	}
-
-	.pair-row {
-		display: grid;
-		grid-template-columns: 24px 1fr auto;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.35rem 0;
-		border-top: 1px solid rgba(0, 0, 0, 0.06);
-		cursor: pointer;
-	}
-
-	.pair-row:first-of-type {
-		border-top: none;
-	}
-
-	.pair-row.active {
-		background: rgba(2, 132, 199, 0.06);
-		border-radius: 10px;
-		padding-left: 0.4rem;
-		padding-right: 0.4rem;
-	}
-
-	.pair-idx {
-		font-weight: 700;
-		color: #334155;
-		font-size: 0.8rem;
-	}
-
-	.pair-coords {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.6rem;
-		font-size: 0.8rem;
-		color: #334155;
-	}
-
-	.mono {
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-	}
-
-	.remove {
-		all: unset;
-		cursor: pointer;
-		font-size: 0.75rem;
-		color: #7c2d12;
-		background: rgba(251, 191, 36, 0.18);
-		border: 1px solid rgba(124, 45, 18, 0.18);
-		padding: 0.2rem 0.45rem;
-		border-radius: 8px;
-	}
-
-	.remove:hover {
-		background: rgba(251, 191, 36, 0.25);
-	}
-
-	.preview {
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 12px;
-		padding: 0.6rem 0.7rem;
-		background: rgba(255, 255, 255, 0.75);
-	}
-
-	.preview-header {
+	.result-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		gap: 10px;
+	}
+
+	.result-controls {
+		display: flex;
+		align-items: center;
+		gap: 10px;
 		flex-wrap: wrap;
-		margin-bottom: 0.5rem;
+		font-weight: 400;
+	}
+
+	select {
+		border: 1px solid rgba(0, 0, 0, 0.15);
+		border-radius: 8px;
+		padding: 4px 8px;
+		background: white;
 	}
 
 	.opacity {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.45rem;
-		font-size: 0.78rem;
-		color: #64748b;
-	}
-
-	.preview-wrap {
-		position: relative;
-		border-radius: 10px;
-		overflow: hidden;
-		background: #f3f4f6;
-		border: 1px solid rgba(0, 0, 0, 0.08);
-	}
-
-	.preview-wrap .base {
-		display: block;
-		width: 100%;
-		height: auto;
-		user-select: none;
-	}
-
-	.preview-wrap .overlay {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-	}
-
-	.debug {
-		margin-top: 0.6rem;
-		font-size: 0.8rem;
+		gap: 6px;
+		font-size: 0.75rem;
 		color: #334155;
 	}
 
-	.debug pre {
-		margin: 0.5rem 0 0;
-		background: rgba(0, 0, 0, 0.04);
-		padding: 0.5rem;
-		border-radius: 8px;
-		overflow: auto;
-		max-height: 220px;
+	.osd {
+		flex: 1;
+		background: rgba(255, 255, 255, 0.65);
+	}
+
+	.result-shell {
+		flex: 1;
+		min-height: 0;
+	}
+
+	.result-empty {
+		padding: 12px;
+		font-size: 0.85rem;
+		color: #334155;
+	}
+
+	.sidebar-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: 0.75rem 0.75rem 0.5rem;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	.panel-title {
+		font-weight: 700;
+		color: rgba(17, 24, 39, 0.85);
+	}
+
+	.sidebar-body {
+		padding: 0.75rem;
+	}
+
+	/* ---------- Marker styling ---------- */
+	:global(.kp) {
+		position: absolute;
+		transform: translate(-50%, -50%);
+		touch-action: none;
+		cursor: crosshair;
+		pointer-events: auto;
+	}
+
+	:global(.kp-ring) {
+		width: 18px;
+		height: 18px;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.8);
+		border: 2px solid rgba(17, 24, 39, 0.75);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+		display: grid;
+		place-items: center;
+	}
+
+	:global(.kp-dot) {
+		width: 4px;
+		height: 4px;
+		border-radius: 999px;
+		background: rgba(17, 24, 39, 0.95);
+	}
+
+	:global(.kp-label) {
+		position: absolute;
+		left: 100%;
+		top: 0;
+		transform: translate(6px, -8px);
+		padding: 2px 6px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: 800;
+		background: rgba(17, 24, 39, 0.9);
+		color: white;
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		pointer-events: none;
+	}
+
+	:global(.kp.active .kp-ring) {
+		outline: 2px solid rgba(2, 132, 199, 0.85);
+		outline-offset: 2px;
+	}
+
+	:global(.kp.dragging .kp-ring) {
+		background: transparent;
+	}
+
+	:global(.kp.dragging .kp-dot) {
+		opacity: 0;
+	}
+	.result-wheel-capture {
+		height: 100%;
+		min-height: 0;
 	}
 </style>

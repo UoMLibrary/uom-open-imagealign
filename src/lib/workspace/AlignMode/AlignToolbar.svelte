@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-	export type AlignStrategy = 'manual' | 'keypoints' | 'affine';
+	export type AlignStrategy = 'manual' | 'auto';
 </script>
 
 <script lang="ts">
@@ -10,8 +10,7 @@
 
 	const options = [
 		{ value: 'manual', label: 'Manual' },
-		{ value: 'keypoints', label: 'Keypoints' },
-		{ value: 'affine', label: 'Affine' }
+		{ value: 'auto', label: 'Auto' }
 	];
 </script>
 
