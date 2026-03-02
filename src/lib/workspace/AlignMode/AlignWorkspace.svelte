@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
-	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
+	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
 
 	import { groups, imagesById, alignments } from '$lib/core/projectStore';
 	import { upsertAlignment } from '$lib/core/projectStore';
@@ -9,14 +9,10 @@
 	import AlignToolbar, { type AlignStrategy } from './AlignToolbar.svelte';
 
 	// Tools
-	// import KeypointAlignTool from './tools/KeypointAlignTool.svelte';
 	import ManualAlignTool from './tools/ManualAlignTool.svelte';
-	// import AffineAlignTool from './tools/AffineAlignTool.svelte';
 
 	let LeftPanelOpen = true;
-
 	let strategy: AlignStrategy = 'manual';
-
 	let selectedGroupId: string | null = null;
 
 	// Default selection to first group
@@ -128,40 +124,13 @@
 				<div class="panel-title">Groups</div>
 			</div>
 		</div>
-
 		<div class="panel-body">
 			{#if $groups.length === 0}
 				<div class="empty">No groups yet</div>
 			{:else}
 				<div class="group-list">
 					{#each $groups as group, idx (`${group.id}:${idx}`)}
-						{@const base = $imagesById[group.baseImageId]}
-						<button
-							type="button"
-							class="group-row"
-							class:selected={group.id === selectedGroupId}
-							on:click={() => selectGroup(group.id)}
-						>
-							<div class="thumb">
-								{#if base}
-									<ImageThumbnail
-										contentHash={base.hashes?.contentHash ?? ''}
-										fallbackSrc={base.runtimeUri}
-										label={base.label}
-										mode="thumb"
-									/>
-								{:else}
-									<div class="thumb-fallback" aria-hidden="true" />
-								{/if}
-							</div>
-
-							<div class="info">
-								<div class="title">
-									Group <span class="count">{group.imageIds.length}</span>
-								</div>
-								<div class="subtitle">{base?.label ?? 'Base image'}</div>
-							</div>
-						</button>
+						<GroupCell {group} selected={group.id === selectedGroupId} onSelect={selectGroup} />
 					{/each}
 				</div>
 			{/if}
@@ -262,76 +231,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
-	}
-
-	.group-row {
-		all: unset;
-		cursor: pointer;
-		display: grid;
-		grid-template-columns: 44px 1fr;
-		gap: 0.6rem;
-		align-items: center;
-		padding: 0.5rem;
-		border-radius: 8px;
-	}
-
-	.group-row:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	.group-row.selected {
-		background: rgba(0, 0, 0, 0.08);
-	}
-
-	.thumb {
-		width: 44px;
-		height: 44px;
-		border-radius: 8px;
-		overflow: hidden;
-		border: 1px solid rgba(0, 0, 0, 0.1);
-		background: white;
-	}
-
-	.thumb-fallback {
-		width: 100%;
-		height: 100%;
-		background: repeating-linear-gradient(
-			45deg,
-			rgba(0, 0, 0, 0.06),
-			rgba(0, 0, 0, 0.06) 6px,
-			rgba(0, 0, 0, 0.02) 6px,
-			rgba(0, 0, 0, 0.02) 12px
-		);
-	}
-
-	.info {
-		min-width: 0;
-	}
-
-	.title {
-		display: flex;
-		align-items: baseline;
-		gap: 0.4rem;
-		font-weight: 600;
-		color: #0f172a;
-		font-size: 0.85rem;
-	}
-
-	.count {
-		font-weight: 600;
-		color: #334155;
-		font-size: 0.8rem;
-		background: rgba(0, 0, 0, 0.06);
-		padding: 0.1rem 0.35rem;
-		border-radius: 999px;
-	}
-
-	.subtitle {
-		font-size: 0.75rem;
-		color: #64748b;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
 	/* Workspace */
