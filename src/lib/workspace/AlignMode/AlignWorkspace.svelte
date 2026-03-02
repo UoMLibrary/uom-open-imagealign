@@ -9,9 +9,9 @@
 	import AlignToolbar, { type AlignStrategy } from './AlignToolbar.svelte';
 
 	// Tools
-	import KeypointAlignTool from './tools/KeypointAlignTool.svelte';
+	// import KeypointAlignTool from './tools/KeypointAlignTool.svelte';
 	import ManualAlignTool from './tools/ManualAlignTool.svelte';
-	import AffineAlignTool from './tools/AffineAlignTool.svelte';
+	// import AffineAlignTool from './tools/AffineAlignTool.svelte';
 
 	let LeftPanelOpen = true;
 

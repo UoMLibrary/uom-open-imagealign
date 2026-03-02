@@ -36,7 +36,7 @@
 	let adjustIndex: number | null = null;
 
 	let overlayOpacityPct = 60; // 0..100 (UI)
-	let resultMode: 'warped' | 'composite' | 'difference' = 'composite';
+	let resultMode: 'warped' | 'composite' | 'difference' = 'difference';
 
 	// OpenCV
 	let cvReady = false;
@@ -1151,7 +1151,7 @@
 								<option value="difference">Difference</option>
 							</select>
 
-							{#if resultMode === 'composite'}
+							{#if resultMode === 'composite' || resultMode === 'difference'}
 								<label class="opacity">
 									Opacity
 									<input
