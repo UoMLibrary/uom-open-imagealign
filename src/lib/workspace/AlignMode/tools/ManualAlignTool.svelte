@@ -1097,7 +1097,7 @@
 
 <div class="layout">
 	<div class="topbar">
-		<div class="title">Affine align tool</div>
+		<div class="title">Manual align tool</div>
 
 		<div class="actions">
 			<div class="chip">{pairs.length}/{maxPairs} pairs</div>
