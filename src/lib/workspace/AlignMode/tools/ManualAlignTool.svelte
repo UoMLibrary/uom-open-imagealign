@@ -1070,7 +1070,7 @@
 
 	function onResultWheel(e: WheelEvent) {
 		if (!e.shiftKey) return;
-		if (resultMode !== 'composite') return;
+		if (resultMode !== 'composite' && resultMode !== 'difference') return;
 		if (!warpedUrl) return;
 
 		e.preventDefault();
@@ -1131,26 +1131,22 @@
 	<div class="content">
 		<div class="workspace">
 			<div class="pink-row">
-				<section class="panel">
-					<header>Source (base)</header>
-					<div class="osd" bind:this={srcEl} />
-				</section>
+				<div class="stack">
+					<section class="panel">
+						<header>Source (base)</header>
+						<div class="osd" bind:this={srcEl} />
+					</section>
 
-				<section class="panel">
-					<header>Target (moving)</header>
-					<div class="osd" bind:this={tgtEl} />
-				</section>
+					<section class="panel">
+						<header>Target (moving)</header>
+						<div class="osd" bind:this={tgtEl} />
+					</section>
+				</div>
 
 				<section class="panel">
 					<header class="result-head">
 						<div>Result</div>
 						<div class="result-controls">
-							<select bind:value={resultMode}>
-								<option value="warped">Warped</option>
-								<option value="composite">Composite</option>
-								<option value="difference">Difference</option>
-							</select>
-
 							{#if resultMode === 'composite' || resultMode === 'difference'}
 								<label class="opacity">
 									Opacity
@@ -1164,6 +1160,11 @@
 									/>
 								</label>
 							{/if}
+							<select bind:value={resultMode}>
+								<option value="warped">Warped</option>
+								<option value="composite">Composite</option>
+								<option value="difference">Difference</option>
+							</select>
 						</div>
 					</header>
 
@@ -1320,10 +1321,18 @@
 
 	.pink-row {
 		display: grid;
-		grid-template-columns: 1.15fr 1.15fr 1fr;
+		grid-template-columns: 0.95fr 1.4fr; /* left stack, bigger result */
 		gap: 10px;
 		min-height: 420px;
 		height: 100%;
+		min-height: 0;
+	}
+
+	.stack {
+		display: grid;
+		grid-template-rows: 1fr 1fr; /* Source above Target */
+		gap: 10px;
+		min-height: 0;
 	}
 
 	.panel {
