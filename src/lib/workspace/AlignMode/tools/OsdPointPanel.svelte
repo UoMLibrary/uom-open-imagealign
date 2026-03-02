@@ -304,8 +304,12 @@
 		viewer = null;
 	});
 
-	// Open when URL changes
-	$: if (viewer && url) openImage(viewer, url);
+	let lastUrl: string | null = null;
+
+	$: if (viewer && url && url !== lastUrl) {
+		lastUrl = url;
+		openImage(viewer, url);
+	}
 
 	// Refresh overlays when points / activeIndex change (and viewer exists)
 	$: if (viewer) {

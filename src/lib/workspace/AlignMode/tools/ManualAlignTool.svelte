@@ -105,20 +105,36 @@
 		viewer.viewport.panTo(vp, immediate);
 	}
 
+	function stopAndClamp(v: OpenSeadragon.Viewer | null) {
+		if (!v) return;
+		// Stop any spring/momentum already in progress
+		v.viewport.cancelAnimation?.();
+
+		// Clamp viewport to image bounds (prevents “blank space drift”)
+		v.viewport.applyConstraints?.(true);
+	}
+
 	function zoomAndCenterOn(
 		viewer: OpenSeadragon.Viewer | null,
 		pt: Pt,
 		imageZoom: number,
-		immediate = false
+		immediate = true
 	) {
 		if (!viewer) return;
+
+		stopAndClamp(viewer);
 
 		const vp = normToViewportPoint(viewer, pt);
 		if (!vp) return;
 
 		const vpZoom = viewer.viewport.imageToViewportZoom(imageZoom);
+
+		// Do it immediately to avoid spring overshoot
 		viewer.viewport.zoomTo(vpZoom, vp, immediate);
 		viewer.viewport.panTo(vp, immediate);
+
+		// Clamp again after the move
+		viewer.viewport.applyConstraints?.(true);
 	}
 
 	function getHomeImageZoom(viewer: OpenSeadragon.Viewer) {
@@ -153,27 +169,46 @@
 		if (pending === 0) fn();
 	}
 
-	function focusPairZoom(i: number, immediate = false, zoomMult = SELECT_ZOOM_MULT) {
+	// How much above "home" counts as "user has zoomed in"
+	const KEEP_ZOOM_THRESHOLD_MULT = 1.15; // tweak: 1.05–1.3
+
+	function focusPairZoom(i: number, immediate = true) {
 		const p = pairs[i];
-		if (!p) return;
-		if (!srcViewer || !tgtViewer) return;
+		if (!p || !srcViewer || !tgtViewer) return;
 
-		// Use source home zoom as stable baseline
-		const baseZoom = getHomeImageZoom(srcViewer);
-		const targetImageZoom = baseZoom * zoomMult;
+		// Stop momentum so the viewport doesn't drift off into blank space
+		srcViewer.viewport.cancelAnimation?.();
+		tgtViewer.viewport.cancelAnimation?.();
 
-		// Drive zoom from source (syncZoom will propagate zoom to target)
-		zoomAndCenterOn(srcViewer, p.source, targetImageZoom, immediate);
+		const home = getHomeImageZoom(srcViewer);
+		const current = getImageZoomTarget(srcViewer); // current image zoom (not viewport zoom)
 
-		// Pan target to its point (zoom comes from syncZoom)
-		centerOn(tgtViewer, p.target, immediate);
+		// If the user is already zoomed in, keep that zoom.
+		// If they're basically at home, apply your preferred "select zoom".
+		const desiredImageZoom =
+			current && current > home * KEEP_ZOOM_THRESHOLD_MULT ? current : home * SELECT_ZOOM_MULT;
+
+		// Zoom (to desired) + pan source to source point
+		zoomAndCenterOn(srcViewer, p.source, desiredImageZoom, immediate);
+
+		// Keep target zoom aligned (either via syncZoom or explicit zoom)
+		zoomAndCenterOn(tgtViewer, p.target, desiredImageZoom, immediate);
+
+		// Clamp after moves (prevents blank-space drifting)
+		srcViewer.viewport.applyConstraints?.(true);
+		tgtViewer.viewport.applyConstraints?.(true);
 
 		resultFocus = { ...p.source };
 	}
 
 	function selectPair(i: number) {
 		adjustIndex = i;
-		withBothOpen(() => focusPairZoom(i, false, SELECT_ZOOM_MULT));
+
+		withBothOpen(() => {
+			requestAnimationFrame(() => {
+				focusPairZoom(i, true);
+			});
+		});
 	}
 
 	/* -------------------------------------------------
