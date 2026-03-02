@@ -2,11 +2,11 @@
 import { writable } from 'svelte/store';
 
 export const WORKSPACE_MODES = [
-    { key: 'dewarp', label: 'Dewarp' },
+    // { key: 'dewarp', label: 'Dewarp' },
     { key: 'group', label: 'Group' },
     { key: 'align', label: 'Align' },
     { key: 'annotate', label: 'Annotate' },
-    { key: 'prepare', label: 'Prepare' },
+    // { key: 'prepare', label: 'Prepare' },
     { key: 'overview', label: 'Overview' }
 ] as const;
 
