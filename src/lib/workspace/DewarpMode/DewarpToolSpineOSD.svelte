@@ -13,18 +13,14 @@
 	};
 
 	type CornerKey = 'tl' | 'tr' | 'bl' | 'br';
-	type EditMode = 'corners' | 'curve';
 
 	type SpineState = {
-		// where the spine bar attaches horizontally
 		topT: number; // along TL->TR
 		bottomT: number; // along BL->BR
 
-		// how far the endpoints extend beyond the top/bottom in the "down" direction basis
 		topExtend: number; // + means above (against downDir)
 		bottomExtend: number; // + means below (along downDir)
 
-		// cubic handles as offsets from P0 and P3
 		h1: Pt; // offset from P0
 		h2: Pt; // offset from P3
 	};
@@ -42,11 +38,9 @@
 	let svgEl: SVGSVGElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
 
-	// Start in corners mode (first thing you do)
-	let editMode: EditMode = 'corners';
-
-	let showCurves = true;
-	let showGrid = true;
+	// Always visible now
+	const showCurves = true;
+	const showGrid = true;
 
 	let corners: Record<CornerKey, Pt> = {
 		tl: { x: 0.12, y: 0.08 },
@@ -55,7 +49,6 @@
 		br: { x: 0.88, y: 0.92 }
 	};
 
-	// Default: slightly above + slightly below the quad
 	let spine: SpineState = {
 		topT: 0.22,
 		bottomT: 0.26,
@@ -176,7 +169,6 @@
 		const midBot = lerp(corners.bl, corners.br, 0.5);
 		const d = sub(midBot, midTop);
 		const nd = norm(d);
-		// fallback if degenerate
 		if (Math.abs(nd.x) < 1e-9 && Math.abs(nd.y) < 1e-9) return { x: 0, y: 1 };
 		return nd;
 	}
@@ -188,13 +180,10 @@
 		return lerp(corners.bl, corners.br, spine.bottomT);
 	}
 
-	// P0 is above the top edge by topExtend along -downDir
 	function P0(): Pt {
 		const d = downDir();
 		return add(topEdgePoint(), mul(d, -spine.topExtend));
 	}
-
-	// P3 is below the bottom edge by bottomExtend along +downDir
 	function P3(): Pt {
 		const d = downDir();
 		return add(bottomEdgePoint(), mul(d, spine.bottomExtend));
@@ -214,7 +203,6 @@
 		};
 	}
 
-	// Control point sampled slightly inside to let top/bottom rows bow
 	function spineTForRow(v: number) {
 		const eps = Math.min(0.06, 1 / Math.max(8, rows * 1.5));
 		return clamp(v, eps, 1 - eps);
@@ -251,7 +239,7 @@
 	}
 
 	/* -------------------------------------------------
-	   OpenSeadragon helpers + zoom controls
+	   OpenSeadragon helpers
 	------------------------------------------------- */
 
 	function getContentSize(v: OpenSeadragon.Viewer) {
@@ -293,7 +281,6 @@
 			crossOriginPolicy: 'Anonymous',
 			keyboardNavEnabled: false,
 
-			// ✅ allow zooming out beyond home
 			visibilityRatio: 0.0,
 			constrainDuringPan: false,
 			minZoomImageRatio: 0.05,
@@ -308,6 +295,8 @@
 				dragToPanButton: true
 			},
 			showFullPageControl: false,
+
+			// Keep OSD’s own controls
 			showHomeControl: true,
 			showZoomControl: true
 		});
@@ -319,19 +308,8 @@
 		return true;
 	}
 
-	function zoomBy(f: number) {
-		if (!viewer) return;
-		const z = viewer.viewport.getZoom(true);
-		viewer.viewport.zoomTo(z * f, undefined, true);
-	}
-
-	function fitHome() {
-		if (!viewer) return;
-		viewer.viewport.goHome(true);
-	}
-
 	/* -------------------------------------------------
-	   Overlay helpers + modes
+	   Overlay helpers
 	------------------------------------------------- */
 
 	function createHandleEl(kind: 'corner' | 'anchor' | 'mid' | 'handle') {
@@ -353,27 +331,6 @@
 		} else {
 			viewer.updateOverlay(el, vp, OpenSeadragon.Placement.CENTER);
 		}
-	}
-
-	function setInteractive(el: HTMLElement, enabled: boolean) {
-		el.style.pointerEvents = enabled ? 'auto' : 'none';
-		el.style.opacity = enabled ? '1' : '0.35';
-	}
-
-	function applyEditMode() {
-		const cornersEnabled = editMode === 'corners';
-		const curveEnabled = editMode === 'curve';
-
-		(['tl', 'tr', 'bl', 'br'] as CornerKey[]).forEach((k) => {
-			const el = cornerEls[k];
-			if (el) setInteractive(el, cornersEnabled);
-		});
-
-		if (p0El) setInteractive(p0El, curveEnabled);
-		if (p3El) setInteractive(p3El, curveEnabled);
-		if (midEl) setInteractive(midEl, curveEnabled);
-		if (h1El) setInteractive(h1El, curveEnabled);
-		if (h2El) setInteractive(h2El, curveEnabled);
 	}
 
 	function rebuildOverlays() {
@@ -406,6 +363,7 @@
 		);
 		addOrUpdateOverlay(p3El, P3());
 
+		// Mid handle = translate spine (make it visually distinct in CSS)
 		midEl = createHandleEl('mid');
 		midEl.addEventListener('pointerdown', (e) =>
 			startDrag(e as PointerEvent, { kind: 'mid', el: midEl! })
@@ -424,7 +382,6 @@
 		);
 		addOrUpdateOverlay(h2El, P2());
 
-		applyEditMode();
 		scheduleRedraw();
 		scheduleEmitMesh();
 	}
@@ -463,7 +420,6 @@
 		const edgePt = lerp(corners.tl, corners.tr, tClamped);
 		const d = downDir();
 
-		// pt = edgePt + (-topExtend)*d  => topExtend = -dot(pt-edgePt, d)
 		const topExtend = -dot(sub(pt, edgePt), d);
 
 		spine = {
@@ -480,7 +436,6 @@
 		const edgePt = lerp(corners.bl, corners.br, tClamped);
 		const d = downDir();
 
-		// pt = edgePt + bottomExtend*d  => bottomExtend = dot(pt-edgePt, d)
 		const bottomExtend = dot(sub(pt, edgePt), d);
 
 		spine = {
@@ -506,7 +461,6 @@
 		target: DragTarget;
 		pointerId: number;
 		navEnabledBefore: boolean;
-		// for mid-drag
 		startMid?: Pt;
 		startP0?: Pt;
 		startP3?: Pt;
@@ -516,9 +470,6 @@
 
 	function startDrag(e: PointerEvent, target: DragTarget) {
 		if (!viewer) return;
-
-		if (editMode === 'corners' && target.kind !== 'corner') return;
-		if (editMode === 'curve' && target.kind === 'corner') return;
 
 		e.preventDefault();
 		e.stopPropagation();
@@ -590,7 +541,6 @@
 			const newP0 = add(drag.startP0, delta);
 			const newP3 = add(drag.startP3, delta);
 
-			// Convert back to (t,extend)
 			setP0FromPoint(newP0);
 			setP3FromPoint(newP3);
 
@@ -680,7 +630,6 @@
 		border.setAttribute('class', 'border');
 		svgEl.appendChild(border);
 
-		// draw bar (P0->P3) + spine curve + handle lines
 		const P0p = P0();
 		const P1p = P1();
 		const P2p = P2();
@@ -723,7 +672,6 @@
 		);
 		svgEl.appendChild(spinePath);
 
-		// optionally draw a subset of row curves
 		if (showCurves) {
 			const step = Math.max(1, Math.floor(rows / 10));
 			const must = new Set([0, rows - 1]);
@@ -746,7 +694,6 @@
 			}
 		}
 
-		// derived grid
 		if (showGrid) {
 			const pts = deriveMeshPoints();
 			if (pts.length === rows * cols) {
@@ -803,17 +750,11 @@
 			h2: { x: 0.0, y: -0.18 }
 		};
 
-		editMode = 'corners';
 		rebuildOverlays();
 	}
 
 	function confirm() {
 		onConfirm?.(currentMesh());
-	}
-
-	function toggleMode() {
-		editMode = editMode === 'corners' ? 'curve' : 'corners';
-		applyEditMode();
 	}
 
 	/* -------------------------------------------------
@@ -842,7 +783,6 @@
 		viewer.addOnceHandler('open', () => rebuildOverlays());
 		viewer.open({ type: 'image', url: imageUrl });
 
-		// start slightly zoomed out for context
 		viewer.addOnceHandler('open', () => {
 			const home = viewer!.viewport.getHomeZoom();
 			viewer!.viewport.zoomTo(home * 0.85, undefined, true);
@@ -872,19 +812,8 @@
 	<div class="viewer" bind:this={hostEl}></div>
 
 	<div class="toolbar">
-		<button class="btn" on:click={toggleMode}
-			>Edit: {editMode === 'corners' ? 'Corners' : 'Curve'}</button
-		>
-
-		<button class="btn" on:click={() => zoomBy(0.8)}>Zoom -</button>
-		<button class="btn" on:click={() => zoomBy(1.25)}>Zoom +</button>
-		<button class="btn" on:click={fitHome}>Fit</button>
-
-		<label class="tog"><input type="checkbox" bind:checked={showCurves} /> Curves</label>
-		<label class="tog"><input type="checkbox" bind:checked={showGrid} /> Grid</label>
-
 		<button class="btn" on:click={reset}>Reset</button>
-		<button class="btn" on:click={confirm}>Confirm</button>
+		<button class="btn primary" on:click={confirm}>Confirm</button>
 	</div>
 </div>
 
@@ -921,15 +850,11 @@
 		cursor: pointer;
 	}
 
-	.tog {
-		display: inline-flex;
-		gap: 0.35rem;
-		align-items: center;
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		border-radius: 8px;
-		padding: 0.35rem 0.55rem;
-		font-size: 0.8rem;
+	.btn.primary {
+		background: rgba(76, 159, 254, 0.92);
+		color: #0b1220;
+		border-color: rgba(0, 0, 0, 0.12);
+		font-weight: 600;
 	}
 
 	:global(svg.overlay) {
@@ -1040,9 +965,20 @@
 		background: #4c9ffe;
 	}
 
-	:global(.h.anchor .dot),
-	:global(.h.mid .dot) {
+	:global(.h.anchor .dot) {
 		width: 8px;
 		height: 8px;
+	}
+
+	/* Mid “translate” control stands out */
+	:global(.h.mid .ring) {
+		border-color: rgba(255, 190, 65, 0.95);
+		background: rgba(0, 0, 0, 0.35);
+	}
+
+	:global(.h.mid .dot) {
+		width: 10px;
+		height: 10px;
+		background: #ffbe41;
 	}
 </style>

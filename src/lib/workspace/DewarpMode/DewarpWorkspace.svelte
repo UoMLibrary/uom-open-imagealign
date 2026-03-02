@@ -293,7 +293,6 @@
 
 				<div class="preview" bind:this={previewWrap}>
 					<div class="preview-title">Preview</div>
-					<!-- <canvas class="preview-canvas" bind:this={previewCanvas}></canvas> -->
 					<DewarpPreview sourceUrl={imageUrl} mesh={liveMesh} guideCount={20} />
 				</div>
 			</div>
