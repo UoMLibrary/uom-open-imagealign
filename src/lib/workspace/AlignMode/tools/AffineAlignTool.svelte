@@ -394,17 +394,23 @@
 		drag = null;
 	}
 
-	function addInitial4Points(inset = 0.07) {
-		if (pairs.length) return;
+	/* -------------------------------------------------
+	   Initial 4 points (plain + smart-match)
+	------------------------------------------------- */
 
+	type Corner = 'tl' | 'tr' | 'br' | 'bl';
+
+	function makeInsetCornerPoints(inset = 0.07): Pt[] {
 		const d = clamp01(inset);
-		const pts: Pt[] = [
-			{ x: d, y: d },
-			{ x: 1 - d, y: d },
-			{ x: 1 - d, y: 1 - d },
-			{ x: d, y: 1 - d }
+		return [
+			{ x: d, y: d }, // tl
+			{ x: 1 - d, y: d }, // tr
+			{ x: 1 - d, y: 1 - d }, // br
+			{ x: d, y: 1 - d } // bl
 		];
+	}
 
+	function seedFromPts(pts: Pt[]) {
 		pairs = pts.map((p) => ({ source: { ...p }, target: { ...p } }));
 		adjustIndex = 0;
 
@@ -415,8 +421,318 @@
 
 		refreshOverlays();
 		centerOnPair(0, false);
-
 		requestAutoCompute();
+	}
+
+	function addInitial4Points(inset = 0.07) {
+		if (pairs.length) return;
+		seedFromPts(makeInsetCornerPoints(inset));
+	}
+
+	/**
+	 * Smart version (with ROI inset to reduce edge/background noise):
+	 * - Picks a square ROI in each corner on each image, but inset away from the image edges
+	 * - Uses ORB feature matching ROI-to-ROI (TL↔TL etc.)
+	 * - If matches look good, uses the median matched keypoint as the corner point
+	 * - Otherwise falls back to the usual inset-corner point for that corner
+	 *
+	 * NOTE: This expects `cornerRectPx(...)` to accept an extra `insetFrac`:
+	 *   cornerRectPx(w, h, corner, roiFrac, insetFrac, cv)
+	 */
+	async function addInitial4PointsSmart(inset = 0.07) {
+		if (pairs.length) return;
+
+		const fallbackPts = makeInsetCornerPoints(inset);
+		const fallbackPairs = fallbackPts.map((p) => ({ source: { ...p }, target: { ...p } }));
+
+		// If OpenCV isn't ready (yet), just do the existing behaviour.
+		if (!cvReady) {
+			pairs = fallbackPairs;
+			adjustIndex = 0;
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+			return;
+		}
+
+		const cv = (window as any).cv as any;
+		if (!cv) {
+			seedFromPts(fallbackPts);
+			return;
+		}
+
+		// Tuning knobs
+		const cornerRoiFrac = 0.35; // ROI size (fraction of "safe" min dimension if using inset-aware cornerRectPx)
+		const cornerInsetFrac = Math.max(0, Math.min(0.15, inset)); // inset ROI away from image edges (use inset param, clamped)
+		const minGoodMatches = 4;
+		const maxAcceptableDistance = 60;
+
+		let baseRGBA: any = null;
+		let movRGBA: any = null;
+		let baseGray: any = null;
+		let movGray: any = null;
+
+		try {
+			baseRGBA = await imreadNatural(sourceUrl, cv);
+			movRGBA = await imreadNatural(targetUrl, cv);
+
+			baseGray = rgbaToGray(baseRGBA, cv);
+			movGray = rgbaToGray(movRGBA, cv);
+
+			const baseW = baseGray.cols;
+			const baseH = baseGray.rows;
+			const movW = movGray.cols;
+			const movH = movGray.rows;
+
+			const corners: Corner[] = ['tl', 'tr', 'br', 'bl'];
+			const nextPairs: Pair[] = [];
+
+			for (let i = 0; i < corners.length; i++) {
+				const c = corners[i];
+				const fallback = fallbackPts[i];
+
+				// Inset ROIs to avoid desk/binding noise around the image edges
+				const baseRect = cornerRectPx(baseW, baseH, c, cornerRoiFrac, cornerInsetFrac, cv);
+				const movRect = cornerRectPx(movW, movH, c, cornerRoiFrac, cornerInsetFrac, cv);
+
+				let match = matchCornerROI(baseGray, movGray, baseRect, movRect, cv, {
+					minGoodMatches,
+					maxAcceptableDistance
+				});
+
+				// Optional "second chance": if inset ROI fails, try the edge-pinned ROI before falling back
+				if (!match && cornerInsetFrac > 0) {
+					const baseRect2 = cornerRectPx(baseW, baseH, c, cornerRoiFrac, 0, cv);
+					const movRect2 = cornerRectPx(movW, movH, c, cornerRoiFrac, 0, cv);
+
+					match = matchCornerROI(baseGray, movGray, baseRect2, movRect2, cv, {
+						minGoodMatches,
+						maxAcceptableDistance
+					});
+				}
+
+				if (match) {
+					nextPairs.push({
+						source: { x: clamp01(match.base.x / baseW), y: clamp01(match.base.y / baseH) },
+						target: { x: clamp01(match.moving.x / movW), y: clamp01(match.moving.y / movH) }
+					});
+				} else {
+					nextPairs.push({ source: { ...fallback }, target: { ...fallback } });
+				}
+			}
+
+			pairs = nextPairs;
+			adjustIndex = 0;
+
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+		} catch (err) {
+			// any failure → behave exactly like the old button
+			pairs = fallbackPairs;
+			adjustIndex = 0;
+
+			computed = null;
+			warpedUrl = null;
+			autoComputedOnce = false;
+
+			refreshOverlays();
+			centerOnPair(0, false);
+			requestAutoCompute();
+		} finally {
+			try {
+				baseRGBA?.delete?.();
+				movRGBA?.delete?.();
+				baseGray?.delete?.();
+				movGray?.delete?.();
+			} catch {
+				// ignore
+			}
+		}
+	}
+
+	function rgbaToGray(rgba: any, cv: any) {
+		const gray = new cv.Mat();
+		cv.cvtColor(rgba, gray, cv.COLOR_RGBA2GRAY, 0);
+		// mild normalize to help across lighting differences
+		try {
+			cv.equalizeHist(gray, gray);
+		} catch {
+			// equalizeHist can fail if type isn't 8U; cvtColor should make it 8U though
+		}
+		return gray;
+	}
+
+	function cornerRectPx(
+		w: number,
+		h: number,
+		corner: Corner,
+		roiFrac: number,
+		insetFrac: number,
+		cv: any
+	) {
+		const inset = Math.max(0, Math.round(Math.min(w, h) * clamp01(insetFrac)));
+
+		// available "safe" area after inset (like your diagram)
+		const safeW = Math.max(1, w - inset * 2);
+		const safeH = Math.max(1, h - inset * 2);
+		const safeMin = Math.min(safeW, safeH);
+
+		// ROI side length as a fraction of the safe area
+		const s = Math.max(64, Math.round(safeMin * clamp01(roiFrac)));
+
+		// Clamp to safe area in case of small images / large inset
+		const ww = Math.max(1, Math.min(s, safeW));
+		const hh = Math.max(1, Math.min(s, safeH));
+
+		const x0 = corner === 'tr' || corner === 'br' ? inset + (safeW - ww) : inset;
+		const y0 = corner === 'bl' || corner === 'br' ? inset + (safeH - hh) : inset;
+
+		return new cv.Rect(x0, y0, ww, hh);
+	}
+
+	function createORB(cv: any) {
+		// OpenCV.js builds differ; try common creation patterns
+		try {
+			if (cv.ORB && typeof cv.ORB.create === 'function') return cv.ORB.create();
+		} catch {
+			// ignore
+		}
+		try {
+			if (typeof cv.ORB === 'function') return new cv.ORB();
+		} catch {
+			// ignore
+		}
+		return null;
+	}
+
+	function median(values: number[]) {
+		if (!values.length) return 0;
+		const a = [...values].sort((x, y) => x - y);
+		const mid = Math.floor(a.length / 2);
+		return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+	}
+
+	function matchCornerROI(
+		baseGray: any,
+		movingGray: any,
+		baseRect: any,
+		movingRect: any,
+		cv: any,
+		opts: { minGoodMatches: number; maxAcceptableDistance: number }
+	): { base: { x: number; y: number }; moving: { x: number; y: number } } | null {
+		const orb = createORB(cv);
+		if (!orb) return null;
+
+		let baseRoi: any = null;
+		let movRoi: any = null;
+
+		let kp1: any = null;
+		let kp2: any = null;
+		let des1: any = null;
+		let des2: any = null;
+
+		let mask1: any = null;
+		let mask2: any = null;
+
+		let matcher: any = null;
+		let matches: any = null;
+
+		try {
+			baseRoi = baseGray.roi(baseRect);
+			movRoi = movingGray.roi(movingRect);
+
+			kp1 = new cv.KeyPointVector();
+			kp2 = new cv.KeyPointVector();
+			des1 = new cv.Mat();
+			des2 = new cv.Mat();
+			mask1 = new cv.Mat();
+			mask2 = new cv.Mat();
+
+			orb.detectAndCompute(baseRoi, mask1, kp1, des1);
+			orb.detectAndCompute(movRoi, mask2, kp2, des2);
+
+			if (!des1.rows || !des2.rows || des1.empty?.() || des2.empty?.()) return null;
+			if (!kp1.size?.() || !kp2.size?.()) return null;
+
+			matcher = new cv.BFMatcher(cv.NORM_HAMMING, true);
+			matches = new cv.DMatchVector();
+			matcher.match(des1, des2, matches);
+
+			const mCount = matches.size();
+			if (!mCount || mCount < opts.minGoodMatches) return null;
+
+			// gather + sort by distance
+			const ms: { queryIdx: number; trainIdx: number; distance: number }[] = [];
+			for (let i = 0; i < mCount; i++) {
+				const m = matches.get(i);
+				ms.push({ queryIdx: m.queryIdx, trainIdx: m.trainIdx, distance: m.distance });
+			}
+			ms.sort((a, b) => a.distance - b.distance);
+
+			const best = ms[0];
+			if (!best) return null;
+			if (best.distance > opts.maxAcceptableDistance) return null;
+
+			// Keep a small "good" set near the best match to reduce outliers
+			const distGate = Math.min(opts.maxAcceptableDistance, best.distance * 1.5 + 8);
+			const good = ms.filter((m) => m.distance <= distGate).slice(0, 20);
+
+			if (good.length < opts.minGoodMatches) return null;
+
+			const baseXs: number[] = [];
+			const baseYs: number[] = [];
+			const movXs: number[] = [];
+			const movYs: number[] = [];
+
+			for (const m of good) {
+				const k1 = kp1.get(m.queryIdx);
+				const k2 = kp2.get(m.trainIdx);
+
+				const p1 = k1.pt;
+				const p2 = k2.pt;
+
+				baseXs.push(baseRect.x + p1.x);
+				baseYs.push(baseRect.y + p1.y);
+				movXs.push(movingRect.x + p2.x);
+				movYs.push(movingRect.y + p2.y);
+			}
+
+			return {
+				base: { x: median(baseXs), y: median(baseYs) },
+				moving: { x: median(movXs), y: median(movYs) }
+			};
+		} catch {
+			return null;
+		} finally {
+			try {
+				orb?.delete?.();
+
+				baseRoi?.delete?.();
+				movRoi?.delete?.();
+
+				kp1?.delete?.();
+				kp2?.delete?.();
+
+				des1?.delete?.();
+				des2?.delete?.();
+
+				mask1?.delete?.();
+				mask2?.delete?.();
+
+				matcher?.delete?.();
+				matches?.delete?.();
+			} catch {
+				// ignore cleanup failures
+			}
+		}
 	}
 
 	/* -------------------------------------------------
@@ -787,7 +1103,7 @@
 			<div class="chip">{pairs.length}/{maxPairs} pairs</div>
 
 			{#if pairs.length === 0}
-				<button class="btn" type="button" on:click={() => addInitial4Points(0.07)}>
+				<button class="btn" type="button" on:click={() => void addInitial4PointsSmart(0.07)}>
 					Add 4 corner points
 				</button>
 			{/if}
@@ -890,7 +1206,7 @@
 					activeIndex={adjustIndex}
 					onSelect={selectPair}
 					onRemove={removePair}
-					onAddCorners={() => addInitial4Points(0.07)}
+					onAddCorners={() => void addInitial4PointsSmart(0.07)}
 				/>
 			</div>
 		</SidePanel>
