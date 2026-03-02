@@ -9,9 +9,9 @@
 	export let mesh: DewarpMesh | null = null;
 
 	// View mode
-	export let showDewarped = true; // toggle dewarped vs original
+	export let showDewarped = true;
 
-	// Row lines toggle + count
+	// Rows (master) toggle: controls BOTH row lines and the guide knobs
 	export let showRowLines = true;
 	export let guideCount = 20;
 
@@ -37,7 +37,6 @@
 
 	let ro: ResizeObserver | null = null;
 
-	// Track what the preview was generated from (reference equality is enough)
 	let previewFor: { sourceUrl: string; meshRef: DewarpMesh } | null = null;
 	let openedMode: 'original' | 'dewarped' | null = null;
 	let openedUrl: string | null = null;
@@ -124,6 +123,12 @@
 		svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		svgEl.classList.add('guide-overlay');
 		viewer.container.appendChild(svgEl);
+	}
+
+	function setKnobVisible(visible: boolean) {
+		const v = visible ? 'block' : 'none';
+		if (topKnob) topKnob.style.display = v;
+		if (bottomKnob) bottomKnob.style.display = v;
 	}
 
 	function ensureKnobs() {
@@ -213,13 +218,22 @@
 		const rect = viewer.container.getBoundingClientRect();
 		svgEl.setAttribute('viewBox', `0 0 ${Math.max(1, rect.width)} ${Math.max(1, rect.height)}`);
 
+		// Always clear previous lines
 		while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
 
-		// knobs always visible + tracking
+		// Master toggle: hide BOTH lines and knobs
+		if (!showRowLines) {
+			setKnobVisible(false);
+			return;
+		}
+
+		// Rows are on => ensure knobs exist and are visible
+		ensureKnobs();
+		setKnobVisible(true);
 		updateKnobPositions();
 
-		// row lines toggle
-		if (!showRowLines || guideCount < 2) return;
+		// If we don't have enough lines, keep the knobs but don't draw lines
+		if (guideCount < 2) return;
 
 		const topY = clamp(guideTop, 0, 1);
 		const botY = clamp(guideBottom, 0, 1);
@@ -311,7 +325,17 @@
 
 		viewer.addOnceHandler('open', () => {
 			ensureSvgOverlay();
-			ensureKnobs();
+
+			// Re-add overlays for the newly opened image
+			resetKnobOverlays();
+
+			if (showRowLines) {
+				ensureKnobs();
+				setKnobVisible(true);
+			} else {
+				setKnobVisible(false);
+			}
+
 			scheduleGuidesRedraw();
 		});
 
@@ -468,7 +492,7 @@
 		}
 	}
 
-	// IMPORTANT: force redraw when row toggle / count changes (fixes “only after pan/zoom”)
+	// Force immediate redraw when the toggle / count changes (fixes “only after pan/zoom”)
 	$: if (viewer) {
 		showRowLines;
 		guideCount;
@@ -509,14 +533,6 @@
 
 		ro = new ResizeObserver(() => scheduleGuidesRedraw());
 		ro.observe(hostEl);
-
-		// Make sure knobs exist once the first image opens
-		viewer.addOnceHandler('open', () => {
-			ensureKnobs();
-			scheduleGuidesRedraw();
-		});
-
-		if (sourceUrl && !showDewarped) openOriginal();
 	});
 
 	onDestroy(() => {
@@ -528,6 +544,18 @@
 
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
 	});
+
+	function resetKnobOverlays() {
+		if (!viewer) return;
+		try {
+			if (topKnob) viewer.removeOverlay(topKnob);
+		} catch {}
+		try {
+			if (bottomKnob) viewer.removeOverlay(bottomKnob);
+		} catch {}
+		topOverlayAdded = false;
+		bottomOverlayAdded = false;
+	}
 </script>
 
 <div class="shell">
@@ -542,8 +570,8 @@
 		<span class="sep" />
 
 		<label>
-			<input type="checkbox" bind:checked={showRowLines} on:change={scheduleGuidesRedraw} />
-			Row lines
+			<input type="checkbox" bind:checked={showRowLines} />
+			Rows
 		</label>
 
 		<label>
