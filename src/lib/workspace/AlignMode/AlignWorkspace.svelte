@@ -162,20 +162,6 @@
 							existingAlignment={existingAlignment ?? null}
 							onSave={saveFromTool}
 						/>
-					{:else if strategy === 'keypoints'}
-						<KeypointAlignTool
-							targetUrl={activePair.targetUrl}
-							sourceUrl={activePair.sourceUrl}
-							existingAlignment={existingAlignment ?? null}
-							onSave={saveFromTool}
-						/>
-					{:else if strategy === 'affine'}
-						<AffineAlignTool
-							targetUrl={activePair.targetUrl}
-							sourceUrl={activePair.sourceUrl}
-							existingAlignment={existingAlignment ?? null}
-							onSave={saveFromTool}
-						/>
 					{:else}
 						<div class="tool-stub">
 							<div class="stub-title">{strategy} tool</div>

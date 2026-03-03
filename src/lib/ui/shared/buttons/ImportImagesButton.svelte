@@ -1,13 +1,8 @@
 <script lang="ts">
 	import { hashImageFile } from '$lib/image/hashing';
-	import {
-		addImage,
-		updateImageByContentHash,
-		findImageByContentHash
-	} from '$lib/core/projectStore';
-	import { ensureWorkingImage, ensureThumbnail } from '$lib/image/derivation';
+	import { addImage } from '$lib/core/projectStore';
+	import { getDerivedBlob } from '$lib/image/derivationService';
 	import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
-	import type { ImagePreparation } from '$lib/core/types';
 
 	let ingesting = false;
 	let ingestProgress = 0;
@@ -19,27 +14,26 @@
 		if (supportsFileSystemAccess()) {
 			const dir = await (window as any).showDirectoryPicker();
 			await collectFromDirectory(dir, filesToProcess);
-		} else {
-			const input = document.createElement('input');
-			input.type = 'file';
-			input.webkitdirectory = true;
-			input.multiple = true;
-
-			input.onchange = async () => {
-				for (const file of Array.from(input.files ?? [])) {
-					if (!file.type.startsWith('image/')) continue;
-					const structuralPath = (file as any).webkitRelativePath;
-					filesToProcess.push({ file, structuralPath });
-				}
-
-				await processFiles(filesToProcess);
-			};
-
-			input.click();
+			await processFiles(filesToProcess);
 			return;
 		}
 
-		await processFiles(filesToProcess);
+		const input = document.createElement('input');
+		input.type = 'file';
+		(input as any).webkitdirectory = true;
+		input.multiple = true;
+
+		input.onchange = async () => {
+			for (const file of Array.from(input.files ?? [])) {
+				if (!file.type.startsWith('image/')) continue;
+				const structuralPath = (file as any).webkitRelativePath;
+				filesToProcess.push({ file, structuralPath });
+			}
+
+			await processFiles(filesToProcess);
+		};
+
+		input.click();
 	}
 
 	async function collectFromDirectory(
@@ -52,6 +46,7 @@
 
 			if (entry.kind === 'directory') {
 				await collectFromDirectory(entry, files, currentPath);
+				continue;
 			}
 
 			if (entry.kind === 'file') {
@@ -98,46 +93,32 @@
 			return;
 		}
 
+		// 1) hash (dedupe cache by content, but we still add a new image ID per file)
 		const { contentHash } = await hashImageFile(file);
-		const existing = findImageByContentHash(contentHash);
+
+		console.log('INGEST HASH:', contentHash);
+
+		// 2) dimensions
+		const bitmap = await createImageBitmap(file);
+		const width = bitmap.width;
+		const height = bitmap.height;
+		bitmap.close?.();
+
+		// 3) ensure cached artefacts exist (size+version are in the derivation service key)
+		// Always provide file so a cache miss can build 'work'.
+		await getDerivedBlob(contentHash, 'work', file);
+		await getDerivedBlob(contentHash, 'thumb', file);
+
+		// 4) runtime URI for UI (not part of persisted schema; store can strip on save)
 		const objectUrl = URL.createObjectURL(file);
 
-		if (existing) {
-			updateImageByContentHash(contentHash, (img) => ({
-				...img,
-				runtimeUri: objectUrl,
-				label: file.name,
-				structuralPath
-			}));
-			return;
-		}
-
-		const bitmap = await createImageBitmap(file);
-
-		const defaultPreparation: ImagePreparation = {
-			rotation: 0,
-			rect: { x: 0, y: 0, width: 1, height: 1 }
-		};
-
-		await ensureWorkingImage(contentHash, file);
-		await ensureThumbnail(contentHash);
-
+		// 5) add image record (simplified shape)
 		addImage({
 			id: crypto.randomUUID(),
-			sourceType: 'local',
-			source: {},
+			contentHash,
 			label: file.name,
 			structuralPath,
-			hashes: { contentHash },
-			dimensions: {
-				width: bitmap.width,
-				height: bitmap.height
-			},
-			preparation: defaultPreparation,
-			workflow: {
-				stage: 'ingested',
-				updatedAt: new Date().toISOString()
-			},
+			dimensions: { width, height },
 			runtimeUri: objectUrl
 		});
 	}

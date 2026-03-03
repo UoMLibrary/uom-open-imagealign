@@ -20,15 +20,19 @@
 	// $: console.log('PROPOSALS NOW:', $groupingState.proposals.length);
 
 	$: {
-		if ($groups.length === 0) {
-			selectedGroupId = null;
-		} else if (!selectedGroupId) {
+		const groupIds = $groups.map((g) => g.id);
+
+		if (groupIds.length === 0) {
+			if (selectedGroupId !== null) {
+				selectedGroupId = null;
+			}
+		} else if (!selectedGroupId || !groupIds.includes(selectedGroupId)) {
 			const last = $project.ui?.lastSelectedGroupId;
 
-			if (last && $groups.some((g) => g.id === last)) {
-				selectedGroupId = last;
-			} else {
-				selectedGroupId = $groups[0].id;
+			const next = last && groupIds.includes(last) ? last : groupIds[0];
+
+			if (selectedGroupId !== next) {
+				selectedGroupId = next;
 			}
 		}
 	}
