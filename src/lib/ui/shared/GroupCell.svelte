@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { imagesById } from '$lib/core/projectStore';
-	import ImageThumbnail from '$lib/ui/shared/ImageThumbnail.svelte';
+	import DerivedImage from '$lib/ui/shared/DerivedImage.svelte';
+	import CachedThumb from './CachedThumb.svelte';
 
 	type GroupLike = {
 		id: string;
@@ -40,12 +41,8 @@
 		<!-- Base (left) -->
 		<div class="tile">
 			{#if base}
-				<ImageThumbnail
-					contentHash={base.hashes?.contentHash ?? ''}
-					fallbackSrc={base.runtimeUri}
-					label={base.label}
-					mode="normalised"
-				/>
+				<!-- <DerivedImage contentHash={base.contentHash} kind="thumb" /> -->
+				<CachedThumb contentHash={base.contentHash} />
 			{:else}
 				<div class="thumb-fallback" aria-hidden="true"></div>
 			{/if}
@@ -54,12 +51,8 @@
 		<!-- Target preview (right) -->
 		<div class="tile">
 			{#if target}
-				<ImageThumbnail
-					contentHash={target.hashes?.contentHash ?? ''}
-					fallbackSrc={target.runtimeUri}
-					label={target.label}
-					mode="normalised"
-				/>
+				<!-- <DerivedImage contentHash={target.contentHash} kind="thumb" /> -->
+				<CachedThumb contentHash={target.contentHash} />
 			{:else}
 				<div class="thumb-fallback" aria-hidden="true"></div>
 			{/if}
