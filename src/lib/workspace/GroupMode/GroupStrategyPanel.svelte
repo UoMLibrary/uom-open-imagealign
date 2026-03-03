@@ -5,7 +5,7 @@
 	import PHashGroupingTool from '$lib/ui/features/grouping/tools/PHashGroupingTool.svelte';
 	import VisualProfileTool from '$lib/ui/features/grouping/tools/VisualProfileTool.svelte';
 
-	let selectedStrategy = 'individual';
+	let selectedStrategy = 'leaf';
 </script>
 
 <section>
