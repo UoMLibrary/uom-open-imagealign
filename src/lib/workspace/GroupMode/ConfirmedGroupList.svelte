@@ -2,7 +2,10 @@
 	import { groups } from '$lib/core/projectStore';
 	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
 
-	let { selectedGroupId = null, onSelect }: { selectedGroupId?: string | null; onSelect?: (id: string) => void } = $props();
+	let {
+		selectedGroupId = null,
+		onSelect
+	}: { selectedGroupId?: string | null; onSelect?: (id: string) => void } = $props();
 
 	// $: list = $groups.map((g, idx) => ({ ...g, __key: `${g.id}:${idx}` }));
 	let list = $derived($groups);

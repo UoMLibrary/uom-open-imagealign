@@ -38,15 +38,9 @@ const CONFIG: Record<DerivationKind, DerivationConfig> = {
    kind::contentHash::version::size
 ------------------------------------------------------------ */
 
-// function makeKey(kind: DerivationKind, contentHash: string) {
-//     const cfg = CONFIG[kind];
-//     return `${kind}::${contentHash}::${cfg.version}::${cfg.size}`;
-// }
-
 function makeKey(kind: DerivationKind, contentHash: string) {
     const cfg = CONFIG[kind];
     const key = `${kind}::${contentHash}::${cfg.version}::${cfg.size}`;
-    console.log('DERIVATION KEY:', key);
     return key;
 }
 
@@ -93,7 +87,7 @@ export async function getDerivedBlob(
     const key = makeKey(kind, contentHash);
 
     const cached = await get(key);
-    console.log('Cache lookup for', key, '->', cached);
+    // console.log('Cache lookup for', key, '->', cached);
     if (cached) return cached as Blob;
 
     const existing = inFlight.get(key);

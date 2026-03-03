@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { getDerivedBlob } from '$lib/image/derivationService';
+	import { onDestroy } from 'svelte';
+	import { getDerivedUrl } from '$lib/image/derivationService';
 
 	interface Props {
 		contentHash: string;
@@ -8,51 +8,53 @@
 		onMissing?: ((contentHash: string) => void) | undefined;
 	}
 
-	onMount(() => {
-		console.log('MOUNT thumb', contentHash);
-	});
-
-	onDestroy(() => {
-		console.log('DESTROY thumb', contentHash);
-	});
-
 	let { contentHash, alt = 'Thumbnail', onMissing }: Props = $props();
 
-	let src: string | null = null;
-	let state: 'loading' | 'ready' | 'missing' = 'loading';
+	let src: string | null = $state(null);
+	let state: 'loading' | 'ready' | 'missing' = $state('loading');
+	let release: (() => void) | null = $state(null);
 
 	let runId = 0;
 	let currentHash: string | null = null;
 
-	function blobToDataUrl(blob: Blob): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => resolve(reader.result as string);
-			reader.onerror = reject;
-			reader.readAsDataURL(blob);
-		});
+	function cleanup() {
+		release?.();
+		release = null;
 	}
 
 	async function loadFor(hash: string) {
 		const id = ++runId;
 
-		// reset state
+		cleanup();
 		src = null;
 		state = 'loading';
 
+		console.log('CachedThumb: loadFor called with hash', hash, 'runId', id);
+
+		if (!hash) {
+			state = 'missing';
+			onMissing?.(hash);
+			return;
+		}
+
 		try {
-			const blob = await getDerivedBlob(hash, 'thumb');
-			const dataUrl = await blobToDataUrl(blob);
+			console.log('CachedThumb: loading hash', hash, 'runId', id);
+			const res = await getDerivedUrl(hash, 'thumb');
+			console.log('CachedThumb: got url', res.url, 'runId', id, 'current runId', runId);
 
-			// stale guard
-			if (id !== runId) return;
+			if (id !== runId) {
+				console.log('CachedThumb: stale load, discarding');
+				res.release();
+				return;
+			}
 
-			src = dataUrl;
+			release = res.release;
+			src = res.url;
 			state = 'ready';
-
-			console.log(src, state);
+			console.log('CachedThumb: state set to ready');
 		} catch (err) {
 			console.error('Error loading thumbnail for', hash, err);
+
 			if (id !== runId) return;
 
 			state = 'missing';
@@ -60,10 +62,6 @@
 		}
 	}
 
-	/**
-	 * CRITICAL:
-	 * Isolate dependency so effect only reacts to contentHash.
-	 */
 	$effect(() => {
 		const hash = contentHash;
 
@@ -78,28 +76,17 @@
 		void loadFor(hash);
 	});
 
-	onDestroy(() => {
-		// cancel any in-flight load
-		runId++;
-	});
+	onDestroy(() => cleanup());
 </script>
 
-<h3>{state}</h3>
-<!-- <img src="  diff/d1.png" {alt} class="img" draggable="false" loading="lazy" decoding="async" /> -->
 {#if state === 'ready' && src}
-	<!-- <img {src} {alt} class="img" draggable="false" loading="lazy" decoding="async" /> -->
-	<img {src} {alt} class="img" draggable="false" />
+	<img {src} {alt} class="img" draggable="false" loading="lazy" decoding="async" />
 {:else if state === 'loading'}
-	<div class="ph ph-loading" role="img" aria-label="Loading thumbnail">
-		<div class="spinner" aria-hidden="true"></div>
+	<div class="ph ph-loading">
+		<div class="spinner"></div>
 	</div>
 {:else}
-	<div class="ph ph-missing" role="img" aria-label="Thumbnail missing from cache">
-		<div class="txt">
-			<div class="t1">Not cached</div>
-			<div class="t2">Re-ingest folder</div>
-		</div>
-	</div>
+	<div class="ph ph-missing">Not cached</div>
 {/if}
 
 <style>
