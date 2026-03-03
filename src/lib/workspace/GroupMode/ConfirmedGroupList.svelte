@@ -13,10 +13,6 @@
 	function select(id: string) {
 		onSelect?.(id);
 	}
-
-	$effect(() => {
-		console.log('GROUPS ARRAY REF CHANGED');
-	});
 </script>
 
 <div class="group-list">

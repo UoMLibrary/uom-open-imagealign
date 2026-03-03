@@ -14,21 +14,29 @@
 	let LeftPanelOpen = true;
 	let strategy: AlignStrategy = 'manual';
 	let selectedGroupId: string | null = null;
+	// keep an explicit variable for ease of typing and debugging
+	let selectedGroup: typeof $groups[number] | null = null;
 
-	// Default selection to first group
+	// Default to the first available group, but only when we don't already
+	// have a selection.  This prevents a downstream store update from
+	// clobbering a manual click (which was what was causing the workspace to
+	// appear to ignore `selectGroup` in some cases).
 	$: {
 		const list = $groups;
 
 		if (list.length === 0) {
 			selectedGroupId = null;
-		} else if (!selectedGroupId || !list.some((g) => g.id === selectedGroupId)) {
+		} else if (selectedGroupId === null) {
 			selectedGroupId = list[0].id;
 		}
 	}
 
-	$: selectedGroup = selectedGroupId ? $groups.find((g) => g.id === selectedGroupId) : null;
+	// derive the actual group object whenever the id changes
+	$: selectedGroup =
+		selectedGroupId ? $groups.find((g) => g.id === selectedGroupId) : null;
 
 	function selectGroup(id: string) {
+		console.log(id);
 		selectedGroupId = id;
 	}
 
@@ -154,7 +162,7 @@
 			{#if !activePair}
 				<div class="empty-main">Select a group to start aligning</div>
 			{:else}
-				{#key `${activePair.sourceImageId}:${activePair.targetImageId}:${strategy}`}
+				{#key `${selectedGroupId}:${activePair?.sourceImageId}:${activePair?.targetImageId}:${strategy}`}
 					{#if strategy === 'manual'}
 						<ManualAlignTool
 							targetUrl={activePair.targetUrl}

@@ -29,8 +29,6 @@
 		src = null;
 		state = 'loading';
 
-		console.log('CachedThumb: loadFor called with hash', hash, 'runId', id);
-
 		if (!hash) {
 			state = 'missing';
 			onMissing?.(hash);
@@ -38,12 +36,9 @@
 		}
 
 		try {
-			console.log('CachedThumb: loading hash', hash, 'runId', id);
 			const res = await getDerivedUrl(hash, 'thumb');
-			console.log('CachedThumb: got url', res.url, 'runId', id, 'current runId', runId);
 
 			if (id !== runId) {
-				console.log('CachedThumb: stale load, discarding');
 				res.release();
 				return;
 			}
@@ -51,7 +46,6 @@
 			release = res.release;
 			src = res.url;
 			state = 'ready';
-			console.log('CachedThumb: state set to ready');
 		} catch (err) {
 			console.error('Error loading thumbnail for', hash, err);
 

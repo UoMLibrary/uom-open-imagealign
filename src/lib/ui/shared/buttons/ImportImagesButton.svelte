@@ -96,7 +96,7 @@
 		// 1) hash (dedupe cache by content, but we still add a new image ID per file)
 		const { contentHash } = await hashImageFile(file);
 
-		console.log('INGEST HASH:', contentHash);
+		// console.log('INGEST HASH:', contentHash);
 
 		// 2) dimensions
 		const bitmap = await createImageBitmap(file);

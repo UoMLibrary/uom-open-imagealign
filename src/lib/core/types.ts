@@ -84,8 +84,16 @@ export interface ImageGroup {
 export interface ImageAlignment {
   id: string;
   groupId: string;
-  baseImageId: string;
-  comparedImageId: string;
+  /**
+   * The image that served as the *source* when computing the transform. In
+   * many parts of the UI this is referred to as the "base" image, but the
+   * store and workspace code operate in terms of source/target nomenclature.
+   */
+  sourceImageId: string;
+  /**
+   * The image that is being aligned *to* the source.
+   */
+  targetImageId: string;
   /**
    * Alignment method identifier (e.g. 'manual', 'auto', future methods).
    */
