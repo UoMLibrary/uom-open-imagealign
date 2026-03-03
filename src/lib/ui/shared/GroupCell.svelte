@@ -44,7 +44,7 @@
 					contentHash={base.hashes?.contentHash ?? ''}
 					fallbackSrc={base.runtimeUri}
 					label={base.label}
-					mode="thumb"
+					mode="normalised"
 				/>
 			{:else}
 				<div class="thumb-fallback" aria-hidden="true"></div>
@@ -58,7 +58,7 @@
 					contentHash={target.hashes?.contentHash ?? ''}
 					fallbackSrc={target.runtimeUri}
 					label={target.label}
-					mode="thumb"
+					mode="normalised"
 				/>
 			{:else}
 				<div class="thumb-fallback" aria-hidden="true"></div>
@@ -164,7 +164,7 @@
 	.of-badge {
 		position: absolute;
 		top: 6px;
-		left: 6px;
+		right: 6px;
 
 		padding: 0 6px;
 		height: 18px;

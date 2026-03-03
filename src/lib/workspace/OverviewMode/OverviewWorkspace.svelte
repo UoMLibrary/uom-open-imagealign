@@ -76,6 +76,7 @@
 					<th class="thumb-col">Thumbnail</th>
 					<th class="thumb-col">Normalised</th>
 					<th class="file-col">Filename</th>
+					<th class="dimension-col">Dimensions</th>
 					<th class="hash-col">ID</th>
 
 					{#each STAGE_ORDER as stage}
@@ -114,6 +115,10 @@
 
 						<td class="file-cell">
 							{image.label ?? image.id}
+						</td>
+
+						<td class="file-cell">
+							{image.dimensions.width ?? '?'} × {image.dimensions.height ?? '?'}
 						</td>
 
 						<td class="hash-cell">

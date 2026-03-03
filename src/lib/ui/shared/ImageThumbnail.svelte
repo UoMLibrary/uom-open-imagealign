@@ -1,113 +1,138 @@
 <script lang="ts">
-	// lib/ui/features/thmbnails/ImageThumbnail.svelte
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { get } from 'idb-keyval';
 	import { NORMALISE_VERSION, THUMB_VERSION, TRIM_VERSION } from '$lib/image/versions';
 
-	export let contentHash: string;
-	export let fallbackSrc: string;
-	export let label: string | undefined = undefined;
+	interface Props {
+		contentHash: string;
+		fallbackSrc: string;
+		label?: string;
+		mode?: 'thumb' | 'normalised' | 'trim';
+		debugCompare?: boolean;
+	}
 
-	// Which derived version to display
-	export let mode: 'thumb' | 'normalised' | 'trim' = 'thumb';
-
-	// Debug: show original + trimmed side by side
-	export let debugCompare: boolean = false;
+	// ✅ Svelte 5: use `let` so props stay reactive
+	let { contentHash, fallbackSrc, label, mode = 'thumb', debugCompare = false }: Props = $props();
 
 	const versionMap = {
 		thumb: THUMB_VERSION,
 		normalised: NORMALISE_VERSION,
 		trim: TRIM_VERSION
-	};
+	} as const;
 
 	const prefixMap = {
 		thumb: 'thumb',
-		normalised: 'norm',
+		normalised: 'norm', // ensure this matches your writer keys
 		trim: 'trim'
-	};
+	} as const;
 
-	let src: string = fallbackSrc;
+	let src: string | null = null; // start null so we don't fetch fallback immediately
 	let trimSrc: string | null = null;
 
 	let broken = false;
+	let loading = true;
+
 	let objectUrl: string | null = null;
 	let trimObjectUrl: string | null = null;
 
+	let runId = 0;
+
+	function cleanupUrls() {
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
+		if (trimObjectUrl) URL.revokeObjectURL(trimObjectUrl);
+		objectUrl = null;
+		trimObjectUrl = null;
+	}
+
 	async function loadImage() {
-		if (!contentHash) return;
+		const id = ++runId;
 
-		// Cleanup old URLs
-		if (objectUrl) {
-			URL.revokeObjectURL(objectUrl);
-			objectUrl = null;
-		}
-		if (trimObjectUrl) {
-			URL.revokeObjectURL(trimObjectUrl);
-			trimObjectUrl = null;
-		}
+		loading = true;
+		broken = false;
+		cleanupUrls();
 
-		// Main image
-		const key = `${prefixMap[mode]}::${contentHash}::${versionMap[mode]}`;
-		const blob = await get(key);
+		// don't set fallback yet — wait until we know we need it
+		src = null;
+		trimSrc = null;
 
-		if (blob) {
-			objectUrl = URL.createObjectURL(blob);
-			src = objectUrl;
-		} else {
+		if (!contentHash) {
 			src = fallbackSrc;
+			loading = false;
+			return;
 		}
 
-		// Debug trimmed version
-		if (debugCompare) {
-			const trimKey = `trim::${contentHash}::${TRIM_VERSION}`;
-			const trimBlob = await get(trimKey);
+		try {
+			const key = `${prefixMap[mode]}::${contentHash}::${versionMap[mode]}`;
+			const blob = await get<unknown>(key);
 
-			if (trimBlob) {
-				trimObjectUrl = URL.createObjectURL(trimBlob);
-				trimSrc = trimObjectUrl;
+			if (id !== runId) return;
+
+			if (blob instanceof Blob) {
+				objectUrl = URL.createObjectURL(blob);
+				src = objectUrl;
 			} else {
-				trimSrc = null;
+				src = fallbackSrc;
 			}
-		} else {
-			trimSrc = null;
+
+			if (debugCompare) {
+				const trimKey = `trim::${contentHash}::${TRIM_VERSION}`;
+				const trimBlob = await get<unknown>(trimKey);
+
+				if (id !== runId) return;
+
+				if (trimBlob instanceof Blob) {
+					trimObjectUrl = URL.createObjectURL(trimBlob);
+					trimSrc = trimObjectUrl;
+				}
+			}
+		} catch {
+			if (id !== runId) return;
+			src = fallbackSrc;
+		} finally {
+			if (id === runId) loading = false;
 		}
 	}
 
-	onMount(loadImage);
-
-	// React to changes
-	$: (contentHash, mode, debugCompare, loadImage());
+	// ✅ Make dependencies explicit so the effect re-runs when props change
+	$effect(() => {
+		contentHash;
+		fallbackSrc;
+		mode;
+		debugCompare;
+		void loadImage();
+	});
 
 	onDestroy(() => {
-		if (objectUrl) URL.revokeObjectURL(objectUrl);
-		if (trimObjectUrl) URL.revokeObjectURL(trimObjectUrl);
+		cleanupUrls();
 	});
 </script>
 
 <div class="thumb">
 	<div class="image-frame {debugCompare ? 'debug' : ''}">
-		{#if !broken}
-			{#if debugCompare && trimSrc}
-				<div class="compare">
-					<img src={fallbackSrc} alt="original" draggable="false" />
-					<img src={trimSrc} alt="trimmed" draggable="false" />
-				</div>
-			{:else}
-				<img
-					{src}
-					alt={label ?? 'Image'}
-					draggable="false"
-					on:error={() => (broken = true)}
-					on:load={() => (broken = false)}
-				/>
-			{/if}
-		{:else}
+		{#if broken}
 			<div class="placeholder">
 				<div class="placeholder-icon">🖼️</div>
-				<div class="placeholder-text">
-					Re-import folder<br />to relink
-				</div>
+				<div class="placeholder-text">Re-import folder<br />to relink</div>
 			</div>
+		{:else if loading || !src}
+			<div class="placeholder">
+				<div class="placeholder-text">Loading…</div>
+			</div>
+		{:else if debugCompare && trimSrc}
+			<div class="compare">
+				<img src={fallbackSrc} alt="original" draggable="false" loading="lazy" decoding="async" />
+				<img src={trimSrc} alt="trimmed" draggable="false" loading="lazy" decoding="async" />
+			</div>
+		{:else}
+			<img
+				{src}
+				alt={label ?? 'Image'}
+				draggable="false"
+				loading="lazy"
+				decoding="async"
+				on:error={() => (broken = true)}
+				on:load={() => (broken = false)}
+			/>
 		{/if}
 	</div>
 
@@ -121,12 +146,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
-		width: 100%; /* fill parent */
+		width: 100%;
 	}
 
 	.image-frame {
 		width: 100%;
-		aspect-ratio: 1 / 1; /* stay square */
+		aspect-ratio: 1 / 1;
 		border-radius: 6px;
 		background: white;
 		border: 1px solid #ddd;
@@ -146,7 +171,6 @@
 		pointer-events: none;
 	}
 
-	/*  Debug mode */
 	.image-frame.debug {
 		padding: 0;
 	}
