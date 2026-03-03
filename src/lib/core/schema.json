@@ -20,205 +20,154 @@
             "type": "string",
             "format": "date-time"
         },
+        "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "derivations": {
+            "type": "object",
+            "description": "Config describing the expected cached artefacts (IndexedDB keys include these sizes/versions).",
+            "additionalProperties": false,
+            "properties": {
+                "work": {
+                    "$ref": "#/$defs/derivationSpec"
+                },
+                "thumb": {
+                    "$ref": "#/$defs/derivationSpec"
+                }
+            },
+            "default": {
+                "work": {
+                    "kind": "work",
+                    "size": 2048,
+                    "version": "v1"
+                },
+                "thumb": {
+                    "kind": "thumb",
+                    "size": 256,
+                    "version": "v1"
+                }
+            }
+        },
         "images": {
             "type": "array",
             "items": {
-                "$ref": "#/$defs/imageSource"
+                "$ref": "#/$defs/imageRecord"
             },
-            "minItems": 1
+            "minItems": 0
         },
         "groups": {
             "type": "array",
             "items": {
                 "$ref": "#/$defs/imageGroup"
-            }
+            },
+            "minItems": 0
         },
         "alignments": {
             "type": "array",
             "items": {
                 "$ref": "#/$defs/imageAlignment"
-            }
-        },
-        "notes": {
-            "type": "string"
+            },
+            "minItems": 0
         },
         "annotations": {
             "type": "array",
             "items": {
-                "type": "object",
-                "required": [
-                    "baseImageContentHash",
-                    "data"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                    "baseImageContentHash": {
-                        "type": "string",
-                        "minLength": 32
-                    },
-                    "comparedImageContentHash": {
-                        "type": "string",
-                        "minLength": 32
-                    },
-                    "alignmentId": {
-                        "type": "string"
-                    },
-                    "data": {
-                        "type": "object",
-                        "additionalProperties": true
-                    }
-                }
-            }
+                "$ref": "#/$defs/annotationRecord"
+            },
+            "minItems": 0
+        },
+        "notes": {
+            "type": "string"
         },
         "ui": {
             "$ref": "#/$defs/projectUIState"
         }
     },
     "$defs": {
-        "imageSource": {
+        "hash32": {
+            "type": "string",
+            "minLength": 32
+        },
+        "derivationSpec": {
+            "type": "object",
+            "required": [
+                "kind",
+                "size",
+                "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "work",
+                        "thumb"
+                    ]
+                },
+                "size": {
+                    "type": "integer",
+                    "minimum": 16,
+                    "description": "Square output dimension in pixels (e.g. 2048, 256)."
+                },
+                "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Bump when derivation algorithm changes (part of cache key)."
+                }
+            }
+        },
+        "dimensions": {
+            "type": "object",
+            "required": [
+                "width",
+                "height"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "width": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "height": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "imageRecord": {
             "type": "object",
             "required": [
                 "id",
-                "sourceType",
-                "source",
-                "hashes",
-                "dimensions",
-                "workflow"
+                "contentHash",
+                "dimensions"
             ],
             "additionalProperties": false,
             "properties": {
                 "id": {
-                    "type": "string"
-                },
-                "sourceType": {
                     "type": "string",
-                    "enum": [
-                        "local",
-                        "url",
-                        "iiif"
-                    ]
+                    "description": "Unique ID for this image instance in the project (duplicates may share the same contentHash)."
                 },
-                "source": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "uri": {
-                            "type": "string",
-                            "description": "Canonical source URI (remote URL or IIIF endpoint)"
-                        },
-                        "iiifService": {
-                            "type": "string",
-                            "description": "IIIF base service URL (if sourceType is iiif)"
-                        }
-                    }
+                "contentHash": {
+                    "$ref": "#/$defs/hash32",
+                    "description": "Hash of the underlying image bytes, used to dedupe cached blobs in IndexedDB."
                 },
                 "label": {
                     "type": "string"
                 },
                 "structuralPath": {
-                    "type": "string"
-                },
-                "hashes": {
-                    "type": "object",
-                    "required": [
-                        "contentHash"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "contentHash": {
-                            "type": "string",
-                            "minLength": 32
-                        },
-                        "perceptualHash": {
-                            "type": "string"
-                        }
-                    }
+                    "type": "string",
+                    "description": "Optional logical path / folder path to preserve structure in UI."
                 },
                 "dimensions": {
-                    "type": "object",
-                    "required": [
-                        "width",
-                        "height"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "width": {
-                            "type": "number"
-                        },
-                        "height": {
-                            "type": "number"
-                        }
-                    }
+                    "$ref": "#/$defs/dimensions",
+                    "description": "Original source image dimensions (not the derived work/thumb sizes)."
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": true
-                },
-                "preparation": {
-                    "$ref": "#/$defs/imagePreparation"
-                },
-                "workflow": {
-                    "$ref": "#/$defs/imageWorkflow"
                 }
-            },
-            "allOf": [
-                {
-                    "if": {
-                        "properties": {
-                            "sourceType": {
-                                "const": "local"
-                            }
-                        }
-                    },
-                    "then": {
-                        "properties": {
-                            "source": {
-                                "not": {
-                                    "required": [
-                                        "uri"
-                                    ]
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "if": {
-                        "properties": {
-                            "sourceType": {
-                                "const": "url"
-                            }
-                        }
-                    },
-                    "then": {
-                        "properties": {
-                            "source": {
-                                "required": [
-                                    "uri"
-                                ]
-                            }
-                        }
-                    }
-                },
-                {
-                    "if": {
-                        "properties": {
-                            "sourceType": {
-                                "const": "iiif"
-                            }
-                        }
-                    },
-                    "then": {
-                        "properties": {
-                            "source": {
-                                "required": [
-                                    "iiifService"
-                                ]
-                            }
-                        }
-                    }
-                }
-            ]
+            }
         },
         "imageGroup": {
             "type": "object",
@@ -234,152 +183,205 @@
                     "type": "string"
                 },
                 "baseImageId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The base/reference image for this group."
                 },
                 "imageIds": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     },
-                    "minItems": 1
+                    "minItems": 1,
+                    "description": "All image instance IDs in the group (should include the baseImageId)."
                 },
                 "locked": {
                     "type": "boolean"
                 }
             }
         },
-        "imageAlignment": {
+        "pt01": {
             "type": "object",
             "required": [
-                "sourceImageId",
-                "targetImageId",
-                "sourceContentHash",
-                "targetContentHash",
-                "transform",
-                "confidence",
-                "method"
+                "x",
+                "y"
             ],
             "additionalProperties": false,
             "properties": {
-                "sourceImageId": {
+                "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                }
+            }
+        },
+        "manualPointPair": {
+            "type": "object",
+            "required": [
+                "base",
+                "compared"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "base": {
+                    "$ref": "#/$defs/pt01"
+                },
+                "compared": {
+                    "$ref": "#/$defs/pt01"
+                }
+            }
+        },
+        "alignmentTransform": {
+            "type": "object",
+            "required": [
+                "type",
+                "matrix"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "affine",
+                        "homography"
+                    ]
+                },
+                "matrix": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    },
+                    "minItems": 9,
+                    "maxItems": 9,
+                    "description": "3x3 row-major matrix."
+                }
+            }
+        },
+        "imageAlignment": {
+            "type": "object",
+            "required": [
+                "id",
+                "groupId",
+                "baseImageId",
+                "comparedImageId",
+                "method",
+                "transform",
+                "methodData"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
                     "type": "string"
                 },
-                "targetImageId": {
+                "groupId": {
                     "type": "string"
                 },
-                "sourceContentHash": {
+                "baseImageId": {
                     "type": "string"
                 },
-                "targetContentHash": {
+                "comparedImageId": {
                     "type": "string"
+                },
+                "method": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Alignment method identifier (e.g. 'manual', 'auto', future methods)."
                 },
                 "confidence": {
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1
                 },
-                "method": {
-                    "type": "string"
+                "transform": {
+                    "$ref": "#/$defs/alignmentTransform"
                 },
                 "methodData": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "transform": {
-                    "type": "object",
-                    "required": [
-                        "type",
-                        "matrix"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "enum": [
-                                "affine",
-                                "homography"
-                            ]
+                    "description": "Method-specific data sufficient to reproduce alignment against cached work images.",
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/manualMethodData"
                         },
-                        "matrix": {
-                            "type": "array",
-                            "items": {
-                                "type": "number"
-                            },
-                            "minItems": 9,
-                            "maxItems": 9
+                        {
+                            "$ref": "#/$defs/autoMethodData"
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "Fallback for future methods."
                         }
-                    }
-                }
-            }
-        },
-        "imagePreparation": {
-            "type": "object",
-            "required": [
-                "rect",
-                "rotation"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "rect": {
-                    "type": "object",
-                    "required": [
-                        "x",
-                        "y",
-                        "width",
-                        "height"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "x": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 1
-                        },
-                        "y": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 1
-                        },
-                        "width": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 1
-                        },
-                        "height": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 1
-                        }
-                    }
-                },
-                "rotation": {
-                    "type": "number",
-                    "minimum": -45,
-                    "maximum": 45
-                }
-            }
-        },
-        "imageWorkflow": {
-            "type": "object",
-            "required": [
-                "stage"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "stage": {
-                    "type": "string",
-                    "enum": [
-                        "ingested",
-                        "dewarped",
-                        "grouped",
-                        "aligned",
-                        "annotated",
-                        "prepared"
                     ]
-                },
-                "updatedAt": {
+                }
+            }
+        },
+        "manualMethodData": {
+            "type": "object",
+            "required": [
+                "type",
+                "points"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
                     "type": "string",
-                    "format": "date-time"
+                    "const": "manual"
+                },
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/manualPointPair"
+                    },
+                    "minItems": 1
+                }
+            }
+        },
+        "autoMethodData": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "additionalProperties": true,
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "const": "auto"
+                }
+            }
+        },
+        "annotationRecord": {
+            "type": "object",
+            "required": [
+                "id",
+                "groupId",
+                "baseImageId",
+                "comparedImageId",
+                "data"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "groupId": {
+                    "type": "string"
+                },
+                "baseImageId": {
+                    "type": "string"
+                },
+                "comparedImageId": {
+                    "type": "string"
+                },
+                "alignmentId": {
+                    "type": "string",
+                    "description": "Optional link to the alignment used when the annotation was created."
+                },
+                "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Opaque, organisation-configurable annotation payload."
                 }
             }
         },
@@ -396,10 +398,11 @@
                 "lastMode": {
                     "type": "string",
                     "enum": [
-                        "prepare",
+                        "ingest",
                         "group",
                         "align",
-                        "annotate"
+                        "annotate",
+                        "output"
                     ]
                 },
                 "SidePanelOpen": {
