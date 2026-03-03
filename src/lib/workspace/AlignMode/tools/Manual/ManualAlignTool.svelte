@@ -1,18 +1,21 @@
-<script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import OpenSeadragon from 'openseadragon';
+<script context="module" lang="ts">
 	import type { ImageAlignment } from '$lib/core/types';
-
-	import ResultPanel from './ResultPanel.svelte';
-	import PointPairs from './PointPairs.svelte';
-	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
-	import OsdPointPanel, { type Pt } from './OsdPointPanel.svelte';
 
 	export type AlignmentDraft = {
 		confidence?: number;
 		transform: ImageAlignment['transform'];
 		methodData?: Record<string, any>;
 	};
+</script>
+
+<script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+	import OpenSeadragon from 'openseadragon';
+
+	import ResultPanel from './ResultPanel.svelte';
+	import PointPairs from './PointPairs.svelte';
+	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
+	import OsdPointPanel, { type Pt } from './OsdPointPanel.svelte';
 
 	export let sourceUrl: string; // base
 	export let targetUrl: string; // moving

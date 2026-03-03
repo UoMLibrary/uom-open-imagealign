@@ -104,11 +104,11 @@ export interface ImageAlignment {
    * Method-specific data sufficient to reproduce alignment against cached work images.
    */
   methodData:
-    | ManualMethodData
-    | AutoMethodData
-    | {
-        [k: string]: unknown;
-      };
+  | ManualMethodData
+  | AutoMethodData
+  | {
+    [k: string]: unknown;
+  };
 }
 export interface AlignmentTransform {
   type: 'affine' | 'homography';

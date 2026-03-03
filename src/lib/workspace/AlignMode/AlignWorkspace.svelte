@@ -15,30 +15,45 @@
 	let strategy: AlignStrategy = 'manual';
 	let selectedGroupId: string | null = null;
 	// keep an explicit variable for ease of typing and debugging
-	let selectedGroup: typeof $groups[number] | null = null;
+	let selectedGroup: (typeof $groups)[number] | null = null;
 
-	// Default to the first available group, but only when we don't already
-	// have a selection.  This prevents a downstream store update from
-	// clobbering a manual click (which was what was causing the workspace to
-	// appear to ignore `selectGroup` in some cases).
+	// Keep selection valid and default to the first group when there isn't
+	// a current one.  This mirrors the logic used in other workspaces (e.g.
+	// annotate/group) and avoids races where a store update temporarily
+	// clears `selectedGroupId` and then snaps us back to the first item.
+	//
+	// The previous implementation only set the id when it was strictly
+	// `null`, which could still lose a manual click if a downstream reaction
+	// temporarily assigned `undefined` or a stale value.  Using the
+	// `list.some(...)` check ensures we only override when our current id
+	// is no longer present at all.
 	$: {
 		const list = $groups;
 
 		if (list.length === 0) {
 			selectedGroupId = null;
-		} else if (selectedGroupId === null) {
+		} else if (!selectedGroupId || !list.some((g) => g.id === selectedGroupId)) {
 			selectedGroupId = list[0].id;
 		}
 	}
 
 	// derive the actual group object whenever the id changes
-	$: selectedGroup =
-		selectedGroupId ? $groups.find((g) => g.id === selectedGroupId) : null;
+	$: selectedGroup = selectedGroupId ? $groups.find((g) => g.id === selectedGroupId) : null;
 
 	function selectGroup(id: string) {
-		console.log(id);
+		console.log('[AlignWorkspace] group clicked', id);
 		selectedGroupId = id;
 	}
+
+	// log whenever important values change so we can verify reactivity
+	// $: console.log(
+	// 	'[AlignWorkspace] selectedGroupId',
+	// 	selectedGroupId,
+	// 	'selectedGroup',
+	// 	selectedGroup,
+	// 	'activePair',
+	// 	activePair
+	// );
 
 	/* -------------------------------------------------
 	   Active pair
@@ -69,11 +84,22 @@
 			const target = $imagesById[targetImageId];
 			const source = $imagesById[sourceImageId];
 
+			// console.log('ALIGN DEBUG');
+			// console.log('target image', target);
+			// console.log('source image', source);
+
 			const targetUrl = target?.runtimeUri ?? '';
 			const sourceUrl = source?.runtimeUri ?? '';
 
-			const targetContentHash = target?.hashes?.contentHash ?? '';
-			const sourceContentHash = source?.hashes?.contentHash ?? '';
+			const targetContentHash = target?.contentHash ?? '';
+			const sourceContentHash = source?.contentHash ?? '';
+
+			// console.log({
+			// 	targetUrl,
+			// 	sourceUrl,
+			// 	targetContentHash,
+			// 	sourceContentHash
+			// });
 
 			activePair =
 				targetUrl && sourceUrl && targetContentHash && sourceContentHash
@@ -160,7 +186,18 @@
 
 		<div class="tool-area">
 			{#if !activePair}
-				<div class="empty-main">Select a group to start aligning</div>
+				{#if selectedGroup}
+					<div class="empty-main">
+						{#if $imagesById[selectedGroup.imageIds[0]]?.runtimeUri}
+							Unable to form an alignment for the selected group. Images may still be processing or
+							missing runtime URIs.
+						{:else}
+							Select a group to start aligning (waiting for images to load)
+						{/if}
+					</div>
+				{:else}
+					<div class="empty-main">Select a group to start aligning</div>
+				{/if}
 			{:else}
 				{#key `${selectedGroupId}:${activePair?.sourceImageId}:${activePair?.targetImageId}:${strategy}`}
 					{#if strategy === 'manual'}
