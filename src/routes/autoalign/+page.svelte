@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
+	import { warpImageWithTransform } from '$lib/imagealign/vggWarpService';
 
 	import {
 		initVggAlign,
@@ -157,7 +158,7 @@
 
 			transformData = transform;
 
-			const warpedBlob = await getImageFromTransform(baseFile, queryFile, transform);
+			const warpedBlob = await warpImageWithTransform(queryFile, transform);
 
 			if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 
@@ -290,6 +291,22 @@
 </div>
 
 <style>
+	:global(body) {
+		margin: 0;
+		min-height: 100vh;
+		overflow-y: auto;
+		font-family:
+			Inter,
+			ui-sans-serif,
+			system-ui,
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			sans-serif;
+		background: #f6f7f9;
+		color: #1f2937;
+	}
+
 	.page {
 		max-width: 1200px;
 		margin: auto;
@@ -302,11 +319,13 @@
 		gap: 1rem;
 	}
 
-	.panel {
-		background: white;
-		border-radius: 12px;
-		padding: 1rem;
-		border: 1px solid #e5e7eb;
+	.page {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 2rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 	}
 
 	.preview {
@@ -320,6 +339,7 @@
 		border: 1px solid #e5e7eb;
 		border-radius: 10px;
 		overflow: hidden;
+		background: rgba(255, 255, 255, 0.65);
 	}
 
 	.result-head {
@@ -349,5 +369,12 @@
 
 	.error {
 		color: #b91c1c;
+	}
+
+	input[type='file'] {
+		padding: 0.5rem;
+		border-radius: 8px;
+		border: 1px solid #d1d5db;
+		background: white;
 	}
 </style>
