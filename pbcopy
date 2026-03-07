@@ -1,0 +1,58 @@
+static
+├── diff
+│   ├── d1.png
+│   ├── d2.png
+│   ├── d3.png
+│   ├── d4.png
+│   └── d5.png
+├── openseadragon
+│   └── images
+│       ├── button_grouphover.png
+│       ├── button_hover.png
+│       ├── button_pressed.png
+│       ├── button_rest.png
+│       ├── flip_grouphover.png
+│       ├── flip_hover.png
+│       ├── flip_pressed.png
+│       ├── flip_rest.png
+│       ├── fullpage_grouphover.png
+│       ├── fullpage_hover.png
+│       ├── fullpage_pressed.png
+│       ├── fullpage_rest.png
+│       ├── home_grouphover.png
+│       ├── home_hover.png
+│       ├── home_pressed.png
+│       ├── home_rest.png
+│       ├── next_grouphover.png
+│       ├── next_hover.png
+│       ├── next_pressed.png
+│       ├── next_rest.png
+│       ├── previous_grouphover.png
+│       ├── previous_hover.png
+│       ├── previous_pressed.png
+│       ├── previous_rest.png
+│       ├── rotateleft_grouphover.png
+│       ├── rotateleft_hover.png
+│       ├── rotateleft_pressed.png
+│       ├── rotateleft_rest.png
+│       ├── rotateright_grouphover.png
+│       ├── rotateright_hover.png
+│       ├── rotateright_pressed.png
+│       ├── rotateright_rest.png
+│       ├── zoomin_grouphover.png
+│       ├── zoomin_hover.png
+│       ├── zoomin_pressed.png
+│       ├── zoomin_rest.png
+│       ├── zoomout_grouphover.png
+│       ├── zoomout_hover.png
+│       ├── zoomout_pressed.png
+│       └── zoomout_rest.png
+├── robots.txt
+├── test
+│   ├── photo1.png
+│   └── photo2.png
+└── vendor
+    └── vgg
+        └── transform.js
+
+7 directories, 49 files
