@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
+
 	import {
 		initVggAlign,
 		getTransformForImages,
+		getImageFromTransform,
 		type TransformData,
 		type TransformType
 	} from '$lib/imagealign/vggAlignService';
@@ -21,6 +24,9 @@
 	let baseUrl = $state<string | null>(null);
 	let queryUrl = $state<string | null>(null);
 
+	let warpedUrl = $state<string | null>(null);
+	let warpedRefreshKey = $state(0);
+
 	let baseInfo = $state<ImageInfo | null>(null);
 	let queryInfo = $state<ImageInfo | null>(null);
 
@@ -37,6 +43,13 @@
 	let baseInputEl = $state<HTMLInputElement | null>(null);
 	let queryInputEl = $state<HTMLInputElement | null>(null);
 
+	let resultMode = $state<'warped' | 'composite' | 'difference'>('warped');
+	let overlayOpacityPct = $state(60);
+
+	let resultFocus = $state<{ x: number; y: number } | null>(null);
+
+	let drawer = $state<'auto' | 'canvas' | 'webgl' | 'html' | Array<string>>('canvas');
+
 	const canAlign = $derived(
 		Boolean(baseFile && queryFile && baseInfo && queryInfo && engineReady && !isRunning)
 	);
@@ -48,7 +61,7 @@
 				engineStatus = 'VGG alignment engine ready';
 			})
 			.catch((err) => {
-				error = err instanceof Error ? err.message : 'Failed to load VGG alignment engine';
+				error = err instanceof Error ? err.message : 'Failed to load engine';
 				engineStatus = 'Failed to load VGG alignment engine';
 			});
 	});
@@ -137,12 +150,21 @@
 		transformData = null;
 
 		try {
-			transformData = await getTransformForImages(baseFile, queryFile, {
+			const transform = await getTransformForImages(baseFile, queryFile, {
 				type: transformType,
 				photometric
 			});
+
+			transformData = transform;
+
+			const warpedBlob = await getImageFromTransform(baseFile, queryFile, transform);
+
+			if (warpedUrl) URL.revokeObjectURL(warpedUrl);
+
+			warpedUrl = URL.createObjectURL(warpedBlob);
+			warpedRefreshKey++;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to generate transform data';
+			error = err instanceof Error ? err.message : 'Alignment failed';
 		} finally {
 			isRunning = false;
 		}
@@ -151,6 +173,7 @@
 	onDestroy(() => {
 		if (baseUrl) URL.revokeObjectURL(baseUrl);
 		if (queryUrl) URL.revokeObjectURL(queryUrl);
+		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 	});
 </script>
 
@@ -160,92 +183,68 @@
 
 <div class="page">
 	<h1>VGG Align Test</h1>
-	<p class="intro">
-		Load a base image and a moving image, then generate placeholder transform data.
-	</p>
 
 	<div class="grid">
 		<section class="panel">
-			<h2>Base image (fixed / target)</h2>
+			<h2>Base image</h2>
 
 			<input bind:this={baseInputEl} type="file" accept="image/*" on:change={onBaseChange} />
 
-			<div class="actions">
-				<button type="button" class="secondary" on:click={clearBase} disabled={!baseFile}>
-					Clear
-				</button>
-			</div>
+			<button class="secondary" on:click={clearBase} disabled={!baseFile}> Clear </button>
 
 			{#if baseInfo}
 				<div class="meta">
-					<div><strong>Name:</strong> {baseInfo.name}</div>
-					<div><strong>Type:</strong> {baseInfo.type}</div>
-					<div><strong>Size:</strong> {formatBytes(baseInfo.size)}</div>
-					<div><strong>Dimensions:</strong> {baseInfo.width} × {baseInfo.height}</div>
+					<div>{baseInfo.name}</div>
+					<div>{baseInfo.width} × {baseInfo.height}</div>
+					<div>{formatBytes(baseInfo.size)}</div>
 				</div>
 			{/if}
 
 			{#if baseUrl}
-				<div class="preview-wrap">
-					<img src={baseUrl} alt="Base preview" class="preview" />
-				</div>
+				<img src={baseUrl} class="preview" />
 			{/if}
 		</section>
 
 		<section class="panel">
-			<h2>Moving image (query)</h2>
+			<h2>Moving image</h2>
 
 			<input bind:this={queryInputEl} type="file" accept="image/*" on:change={onQueryChange} />
 
-			<div class="actions">
-				<button type="button" class="secondary" on:click={clearQuery} disabled={!queryFile}>
-					Clear
-				</button>
-			</div>
+			<button class="secondary" on:click={clearQuery} disabled={!queryFile}> Clear </button>
 
 			{#if queryInfo}
 				<div class="meta">
-					<div><strong>Name:</strong> {queryInfo.name}</div>
-					<div><strong>Type:</strong> {queryInfo.type}</div>
-					<div><strong>Size:</strong> {formatBytes(queryInfo.size)}</div>
-					<div><strong>Dimensions:</strong> {queryInfo.width} × {queryInfo.height}</div>
+					<div>{queryInfo.name}</div>
+					<div>{queryInfo.width} × {queryInfo.height}</div>
+					<div>{formatBytes(queryInfo.size)}</div>
 				</div>
 			{/if}
 
 			{#if queryUrl}
-				<div class="preview-wrap">
-					<img src={queryUrl} alt="Moving preview" class="preview" />
-				</div>
+				<img src={queryUrl} class="preview" />
 			{/if}
 		</section>
 	</div>
 
-	<section class="panel controls">
-		<h2>Transform settings</h2>
+	<section class="panel">
+		<h2>Transform</h2>
 
-		<div class="control-row">
-			<label for="transformType">Type</label>
-			<select id="transformType" bind:value={transformType}>
-				<option value="similarity">similarity</option>
-				<option value="affine">affine</option>
-				<option value="perspective">perspective</option>
-				<option value="tps">tps</option>
-			</select>
-		</div>
+		<select bind:value={transformType}>
+			<option value="similarity">similarity</option>
+			<option value="affine">affine</option>
+			<option value="perspective">perspective</option>
+			<option value="tps">tps</option>
+		</select>
 
 		<label class="checkbox">
 			<input type="checkbox" bind:checked={photometric} />
-			<span>Photometric / brightness matching</span>
+			Photometric match
 		</label>
 
 		<p class="engine-status">{engineStatus}</p>
 
-		<button type="button" class="primary" on:click={runAlignment} disabled={!canAlign}>
-			{#if isRunning}
-				Generating transform...
-			{:else}
-				Generate transform data
-			{/if}
+		<button class="primary" on:click={runAlignment} disabled={!canAlign}>
+			{isRunning ? 'Running alignment…' : 'Generate transform'}
 		</button>
 
 		{#if error}
@@ -253,187 +252,102 @@
 		{/if}
 	</section>
 
-	{#if transformData}
+	{#if warpedUrl}
 		<section class="panel">
-			<h2>Returned transformation data</h2>
-			<pre>{JSON.stringify(transformData, null, 2)}</pre>
+			<header class="result-head">
+				<div>Result</div>
+
+				<div class="result-controls">
+					{#if resultMode !== 'warped'}
+						<label>
+							Opacity
+							<input type="range" min="0" max="100" bind:value={overlayOpacityPct} />
+						</label>
+					{/if}
+
+					<select bind:value={resultMode}>
+						<option value="warped">Warped</option>
+						<option value="composite">Composite</option>
+						<option value="difference">Difference</option>
+					</select>
+				</div>
+			</header>
+
+			<div class="viewer">
+				<ResultPanel
+					imageUrl={resultMode === 'warped' ? warpedUrl : baseUrl}
+					overlayUrl={resultMode === 'warped' ? null : warpedUrl}
+					overlayOpacity={overlayOpacityPct / 100}
+					overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
+					refreshKey={warpedRefreshKey}
+					mode={resultMode}
+					focus={resultFocus}
+					{drawer}
+				/>
+			</div>
 		</section>
 	{/if}
 </div>
 
 <style>
-	.engine-status {
-		margin: 0;
-		color: #4b5563;
-		font-size: 0.95rem;
-	}
-
-	:global(body) {
-		margin: 0;
-		min-height: 100vh;
-		overflow-y: auto;
-		font-family:
-			Inter,
-			ui-sans-serif,
-			system-ui,
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			sans-serif;
-		background: #f6f7f9;
-		color: #1f2937;
-	}
-
 	.page {
 		max-width: 1200px;
-		margin: 0 auto;
+		margin: auto;
 		padding: 2rem;
-	}
-
-	h1 {
-		margin: 0 0 0.5rem 0;
-		font-size: 2rem;
-		line-height: 1.1;
-	}
-
-	h2 {
-		margin: 0 0 1rem 0;
-		font-size: 1.1rem;
-	}
-
-	.intro {
-		margin: 0 0 1.5rem 0;
-		color: #4b5563;
 	}
 
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
-		margin-bottom: 1rem;
 	}
 
 	.panel {
 		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 14px;
+		border-radius: 12px;
 		padding: 1rem;
-		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+		border: 1px solid #e5e7eb;
 	}
 
-	.controls {
-		display: grid;
+	.preview {
+		max-width: 100%;
+		margin-top: 1rem;
+		border-radius: 8px;
+	}
+
+	.viewer {
+		height: 600px;
+		border: 1px solid #e5e7eb;
+		border-radius: 10px;
+		overflow: hidden;
+	}
+
+	.result-head {
+		display: flex;
+		justify-content: space-between;
+		margin-bottom: 0.75rem;
+	}
+
+	.result-controls {
+		display: flex;
 		gap: 1rem;
-		margin-bottom: 1rem;
-	}
-
-	.control-row {
-		display: grid;
-		gap: 0.5rem;
-		max-width: 320px;
-	}
-
-	label {
-		font-weight: 600;
-	}
-
-	input[type='file'],
-	select,
-	button {
-		font: inherit;
-	}
-
-	input[type='file'],
-	select {
-		padding: 0.65rem 0.75rem;
-		border: 1px solid #d1d5db;
-		border-radius: 10px;
-		background: white;
-	}
-
-	.actions {
-		margin-top: 0.75rem;
+		align-items: center;
 	}
 
 	button {
-		padding: 0.75rem 1rem;
-		border-radius: 10px;
-		border: 1px solid #d1d5db;
-		cursor: pointer;
-	}
-
-	button:disabled {
-		opacity: 0.55;
-		cursor: not-allowed;
+		margin-top: 0.5rem;
+		padding: 0.6rem 0.9rem;
+		border-radius: 8px;
+		border: 1px solid #ccc;
 	}
 
 	.primary {
 		background: #111827;
 		color: white;
 		border-color: #111827;
-		width: fit-content;
-	}
-
-	.secondary {
-		background: white;
-		color: #111827;
-	}
-
-	.checkbox {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		font-weight: 500;
-	}
-
-	.meta {
-		margin-top: 1rem;
-		display: grid;
-		gap: 0.35rem;
-		font-size: 0.95rem;
-		color: #374151;
-	}
-
-	.preview-wrap {
-		margin-top: 1rem;
-		border: 1px solid #e5e7eb;
-		border-radius: 12px;
-		overflow: hidden;
-		background: #f9fafb;
-	}
-
-	.preview {
-		display: block;
-		max-width: 100%;
-		max-height: 360px;
-		margin: 0 auto;
-		object-fit: contain;
-	}
-
-	pre {
-		margin: 0;
-		padding: 1rem;
-		border-radius: 12px;
-		background: #0f172a;
-		color: #e5e7eb;
-		overflow: auto;
-		font-size: 0.9rem;
-		line-height: 1.45;
 	}
 
 	.error {
-		margin: 0;
 		color: #b91c1c;
-		font-weight: 600;
-	}
-
-	@media (max-width: 800px) {
-		.grid {
-			grid-template-columns: 1fr;
-		}
-
-		.page {
-			padding: 1rem;
-		}
 	}
 </style>
