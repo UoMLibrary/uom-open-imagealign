@@ -14,66 +14,68 @@ export async function warpImageWithTransform(
 
     const gl = canvas.getContext('webgl')
 
-    if (!gl) {
-        throw new Error('WebGL not supported')
-    }
+    if (!gl) throw new Error('WebGL not supported')
 
-    // ---------- shaders ----------
+    /* ---------- shaders ---------- */
 
     const vertexSrc = `
 	attribute vec2 a_position;
 	varying vec2 v_texCoord;
 
 	void main() {
-		v_texCoord = a_position * 0.5 + 0.5;
-		gl_Position = vec4(a_position, 0.0, 1.0);
+
+		v_texCoord = vec2(
+			a_position.x * 0.5 + 0.5,
+			1.0 - (a_position.y * 0.5 + 0.5)
+		);
+
+		gl_Position = vec4(a_position,0.0,1.0);
 	}
 	`
 
     const fragmentSrc = `
-    precision mediump float;
+	precision mediump float;
 
-    uniform sampler2D u_image;
-    uniform mat3 u_H;
+	uniform sampler2D u_image;
+	uniform mat3 u_H;
 
-    uniform vec2 u_srcSize;
-    uniform vec2 u_dstSize;
+	uniform vec2 u_srcSize;
+	uniform vec2 u_dstSize;
 
-    varying vec2 v_texCoord;
+	varying vec2 v_texCoord;
 
-    void main() {
+	void main(){
 
-        // convert normalized coord → destination pixel coord
-        vec2 dst = v_texCoord * u_dstSize;
+		// destination pixel coordinate
+		vec2 dst = v_texCoord * u_dstSize;
 
-        // apply homography
-        vec3 p = u_H * vec3(dst, 1.0);
+		// apply homography
+		vec3 p = u_H * vec3(dst,1.0);
 
-        vec2 src = p.xy / p.z;
+		vec2 src = p.xy / p.z;
 
-        // convert back to normalized texture coords
-        vec2 uv = src / u_srcSize;
+		// convert to texture coordinates
+		vec2 uv = src / u_srcSize;
 
-        // ---- ADD THE CHECK HERE ----
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-            gl_FragColor = vec4(0.0);
-            return;
-        }
+		if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0){
+			gl_FragColor = vec4(0.0);
+			return;
+		}
 
-        gl_FragColor = texture2D(u_image, uv);
-    }
+		gl_FragColor = texture2D(u_image,uv);
+	}
 	`
 
     function compile(type: number, src: string) {
-        const shader = gl.createShader(type)!
-        gl.shaderSource(shader, src)
-        gl.compileShader(shader)
+        const s = gl.createShader(type)!
+        gl.shaderSource(s, src)
+        gl.compileShader(s)
 
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            throw new Error(gl.getShaderInfoLog(shader) || 'shader compile error')
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            throw new Error(gl.getShaderInfoLog(s) || 'shader compile error')
         }
 
-        return shader
+        return s
     }
 
     const program = gl.createProgram()!
@@ -88,7 +90,7 @@ export async function warpImageWithTransform(
 
     gl.useProgram(program)
 
-    // ---------- quad ----------
+    /* ---------- quad ---------- */
 
     const quad = new Float32Array([
         -1, -1,
@@ -97,17 +99,18 @@ export async function warpImageWithTransform(
         1, 1
     ])
 
-    const buffer = gl.createBuffer()
+    const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW)
 
     const posLoc = gl.getAttribLocation(program, 'a_position')
+
     gl.enableVertexAttribArray(posLoc)
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0)
 
-    // ---------- texture ----------
+    /* ---------- texture ---------- */
 
-    const texture = gl.createTexture()
+    const texture = gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, texture)
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -115,7 +118,7 @@ export async function warpImageWithTransform(
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
 
     gl.texImage2D(
         gl.TEXTURE_2D,
@@ -126,9 +129,9 @@ export async function warpImageWithTransform(
         bitmap
     )
 
-    // ---------- matrix fix (row-major → column-major) ----------
+    /* ---------- matrix ---------- */
 
-    const h = transform.H_inv ?? transform.H
+    const h = transform.H
 
     const H = new Float32Array([
         h[0], h[3], h[6],
@@ -139,7 +142,7 @@ export async function warpImageWithTransform(
     const Hloc = gl.getUniformLocation(program, 'u_H')
     gl.uniformMatrix3fv(Hloc, false, H)
 
-    // ---------- image sizes ----------
+    /* ---------- sizes ---------- */
 
     const srcSizeLoc = gl.getUniformLocation(program, 'u_srcSize')
     const dstSizeLoc = gl.getUniformLocation(program, 'u_dstSize')
@@ -147,14 +150,14 @@ export async function warpImageWithTransform(
     gl.uniform2f(srcSizeLoc, bitmap.width, bitmap.height)
     gl.uniform2f(dstSizeLoc, canvas.width, canvas.height)
 
-    // ---------- draw ----------
+    /* ---------- draw ---------- */
 
     gl.viewport(0, 0, canvas.width, canvas.height)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-    // ---------- output ----------
+    /* ---------- output ---------- */
 
     return await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b!), 'image/png')
+        canvas.toBlob(b => resolve(b!), 'image/png')
     )
 }
