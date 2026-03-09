@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
 
 	type ImageMeta = {
 		name: string;
@@ -18,6 +19,11 @@
 	};
 
 	type PresetName = 'conservative' | 'balanced' | 'aggressive';
+
+	// ResultPanel state
+	let compareMode: 'composite' | 'difference' = 'composite';
+	let compareOpacity = 0.55;
+	let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
 	let baseFile: File | null = null;
 	let warpedFile: File | null = null;
@@ -732,14 +738,6 @@
 
 		<div class="upload-card status-card">
 			<h2>Run status</h2>
-			<div class="meta">
-				<div>baseFile: {baseFile ? 'yes' : 'no'}</div>
-				<div>warpedFile: {warpedFile ? 'yes' : 'no'}</div>
-				<div>baseMeta: {baseMeta ? 'yes' : 'no'}</div>
-				<div>warpedMeta: {warpedMeta ? 'yes' : 'no'}</div>
-				<div>running: {running ? 'yes' : 'no'}</div>
-				<div>canRun: {canRun ? 'yes' : 'no'}</div>
-			</div>
 
 			<div class="chips">
 				<span class="chip">{boxes.length} boxes</span>
@@ -932,7 +930,47 @@
 		</aside>
 
 		<section class="viewer-grid">
-			<article class="panel viewer-card">
+			<article class="panel viewer-card viewer-card--compare">
+				<header class="viewer-head">
+					<h3>Overlay compare</h3>
+					<span class="viewer-meta">Shift + mousewheel changes opacity</span>
+				</header>
+
+				<div class="compare-toolbar">
+					<label class="field compact">
+						<span>Mode</span>
+						<select bind:value={compareMode}>
+							<option value="composite">Composite</option>
+							<option value="difference">Difference</option>
+						</select>
+					</label>
+
+					<label class="field compact">
+						<span>Opacity</span>
+						<input type="range" min="0" max="1" step="0.01" bind:value={compareOpacity} />
+					</label>
+				</div>
+
+				<div class="viewer-shell viewer-shell--osd">
+					{#if baseUrl && warpedUrl}
+						<ResultPanel
+							imageUrl={baseUrl}
+							overlayUrl={warpedUrl}
+							bind:overlayOpacity={compareOpacity}
+							overlayCompositeOperation={compareMode === 'difference' ? 'difference' : null}
+							refreshKey={0}
+							mode={compareMode}
+							wheelAdjustOpacity={true}
+							wheelAdjustRequiresShift={true}
+							wheelSensitivityPctPerPx={0.05}
+							{drawer}
+						/>
+					{:else}
+						<div class="viewer-empty">Upload both images to compare them</div>
+					{/if}
+				</div>
+			</article>
+			<!-- <article class="panel viewer-card">
 				<header class="viewer-head">
 					<h3>Base image</h3>
 					{#if baseMeta}
@@ -968,7 +1006,7 @@
 						<div class="viewer-empty">Upload a warped image</div>
 					{/if}
 				</div>
-			</article>
+			</article> -->
 
 			<article class="panel viewer-card">
 				<header class="viewer-head">
@@ -1059,9 +1097,12 @@
 		max-width: 1800px;
 		margin: 0 auto;
 		padding: 1rem;
+		height: 100dvh;
+		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		overflow: hidden;
 	}
 
 	.hero {
@@ -1129,13 +1170,13 @@
 		grid-template-columns: 360px minmax(0, 1fr);
 		gap: 1rem;
 		align-items: start;
+		flex: 1;
+		min-height: 0;
 	}
 
 	.sidebar {
 		padding: 1rem;
-		position: sticky;
-		top: 1rem;
-		max-height: calc(100vh - 2rem);
+		min-height: 0;
 		overflow-y: auto;
 	}
 
@@ -1189,8 +1230,12 @@
 
 	.viewer-grid {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 1rem;
+		align-content: start;
+		min-height: 0;
+		overflow-y: auto;
+		padding-right: 0.25rem;
 	}
 
 	.viewer-card {
@@ -1199,6 +1244,7 @@
 		flex-direction: column;
 		gap: 0.75rem;
 		min-width: 0;
+		min-height: 420px;
 	}
 
 	.viewer-meta {
@@ -1421,6 +1467,80 @@
 
 		.viewer-shell {
 			min-height: 260px;
+		}
+	}
+
+	/* OpenSeadragon viewer overrides to fit it into our cards */
+	.viewer-shell--osd {
+		min-height: 420px;
+		padding: 0;
+		background: white;
+		overflow: hidden;
+	}
+
+	.viewer-shell--osd :global(.wheel-capture),
+	.viewer-shell--osd :global(.osd) {
+		width: 100%;
+		height: 100%;
+		min-height: 420px;
+	}
+
+	.compare-toolbar {
+		display: grid;
+		grid-template-columns: 180px 1fr;
+		gap: 0.75rem;
+		align-items: end;
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.field span {
+		font-weight: 600;
+		font-size: 0.9rem;
+		color: #44403c;
+	}
+
+	.compact span {
+		font-size: 0.82rem;
+	}
+
+	@media (max-width: 1500px) {
+		.viewer-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 1300px) {
+		.page {
+			height: auto;
+			min-height: 100dvh;
+			overflow: visible;
+		}
+
+		.workbench {
+			grid-template-columns: 1fr;
+			flex: unset;
+		}
+
+		.sidebar,
+		.viewer-grid {
+			overflow: visible;
+			min-height: auto;
+		}
+	}
+
+	@media (max-width: 1100px) {
+		.upload-strip,
+		.viewer-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.compare-toolbar {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
