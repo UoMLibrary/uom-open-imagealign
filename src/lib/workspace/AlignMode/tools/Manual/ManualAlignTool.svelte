@@ -46,7 +46,7 @@
 		targetPoints = pairs.map((p) => p.target);
 	}
 
-	let overlayOpacityPct = 60; // 0..100 (UI)
+	let resultOverlayOpacity = 0.6;
 	let resultMode: 'warped' | 'composite' | 'difference' = 'difference';
 
 	// OpenCV
@@ -1011,9 +1011,10 @@
 										type="range"
 										min="0"
 										max="100"
-										value={overlayOpacityPct}
+										value={Math.round(resultOverlayOpacity * 100)}
 										on:input={(e) =>
-											(overlayOpacityPct = Number((e.currentTarget as HTMLInputElement).value))}
+											(resultOverlayOpacity =
+												Number((e.currentTarget as HTMLInputElement).value) / 100)}
 									/>
 								</label>
 							{/if}
@@ -1025,16 +1026,19 @@
 						</div>
 					</header>
 
-					<div class="result-wheel-capture" on:wheel|capture={onResultWheel}>
+					<div class="result-wheel-capture">
 						{#if warpedUrl}
 							<ResultPanel
 								imageUrl={resultMode === 'warped' ? warpedUrl : sourceUrl}
 								overlayUrl={resultMode === 'warped' ? null : warpedUrl}
-								overlayOpacity={overlayOpacityPct / 100}
+								bind:overlayOpacity={resultOverlayOpacity}
 								overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
 								refreshKey={warpedRefreshKey}
 								mode={resultMode}
 								focus={resultFocus}
+								wheelAdjustOpacity={resultMode === 'composite' || resultMode === 'difference'}
+								wheelAdjustRequiresShift={true}
+								wheelSensitivityPctPerPx={0.05}
 								{drawer}
 							/>
 						{:else}

@@ -14,6 +14,11 @@
 	export let overlayOpacity: number = 0.6; // 0..1
 	export let overlayCompositeOperation: string | null = null;
 
+	// Wheel interaction
+	export let wheelAdjustOpacity = true;
+	export let wheelAdjustRequiresShift = true;
+	export let wheelSensitivityPctPerPx = 0.05; // matches previous parent behaviour
+
 	// Bump this whenever the pixels behind a data:/blob: URL change (e.g. warped output)
 	export let refreshKey: number = 0;
 
@@ -30,8 +35,14 @@
 
 	let openedBaseSig: string | null = null;
 	let openedOverlaySig: string | null = null;
-
 	let lastAppliedFocusSig: string | null = null;
+
+	let pendingAppearance = false;
+	let pendingOpacity = overlayOpacity;
+	let pendingComposite = overlayCompositeOperation;
+
+	let wheelPendingPx = 0;
+	let wheelRaf = 0;
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
@@ -67,10 +78,14 @@
 		else if ((viewer.world as any)?.requestDraw) (viewer.world as any).requestDraw();
 	}
 
+	function clamp(n: number, min = 0, max = 1) {
+		return Math.max(min, Math.min(max, n));
+	}
+
 	function clamp01(n: any) {
 		const v = Number(n);
 		if (!Number.isFinite(v)) return 1;
-		return Math.max(0, Math.min(1, v));
+		return clamp(v, 0, 1);
 	}
 
 	function isDynamicUrl(url: string) {
@@ -176,11 +191,6 @@
 		requestRedraw();
 	}
 
-	// rAF throttled overlay appearance so slider feels smooth
-	let pendingAppearance = false;
-	let pendingOpacity = overlayOpacity;
-	let pendingComposite = overlayCompositeOperation;
-
 	function scheduleOverlayAppearance() {
 		pendingOpacity = overlayOpacity;
 		pendingComposite = overlayCompositeOperation;
@@ -205,12 +215,45 @@
 		});
 	}
 
+	function wheelPixels(e: WheelEvent) {
+		const dominant =
+			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
+
+		if (e.deltaMode === 1) return dominant * 16;
+		if (e.deltaMode === 2) return dominant * 800;
+		return dominant;
+	}
+
+	function onWheel(e: WheelEvent) {
+		if (!wheelAdjustOpacity) return;
+		if (!overlayUrl) return;
+		if (wheelAdjustRequiresShift && !e.shiftKey) return;
+
+		e.preventDefault();
+		e.stopPropagation();
+
+		wheelPendingPx += wheelPixels(e);
+
+		if (wheelRaf) return;
+		wheelRaf = requestAnimationFrame(() => {
+			wheelRaf = 0;
+
+			const delta = (-wheelPendingPx * wheelSensitivityPctPerPx) / 100;
+			wheelPendingPx = 0;
+
+			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
+		});
+	}
+
 	onMount(() => {
 		if (!el) return;
 		viewer = makeViewer(el);
 	});
 
-	onDestroy(() => viewer?.destroy());
+	onDestroy(() => {
+		if (wheelRaf) cancelAnimationFrame(wheelRaf);
+		viewer?.destroy();
+	});
 
 	/* ---------------------------
 	   Base image open (index 0)
@@ -248,6 +291,7 @@
 						setOrReplaceOverlay(overlayUrl);
 					}
 
+					applyFocus(true);
 					requestRedraw();
 				});
 
@@ -276,7 +320,7 @@
 	}
 
 	/* ---------------------------
-	   Overlay appearance updates (smooth slider)
+	   Overlay appearance updates
 	--------------------------- */
 
 	$: if (viewer && overlayUrl) {
@@ -286,7 +330,7 @@
 	}
 
 	/* ---------------------------
-	   Focus updates (only when it actually changes)
+	   Focus updates
 	--------------------------- */
 
 	$: if (viewer && focus) {
@@ -298,9 +342,17 @@
 	}
 </script>
 
-<div class="osd" bind:this={el}></div>
+<div class="wheel-capture" on:wheel|capture={onWheel}>
+	<div class="osd" bind:this={el}></div>
+</div>
 
 <style>
+	.wheel-capture {
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+	}
+
 	.osd {
 		width: 100%;
 		height: 100%;
