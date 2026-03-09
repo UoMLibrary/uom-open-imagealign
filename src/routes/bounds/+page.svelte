@@ -18,6 +18,11 @@
 		pixels: number;
 	};
 
+	type RowBand = {
+		y1: number;
+		y2: number;
+	};
+
 	type PresetName = 'conservative' | 'balanced' | 'aggressive';
 
 	// ResultPanel state
@@ -39,7 +44,9 @@
 	let warpedInput: HTMLInputElement | null = null;
 
 	let boxes: Box[] = [];
+	let rows: RowBand[] = [];
 	let selectedBoxIndex: number | null = null;
+	let selectedBox: Box | null = null;
 
 	let running = false;
 	let error: string | null = null;
@@ -67,7 +74,11 @@
 	// View options
 	let showMaskPreview = true;
 	let showBoxLabels = true;
+	let showRows = true;
 
+	let canRun = false;
+
+	$: canRun = !!baseFile && !!warpedFile && !!baseMeta && !!warpedMeta && !running;
 	$: selectedBox = selectedBoxIndex != null ? (boxes[selectedBoxIndex] ?? null) : null;
 
 	function applyPreset(name: PresetName) {
@@ -156,6 +167,7 @@
 	function clearResults() {
 		error = null;
 		boxes = [];
+		rows = [];
 		selectedBoxIndex = null;
 		clearMask();
 	}
@@ -212,10 +224,6 @@
 		if (warpedInput) warpedInput.value = '';
 		void setFile('warped', null);
 	}
-
-	let canRun = false;
-
-	$: canRun = !!baseFile && !!warpedFile && !!baseMeta && !!warpedMeta && !running;
 
 	function makeCanvas(width: number, height: number) {
 		const canvas = document.createElement('canvas');
@@ -288,9 +296,6 @@
 		return out;
 	}
 
-	// Simple stroke-aware enhancement:
-	// differences in letter shape often show up more clearly in edge strength
-	// than in plain darkness alone.
 	function buildEdgeMap(gray: Uint8ClampedArray, width: number, height: number) {
 		const out = new Uint8ClampedArray(width * height);
 
@@ -322,14 +327,131 @@
 			const inkDiff = Math.abs(a - b);
 			const edgeDiff = Math.abs(baseEdge[i] - warpedEdge[i]);
 			const textish = a >= inkT || b >= inkT;
-
-			// Use both ink difference and stroke-edge difference.
 			const score = Math.max(inkDiff, Math.round(inkDiff * 0.7 + edgeDiff * 0.5));
 
 			out[i] = textish && score >= diffT ? 1 : 0;
 		}
 
 		return out;
+	}
+
+	function thresholdInkMask(ink: Uint8ClampedArray, threshold: number) {
+		const out = new Uint8Array(ink.length);
+
+		for (let i = 0; i < ink.length; i++) {
+			out[i] = ink[i] >= threshold ? 1 : 0;
+		}
+
+		return out;
+	}
+
+	function smooth1D(values: ArrayLike<number>, radius: number) {
+		if (radius <= 0) return Float32Array.from(values as ArrayLike<number>);
+
+		const out = new Float32Array(values.length);
+		const prefix = new Float32Array(values.length + 1);
+
+		for (let i = 0; i < values.length; i++) {
+			prefix[i + 1] = prefix[i] + values[i];
+		}
+
+		for (let i = 0; i < values.length; i++) {
+			const a = Math.max(0, i - radius);
+			const b = Math.min(values.length, i + radius + 1);
+			out[i] = (prefix[b] - prefix[a]) / (b - a);
+		}
+
+		return out;
+	}
+
+	function projectRows(mask: Uint8Array, width: number, height: number) {
+		const rowSums = new Uint32Array(height);
+
+		for (let y = 0; y < height; y++) {
+			let sum = 0;
+			const rowStart = y * width;
+
+			for (let x = 0; x < width; x++) {
+				sum += mask[rowStart + x];
+			}
+
+			rowSums[y] = sum;
+		}
+
+		return rowSums;
+	}
+
+	function detectTextRowsFromInkMask(
+		inkMask: Uint8Array,
+		width: number,
+		height: number,
+		opts: {
+			smoothRadius?: number;
+			minRowFrac?: number;
+			minRowInk?: number;
+			minLineHeight?: number;
+			maxGap?: number;
+			padY?: number;
+		} = {}
+	): RowBand[] {
+		const {
+			smoothRadius = 4,
+			minRowFrac = 0.08,
+			minRowInk = 8,
+			minLineHeight = 8,
+			maxGap = 6,
+			padY = 2
+		} = opts;
+
+		const proj = projectRows(inkMask, width, height);
+		const smooth = smooth1D(proj, smoothRadius);
+
+		let maxVal = 0;
+		for (let i = 0; i < smooth.length; i++) {
+			if (smooth[i] > maxVal) maxVal = smooth[i];
+		}
+
+		const threshold = Math.max(minRowInk, maxVal * minRowFrac);
+
+		const rawBands: RowBand[] = [];
+		let start = -1;
+
+		for (let y = 0; y < height; y++) {
+			const active = smooth[y] >= threshold;
+
+			if (active && start < 0) {
+				start = y;
+			} else if (!active && start >= 0) {
+				rawBands.push({ y1: start, y2: y - 1 });
+				start = -1;
+			}
+		}
+
+		if (start >= 0) rawBands.push({ y1: start, y2: height - 1 });
+
+		if (!rawBands.length) return [];
+
+		const merged: RowBand[] = [];
+		let current = { ...rawBands[0] };
+
+		for (let i = 1; i < rawBands.length; i++) {
+			const next = rawBands[i];
+
+			if (next.y1 - current.y2 <= maxGap) {
+				current.y2 = next.y2;
+			} else {
+				merged.push(current);
+				current = { ...next };
+			}
+		}
+		merged.push(current);
+
+		return merged
+			.map((band) => ({
+				y1: Math.max(0, band.y1 - padY),
+				y2: Math.min(height - 1, band.y2 + padY)
+			}))
+			.filter((band) => band.y2 - band.y1 + 1 >= minLineHeight);
 	}
 
 	function buildIntegral(mask: Uint8Array, width: number, height: number) {
@@ -572,6 +694,7 @@
 		running = true;
 		error = null;
 		boxes = [];
+		rows = [];
 		selectedBoxIndex = null;
 		clearMask();
 
@@ -606,6 +729,17 @@
 			const baseInk = buildInk(baseGray, baseBlur, workW, workH);
 			const warpedInk = buildInk(warpedGray, warpedBlur, workW, workH);
 
+			const baseInkMask = thresholdInkMask(baseInk, inkThreshold);
+
+			const workRows = detectTextRowsFromInkMask(baseInkMask, workW, workH, {
+				smoothRadius: 4,
+				minRowFrac: 0.08,
+				minRowInk: 8,
+				minLineHeight: 8,
+				maxGap: 6,
+				padY: 2
+			});
+
 			const baseEdge = buildEdgeMap(baseInk, workW, workH);
 			const warpedEdge = buildEdgeMap(warpedInk, workW, workH);
 
@@ -628,6 +762,11 @@
 
 			const sx = baseBitmap.width / workW;
 			const sy = baseBitmap.height / workH;
+
+			rows = workRows.map((row) => ({
+				y1: Math.round(row.y1 * sy),
+				y2: Math.round(row.y2 * sy)
+			}));
 
 			boxes = workBoxes
 				.map((box) => ({
@@ -741,6 +880,7 @@
 
 			<div class="chips">
 				<span class="chip">{boxes.length} boxes</span>
+				<span class="chip">{rows.length} rows</span>
 				<span class="chip">{presetName}</span>
 				{#if selectedBox}
 					<span class="chip">selected #{selectedBoxIndex! + 1}</span>
@@ -899,6 +1039,11 @@
 				</label>
 
 				<label class="toggle">
+					<input type="checkbox" bind:checked={showRows} />
+					<span>Show detected text rows</span>
+				</label>
+
+				<label class="toggle">
 					<input type="checkbox" bind:checked={showBoxLabels} />
 					<span>Show box numbers</span>
 				</label>
@@ -970,43 +1115,6 @@
 					{/if}
 				</div>
 			</article>
-			<!-- <article class="panel viewer-card">
-				<header class="viewer-head">
-					<h3>Base image</h3>
-					{#if baseMeta}
-						<span class="viewer-meta">{baseMeta.width} × {baseMeta.height}</span>
-					{/if}
-				</header>
-
-				<div class="viewer-shell">
-					{#if baseUrl}
-						<div class="image-stage">
-							<img class="viewer-image" src={baseUrl} alt="Base image" />
-						</div>
-					{:else}
-						<div class="viewer-empty">Upload a base image</div>
-					{/if}
-				</div>
-			</article>
-
-			<article class="panel viewer-card">
-				<header class="viewer-head">
-					<h3>Warped image</h3>
-					{#if warpedMeta}
-						<span class="viewer-meta">{warpedMeta.width} × {warpedMeta.height}</span>
-					{/if}
-				</header>
-
-				<div class="viewer-shell">
-					{#if warpedUrl}
-						<div class="image-stage">
-							<img class="viewer-image" src={warpedUrl} alt="Warped image" />
-						</div>
-					{:else}
-						<div class="viewer-empty">Upload a warped image</div>
-					{/if}
-				</div>
-			</article> -->
 
 			<article class="panel viewer-card">
 				<header class="viewer-head">
@@ -1029,6 +1137,32 @@
 
 			<article class="panel viewer-card">
 				<header class="viewer-head">
+					<h3>Detected text rows</h3>
+					<span class="viewer-meta">{rows.length} rows</span>
+				</header>
+
+				<div class="viewer-shell">
+					{#if baseUrl}
+						<div class="image-stage overlay-stage">
+							<img class="viewer-image" src={baseUrl} alt="Base image with text rows" />
+
+							{#if baseMeta && showRows}
+								{#each rows as row}
+									<div
+										class="row-band"
+										style={`top:${(row.y1 / baseMeta.height) * 100}%; height:${((row.y2 - row.y1 + 1) / baseMeta.height) * 100}%;`}
+									></div>
+								{/each}
+							{/if}
+						</div>
+					{:else}
+						<div class="viewer-empty">Rows will appear here</div>
+					{/if}
+				</div>
+			</article>
+
+			<article class="panel viewer-card">
+				<header class="viewer-head">
 					<h3>Detected change boxes</h3>
 					{#if selectedBox}
 						<span class="viewer-meta">selected #{selectedBoxIndex! + 1}</span>
@@ -1043,6 +1177,15 @@
 							<img class="viewer-image" src={baseUrl} alt="Base image with change boxes" />
 
 							{#if baseMeta}
+								{#if showRows}
+									{#each rows as row}
+										<div
+											class="row-band row-band--subtle"
+											style={`top:${(row.y1 / baseMeta.height) * 100}%; height:${((row.y2 - row.y1 + 1) / baseMeta.height) * 100}%;`}
+										></div>
+									{/each}
+								{/if}
+
 								{#each boxes as box, i}
 									<button
 										type="button"
@@ -1292,6 +1435,24 @@
 		background: transparent;
 	}
 
+	.row-band {
+		position: absolute;
+		left: 0;
+		width: 100%;
+		box-sizing: border-box;
+		border-top: 1px dashed rgba(37, 99, 235, 0.65);
+		border-bottom: 1px dashed rgba(37, 99, 235, 0.65);
+		background: rgba(37, 99, 235, 0.08);
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.row-band--subtle {
+		background: rgba(37, 99, 235, 0.05);
+		border-top-color: rgba(37, 99, 235, 0.35);
+		border-bottom-color: rgba(37, 99, 235, 0.35);
+	}
+
 	.box {
 		position: absolute;
 		box-sizing: border-box;
@@ -1300,6 +1461,7 @@
 		border-radius: 2px;
 		cursor: pointer;
 		padding: 0;
+		z-index: 2;
 	}
 
 	.box.selected {
@@ -1448,29 +1610,6 @@
 		font-size: 0.85rem;
 	}
 
-	@media (max-width: 1300px) {
-		.workbench {
-			grid-template-columns: 1fr;
-		}
-
-		.sidebar {
-			position: static;
-			max-height: none;
-		}
-	}
-
-	@media (max-width: 1100px) {
-		.upload-strip,
-		.viewer-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.viewer-shell {
-			min-height: 260px;
-		}
-	}
-
-	/* OpenSeadragon viewer overrides to fit it into our cards */
 	.viewer-shell--osd {
 		min-height: 420px;
 		padding: 0;
@@ -1490,12 +1629,6 @@
 		grid-template-columns: 180px 1fr;
 		gap: 0.75rem;
 		align-items: end;
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
 	}
 
 	.field span {
@@ -1537,6 +1670,10 @@
 		.upload-strip,
 		.viewer-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.viewer-shell {
+			min-height: 260px;
 		}
 
 		.compare-toolbar {
