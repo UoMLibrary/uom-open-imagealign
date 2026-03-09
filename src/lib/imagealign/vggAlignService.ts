@@ -44,7 +44,9 @@ type VggModule = {
         queryRows: number,
         target: ArrayLike<number>,
         targetRows: number,
-        type?: string
+        type?: string,
+        queryScale?: number,
+        targetScale?: number
     ) => Uint8Array;
 
     invert_transform: (H: ArrayLike<number>) => Uint8Array;
@@ -199,7 +201,9 @@ export async function getTransformForImages(
             movingImageData.height,
             fixedImageData.data,
             fixedImageData.height,
-            params.type
+            params.type,
+            movingScale,
+            fixedScale
         );
 
         const H = Array.from(uint8ToFloat64Array(rawH));

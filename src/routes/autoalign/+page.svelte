@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
-	import { warpImageWithTransform } from '$lib/imagealign/vggWarpService';
+	import { renderWarpedImageUrl } from '$lib/imagealign/vggRenderService';
 
 	import {
 		initVggAlign,
 		getTransformForImages,
-		getImageFromTransform,
 		type TransformData,
 		type TransformType
 	} from '$lib/imagealign/vggAlignService';
@@ -158,11 +157,11 @@
 
 			transformData = transform;
 
-			const warpedBlob = await warpImageWithTransform(queryFile, transform);
+			const nextWarpedUrl = await renderWarpedImageUrl(queryFile, transform);
 
 			if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 
-			warpedUrl = URL.createObjectURL(warpedBlob);
+			warpedUrl = nextWarpedUrl;
 			warpedRefreshKey++;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Alignment failed';
