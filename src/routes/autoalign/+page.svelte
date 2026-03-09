@@ -176,6 +176,34 @@
 		if (queryUrl) URL.revokeObjectURL(queryUrl);
 		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 	});
+
+	// helpers
+	function copyTransformToClipboard() {
+		if (!transformData) return;
+
+		const text = JSON.stringify(transformData, null, 2);
+		navigator.clipboard.writeText(text);
+	}
+
+	function formatMatrix(H: number[]) {
+		if (!H) return '';
+		return `
+${H[0].toFixed(6)}  ${H[1].toFixed(6)}  ${H[2].toFixed(6)}
+${H[3].toFixed(6)}  ${H[4].toFixed(6)}  ${H[5].toFixed(6)}
+${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
+`;
+	}
+
+	function downloadImage(url: string | null, filename: string) {
+		if (!url) return;
+
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+	}
 </script>
 
 <svelte:head>
@@ -253,12 +281,56 @@
 		{/if}
 	</section>
 
+	{#if transformData}
+		<section class="panel">
+			<header class="transform-head">
+				<h2>Transform Data</h2>
+
+				<button class="secondary" on:click={copyTransformToClipboard}> Copy JSON </button>
+			</header>
+
+			<div class="transform-grid">
+				<div>
+					<h3>H</h3>
+					<pre class="matrix">{formatMatrix(transformData.H)}</pre>
+				</div>
+
+				{#if transformData.H_inv}
+					<div>
+						<h3>H⁻¹</h3>
+						<pre class="matrix">{formatMatrix(transformData.H_inv)}</pre>
+					</div>
+				{/if}
+			</div>
+
+			<details class="raw">
+				<summary>Full transform JSON</summary>
+				<pre>{JSON.stringify(transformData, null, 2)}</pre>
+			</details>
+		</section>
+	{/if}
+
 	{#if warpedUrl}
 		<section class="panel">
 			<header class="result-head">
 				<div>Result</div>
 
 				<div class="result-controls">
+					<button
+						class="secondary"
+						on:click={() => downloadImage(baseUrl, 'base-image.png')}
+						disabled={!baseUrl}
+					>
+						Download Base
+					</button>
+
+					<button
+						class="secondary"
+						on:click={() => downloadImage(warpedUrl, 'warped-image.png')}
+						disabled={!warpedUrl}
+					>
+						Download Warped
+					</button>
 					{#if resultMode !== 'warped'}
 						<label>
 							Opacity
@@ -376,5 +448,37 @@
 		border-radius: 8px;
 		border: 1px solid #d1d5db;
 		background: white;
+	}
+
+	/* Transform display styles */
+	.transform-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.transform-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+	}
+
+	.matrix {
+		background: #111827;
+		color: #e5e7eb;
+		padding: 0.75rem;
+		border-radius: 6px;
+		font-family: monospace;
+		font-size: 0.85rem;
+		line-height: 1.4;
+	}
+
+	.raw pre {
+		background: #f3f4f6;
+		padding: 1rem;
+		border-radius: 6px;
+		font-size: 0.8rem;
+		overflow: auto;
 	}
 </style>
