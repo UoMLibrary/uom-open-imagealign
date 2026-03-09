@@ -44,7 +44,7 @@
 	let queryInputEl = $state<HTMLInputElement | null>(null);
 
 	let resultMode = $state<'warped' | 'composite' | 'difference'>('warped');
-	let overlayOpacityPct = $state(60);
+	let overlayOpacity = $state(0.6);
 
 	let resultFocus = $state<{ x: number; y: number } | null>(null);
 
@@ -330,10 +330,12 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 					>
 						Download Warped
 					</button>
+
 					{#if resultMode !== 'warped'}
 						<label>
 							Opacity
-							<input type="range" min="0" max="100" bind:value={overlayOpacityPct} />
+							<input type="range" min="0" max="1" step="0.01" bind:value={overlayOpacity} />
+							{Math.round(overlayOpacity * 100)}%
 						</label>
 					{/if}
 
@@ -349,11 +351,14 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 				<ResultPanel
 					imageUrl={resultMode === 'warped' ? warpedUrl : baseUrl}
 					overlayUrl={resultMode === 'warped' ? null : warpedUrl}
-					overlayOpacity={overlayOpacityPct / 100}
+					bind:overlayOpacity
 					overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
 					refreshKey={warpedRefreshKey}
 					mode={resultMode}
 					focus={resultFocus}
+					wheelAdjustOpacity={resultMode !== 'warped'}
+					wheelAdjustRequiresShift={true}
+					wheelSensitivityPctPerPx={0.05}
 					{drawer}
 				/>
 			</div>

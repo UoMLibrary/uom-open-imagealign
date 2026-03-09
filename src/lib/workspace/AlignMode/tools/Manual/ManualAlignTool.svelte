@@ -83,10 +83,6 @@
 	   Helpers
 	------------------------------------------------- */
 
-	function clamp01(v: number) {
-		return Math.max(0, Math.min(1, v));
-	}
-
 	function getContentSize(viewer: OpenSeadragon.Viewer) {
 		const item = viewer.world.getItemAt(0);
 		if (!item) return null;
@@ -897,40 +893,6 @@
 	function clamp(v: number, min = 0, max = 100) {
 		return Math.max(min, Math.min(max, v));
 	}
-
-	function wheelPixels(e: WheelEvent) {
-		const dominant =
-			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
-
-		if (e.deltaMode === 1) return dominant * 16;
-		if (e.deltaMode === 2) return dominant * 800;
-		return dominant;
-	}
-
-	let wheelPendingPx = 0;
-	let wheelRaf = 0;
-
-	function onResultWheel(e: WheelEvent) {
-		if (!e.shiftKey) return;
-		if (resultMode !== 'composite' && resultMode !== 'difference') return;
-		if (!warpedUrl) return;
-
-		e.preventDefault();
-		e.stopPropagation();
-
-		wheelPendingPx += wheelPixels(e);
-
-		if (wheelRaf) return;
-		wheelRaf = requestAnimationFrame(() => {
-			wheelRaf = 0;
-
-			const sensitivityPctPerPx = 0.05;
-			const deltaPct = -wheelPendingPx * sensitivityPctPerPx;
-			wheelPendingPx = 0;
-
-			overlayOpacityPct = clamp(overlayOpacityPct + deltaPct);
-		});
-	}
 </script>
 
 <div class="layout">
@@ -1002,7 +964,7 @@
 
 				<section class="panel">
 					<header class="result-head">
-						<div>Result</div>
+						<div>Result2</div>
 						<div class="result-controls">
 							{#if resultMode === 'composite' || resultMode === 'difference'}
 								<label class="opacity">
@@ -1010,14 +972,14 @@
 									<input
 										type="range"
 										min="0"
-										max="100"
-										value={Math.round(resultOverlayOpacity * 100)}
-										on:input={(e) =>
-											(resultOverlayOpacity =
-												Number((e.currentTarget as HTMLInputElement).value) / 100)}
+										max="1"
+										step="0.01"
+										bind:value={resultOverlayOpacity}
 									/>
+									<span>{Math.round(resultOverlayOpacity * 100)}%</span>
 								</label>
 							{/if}
+							<h1>OPACITY: {resultOverlayOpacity}</h1>
 							<select bind:value={resultMode}>
 								<option value="warped">Warped</option>
 								<option value="composite">Composite</option>
