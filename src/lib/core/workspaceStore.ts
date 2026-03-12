@@ -13,12 +13,12 @@ export const WORKSPACE_MODES = [
 export type WorkspaceMode = typeof WORKSPACE_MODES[number]['key'];
 
 function createWorkspaceStore() {
-    const { subscribe, set } = writable<WorkspaceMode>('prepare');
+    const { subscribe, set } = writable<WorkspaceMode>('group');
 
     return {
         subscribe,
         set,
-        reset: () => set('prepare')
+        reset: () => set('group')
     };
 }
 
