@@ -13,6 +13,9 @@ import {
     invalidatePrepared,
     computePHashFromNormalised
 } from '$lib/image/derivation';
+import { hashImageFile } from '$lib/image/hashing';
+import { getDerivedBlob } from '$lib/image/derivationService';
+import { supportsFileSystemAccess } from '$lib/infrastructure/fileSystem';
 
 /* ============================================================
    CORE WRITABLE STORES (authoritative state)
@@ -32,6 +35,251 @@ export const groups = writable<ImageGroup[]>([]);
 export const alignments = writable<ImageAlignment[]>([]);
 export const annotations = writable<Project['annotations']>([]);
 export const projectUI = writable<ProjectUIState | undefined>(undefined);
+
+/* ============================================================
+   IMAGE IMPORT UI + ORCHESTRATION
+============================================================ */
+
+type ImportQueueItem = {
+    file: File;
+    structuralPath?: string;
+};
+
+export type ImageImportUIState = {
+    open: boolean;
+    ingesting: boolean;
+    total: number;
+    completed: number;
+    progress: number;
+    added: number;
+    failed: number;
+    currentFileName?: string;
+    currentStructuralPath?: string;
+    errors: { fileName: string; message: string }[];
+};
+
+function createInitialImageImportUIState(): ImageImportUIState {
+    return {
+        open: false,
+        ingesting: false,
+        total: 0,
+        completed: 0,
+        progress: 0,
+        added: 0,
+        failed: 0,
+        currentFileName: undefined,
+        currentStructuralPath: undefined,
+        errors: []
+    };
+}
+
+export const imageImportUI = writable<ImageImportUIState>(createInitialImageImportUIState());
+
+export function dismissImageImportModal() {
+    imageImportUI.update((state) => {
+        if (state.ingesting) return state; // keep modal pinned open while running
+        return { ...state, open: false };
+    });
+}
+
+export function resetImageImportUI() {
+    imageImportUI.set(createInitialImageImportUIState());
+}
+
+function toErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    return String(err);
+}
+
+async function collectFromDirectory(
+    dirHandle: any,
+    files: ImportQueueItem[],
+    parentPath = ''
+) {
+    for await (const entry of dirHandle.values()) {
+        const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+        if (entry.kind === 'directory') {
+            await collectFromDirectory(entry, files, currentPath);
+            continue;
+        }
+
+        if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            if (!file.type.startsWith('image/')) continue;
+            files.push({ file, structuralPath: currentPath });
+        }
+    }
+}
+
+function pickImagesViaInput(): Promise<ImportQueueItem[]> {
+    return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        (input as any).webkitdirectory = true;
+
+        let settled = false;
+
+        function finish(items: ImportQueueItem[]) {
+            if (settled) return;
+            settled = true;
+            window.removeEventListener('focus', onWindowFocus, true);
+            resolve(items);
+        }
+
+        function onWindowFocus() {
+            // If the picker was cancelled, focus returns but no files exist.
+            window.setTimeout(() => {
+                const selected = Array.from(input.files ?? []);
+                if (!selected.length) finish([]);
+            }, 300);
+        }
+
+        input.onchange = () => {
+            const items = Array.from(input.files ?? [])
+                .filter((file) => file.type.startsWith('image/'))
+                .map((file) => ({
+                    file,
+                    structuralPath: (file as any).webkitRelativePath || file.name
+                }));
+
+            finish(items);
+        };
+
+        window.addEventListener('focus', onWindowFocus, true);
+        input.click();
+    });
+}
+
+async function pickImagesForImport(): Promise<ImportQueueItem[]> {
+    if (supportsFileSystemAccess()) {
+        const dir = await (window as any).showDirectoryPicker();
+        const files: ImportQueueItem[] = [];
+        await collectFromDirectory(dir, files);
+        return files;
+    }
+
+    return await pickImagesViaInput();
+}
+
+async function ingestImportedFile(file: File, structuralPath?: string) {
+    if (!file.type.match(/^image\/(png|jpeg|jpg|webp)$/)) {
+        console.warn('Unsupported image type:', file.name);
+        return;
+    }
+
+    const { contentHash } = await hashImageFile(file);
+
+    const bitmap = await createImageBitmap(file);
+    const width = bitmap.width;
+    const height = bitmap.height;
+    bitmap.close?.();
+
+    await getDerivedBlob(contentHash, 'work', file);
+    await getDerivedBlob(contentHash, 'thumb', file);
+
+    const objectUrl = URL.createObjectURL(file);
+
+    const image: RuntimeImageSource = {
+        id: crypto.randomUUID(),
+        label: file.name,
+        structuralPath,
+        dimensions: { width, height },
+        runtimeUri: objectUrl,
+        hashes: {
+            contentHash
+        }
+    };
+
+    addImage(image);
+}
+
+export async function beginImportImages() {
+    if (get(imageImportUI).ingesting) return;
+
+    let items: ImportQueueItem[] = [];
+
+    try {
+        items = await pickImagesForImport();
+    } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+
+        console.error('Image selection failed', err);
+
+        imageImportUI.set({
+            ...createInitialImageImportUIState(),
+            open: true,
+            failed: 1,
+            errors: [
+                {
+                    fileName: 'Image selection',
+                    message: toErrorMessage(err)
+                }
+            ]
+        });
+
+        return;
+    }
+
+    if (!items.length) return;
+
+    imageImportUI.set({
+        ...createInitialImageImportUIState(),
+        open: true,
+        ingesting: true,
+        total: items.length
+    });
+
+    let added = 0;
+    let failed = 0;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+
+        imageImportUI.update((state) => ({
+            ...state,
+            currentFileName: item.file.name,
+            currentStructuralPath: item.structuralPath
+        }));
+
+        try {
+            await ingestImportedFile(item.file, item.structuralPath);
+            added++;
+        } catch (err) {
+            failed++;
+            console.error('Ingest failed:', item.file.name, err);
+
+            imageImportUI.update((state) => ({
+                ...state,
+                errors: [
+                    ...state.errors,
+                    {
+                        fileName: item.file.name,
+                        message: toErrorMessage(err)
+                    }
+                ]
+            }));
+        }
+
+        const completed = i + 1;
+
+        imageImportUI.update((state) => ({
+            ...state,
+            completed,
+            progress: Math.round((completed / items.length) * 100),
+            added,
+            failed
+        }));
+    }
+
+    imageImportUI.update((state) => ({
+        ...state,
+        ingesting: false,
+        currentFileName: undefined,
+        currentStructuralPath: undefined
+    }));
+}
 
 /* ============================================================
    DERIVED STORES (read-only, computed)
@@ -136,6 +384,7 @@ export function resetProject() {
     alignments.set([]);
     annotations.set([]);
     projectUI.set(undefined);
+    imageImportUI.set(createInitialImageImportUIState());
 }
 
 export function setProjectMeta(meta: Parameters<typeof projectMeta.set>[0]) {

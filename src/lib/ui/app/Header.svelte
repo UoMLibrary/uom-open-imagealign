@@ -2,6 +2,8 @@
 	import LoadProjectButton from '$lib/ui/shared/buttons/LoadProjectButton.svelte';
 	import SaveProjectButton from '$lib/ui/shared/buttons/SaveProjectButton.svelte';
 	import ImportImagesButton from '$lib/ui/shared/buttons/ImportImagesButton.svelte';
+	import ImportImagesModal from '$lib/ui/app/modals/ImportImagesModal.svelte';
+	import { beginImportImages, imageImportUI } from '$lib/core/projectStore';
 	import ModeTabs from '$lib/ui/app/ModeTabs.svelte';
 
 	// Add callback props for Help and About actions
@@ -20,7 +22,12 @@
 <div class="header-wrapper">
 	<header class="header">
 		<div class="actions">
-			<ImportImagesButton />
+			<ImportImagesButton
+				busy={$imageImportUI.ingesting}
+				disabled={$imageImportUI.ingesting}
+				onPress={beginImportImages}
+			/>
+
 			<LoadProjectButton />
 			<SaveProjectButton />
 
@@ -41,6 +48,8 @@
 
 	<ModeTabs />
 </div>
+
+<ImportImagesModal />
 
 <style>
 	/* =========================================================
