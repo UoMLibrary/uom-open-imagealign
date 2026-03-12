@@ -43,7 +43,7 @@
 	let baseInputEl = $state<HTMLInputElement | null>(null);
 	let queryInputEl = $state<HTMLInputElement | null>(null);
 
-	let resultMode = $state<'warped' | 'composite' | 'difference'>('warped');
+	let resultMode = $state<'warped' | 'composite' | 'difference'>('composite');
 	let overlayOpacity = $state(0.6);
 
 	let resultFocus = $state<{ x: number; y: number } | null>(null);
