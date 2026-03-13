@@ -1,3 +1,4 @@
+import { bumpDerivationCacheGlobal } from '$lib/image/derivationState.svelte';
 import type { ImageAlignmentProject as Project } from '$lib/core/types';
 import {
     buildProjectFromFolderHandle,
@@ -312,6 +313,10 @@ export async function rebuildAssetCache(rootId?: string) {
         projectState.assetRootHandles[targetRoot.id] = handle;
 
         const { rebuilt, failed } = await rebuildLocalAssetCacheForRoot(targetRoot.id, handle);
+
+        if (rebuilt > 0) {
+            bumpDerivationCacheGlobal();
+        }
 
         finish(
             `Rebuilt asset cache for "${targetRoot.label}" from folder "${handle.name}". ` +

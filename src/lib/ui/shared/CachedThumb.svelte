@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { getDerivedUrl } from '$lib/image/derivationService';
+	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';
 
 	interface Props {
 		contentHash: string;
@@ -15,7 +16,7 @@
 	let release: (() => void) | null = $state(null);
 
 	let runId = 0;
-	let currentHash: string | null = null;
+	let lastLoadKey: string | null = null;
 
 	function cleanup() {
 		release?.();
@@ -58,15 +59,19 @@
 
 	$effect(() => {
 		const hash = contentHash;
+		const loadKey = getDerivationCacheKey(hash);
 
 		if (!hash) {
+			cleanup();
+			src = null;
 			state = 'missing';
+			lastLoadKey = null;
 			return;
 		}
 
-		if (hash === currentHash) return;
+		if (loadKey === lastLoadKey) return;
 
-		currentHash = hash;
+		lastLoadKey = loadKey;
 		void loadFor(hash);
 	});
 
@@ -128,15 +133,5 @@
 		padding: 10px;
 		box-sizing: border-box;
 		text-align: center;
-	}
-
-	.t1 {
-		font-size: 0.7rem;
-		font-weight: 700;
-	}
-
-	.t2 {
-		font-size: 0.7rem;
-		opacity: 0.9;
 	}
 </style>
