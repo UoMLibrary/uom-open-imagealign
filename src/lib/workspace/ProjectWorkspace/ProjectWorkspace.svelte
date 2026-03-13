@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
+	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
 	import { projectState } from '$lib/core/projectStore.svelte';
 
 	let leftPanelOpen = $state(true);
@@ -239,34 +240,14 @@
 								{@const baseImage = imageById.get(group.baseImageId)}
 								{@const stats = groupStats.get(group.id)}
 
-								<button
-									type="button"
-									class="group-card"
-									class:selected={group.id === selectedGroupId}
-									onclick={() => selectGroup(group.id)}
-								>
-									<div class="group-thumb">
-										{#if baseImage}
-											<CachedThumb contentHash={baseImage.contentHash} alt={getGroupLabel(group)} />
-										{:else}
-											<div class="thumb-fallback">No base</div>
-										{/if}
-									</div>
-
-									<div class="group-copy">
-										<div class="group-title-row">
-											<div class="group-title">{getGroupLabel(group)}</div>
-											<div class="group-count">{group.imageIds.length} images</div>
-										</div>
-
-										<div class="group-subline">
-											<span>{stats?.alignmentCount ?? 0} alignments</span>
-											<span>{stats?.annotationCount ?? 0} annotations</span>
-										</div>
-
-										<div class="group-id">{group.id}</div>
-									</div>
-								</button>
+								<GroupCell
+									{group}
+									selected={group.id === selectedGroupId}
+									baseImageContentHash={baseImage?.contentHash ?? null}
+									alignmentCount={stats?.alignmentCount ?? 0}
+									annotationCount={stats?.annotationCount ?? 0}
+									onSelect={selectGroup}
+								/>
 							{/each}
 						</div>
 					{/if}
@@ -533,50 +514,6 @@
 		gap: 0.7rem;
 	}
 
-	.group-card {
-		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: linear-gradient(180deg, #ffffff, #f8fafc);
-		border-radius: 14px;
-		padding: 0.65rem;
-		display: grid;
-		grid-template-columns: 54px minmax(0, 1fr);
-		gap: 0.65rem;
-		text-align: left;
-		cursor: pointer;
-		color: inherit;
-		transition:
-			border-color 140ms ease,
-			box-shadow 140ms ease,
-			transform 140ms ease;
-	}
-
-	.group-card:hover {
-		transform: translateY(-1px);
-		border-color: rgba(59, 130, 246, 0.34);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-	}
-
-	.group-card.selected {
-		border-color: rgba(37, 99, 235, 0.48);
-		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
-		background: linear-gradient(180deg, #ffffff, #eff6ff);
-	}
-
-	.group-thumb {
-		width: 54px;
-		height: 54px;
-		border-radius: 10px;
-		overflow: hidden;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #f8fafc;
-	}
-
-	.group-copy {
-		min-width: 0;
-	}
-
-	.group-title-row,
 	.image-title-row,
 	.detail-head,
 	.group-header-card {
@@ -586,16 +523,6 @@
 		gap: 0.75rem;
 	}
 
-	.group-title {
-		font-weight: 700;
-		font-size: 0.88rem;
-		color: #111827;
-		min-width: 0;
-	}
-
-	.group-count,
-	.group-subline,
-	.group-id,
 	.image-subline,
 	.image-path,
 	.image-hash,
@@ -606,14 +533,6 @@
 		color: #64748b;
 	}
 
-	.group-subline {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.55rem;
-		margin-top: 0.22rem;
-	}
-
-	.group-id,
 	.image-path,
 	.image-hash,
 	.code,
@@ -886,7 +805,6 @@
 
 	.empty,
 	.empty-inline,
-	.thumb-fallback,
 	.empty-state {
 		display: grid;
 		place-items: center;
@@ -895,7 +813,6 @@
 	}
 
 	.empty,
-	.thumb-fallback,
 	.empty-inline {
 		border: 1px dashed rgba(15, 23, 42, 0.16);
 		border-radius: 12px;
