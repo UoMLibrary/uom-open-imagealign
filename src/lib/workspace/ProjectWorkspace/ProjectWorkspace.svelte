@@ -3,6 +3,9 @@
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
 	import ImageCard from '$lib/ui/shared/ImageCard.svelte';
+	import ImageDetailCard from '$lib/ui/shared/ImageDetailCard.svelte';
+	import GroupAnnotationsPanel from '$lib/ui/shared/GroupAnnotationsPanel.svelte';
+
 	import { projectState } from '$lib/core/projectStore.svelte';
 
 	let leftPanelOpen = $state(true);
@@ -264,20 +267,22 @@
 		<main class="main">
 			{#if selectedGroup}
 				<section class="group-header-card">
-					<div class="group-header-main">
-						<h2>{getGroupLabel(selectedGroup)}</h2>
-						<div class="group-header-sub">
-							Group ID: <code>{selectedGroup.id}</code>
+					<div class="group-line">
+						<div class="group-name">
+							Group: {getGroupLabel(selectedGroup)}
+							<span class="group-header-sub">
+								<code>({selectedGroup.id})</code>
+							</span>
 						</div>
-					</div>
 
-					<div class="group-header-stats">
-						<span class="pill">{selectedGroup.imageIds.length} images</span>
-						<span class="pill">{selectedGroupAlignments.length} alignments</span>
-						<span class="pill">{selectedGroupAnnotations.length} annotations</span>
+						<div class="group-summary">
+							{selectedGroup.imageIds.length} images · {selectedGroupAlignments.length} alignments ·
+							{selectedGroupAnnotations.length} annotations
+						</div>
 					</div>
 				</section>
 
+				<!-- Show the images in the selected group -->
 				<section class="image-grid">
 					{#each selectedGroupImages as image (image.id)}
 						{@const alignment = alignmentByComparedId.get(image.id)}
@@ -296,125 +301,24 @@
 				</section>
 
 				{#if selectedImage}
-					<section class="detail-card">
-						<div class="detail-head">
-							<h3>Selected image</h3>
-
-							{#if selectedImage.id === selectedGroup.baseImageId}
-								<span class="pill">Base image</span>
-							{:else if selectedImageAlignment}
-								<span class="pill ok">{selectedImageAlignment.status}</span>
-							{/if}
-						</div>
-
-						<div class="detail-layout">
-							<div class="detail-thumb">
-								<CachedThumb
-									contentHash={selectedImage.contentHash}
-									alt={getImageTitle(selectedImage)}
-								/>
-							</div>
-
-							<div class="detail-copy">
-								<div class="detail-title">{getImageTitle(selectedImage)}</div>
-
-								<div class="kv-grid">
-									<div class="kv-item">
-										<div class="kv-key">Image ID</div>
-										<div class="kv-value code">{selectedImage.id}</div>
-									</div>
-
-									<div class="kv-item">
-										<div class="kv-key">Asset ID</div>
-										<div class="kv-value">{selectedImage.assetId || '—'}</div>
-									</div>
-
-									<div class="kv-item">
-										<div class="kv-key">Source kind</div>
-										<div class="kv-value">{getImageSourceKind(selectedImage)}</div>
-									</div>
-
-									<div class="kv-item">
-										<div class="kv-key">Source</div>
-										<div class="kv-value code wrap">{getImageSourceValue(selectedImage)}</div>
-									</div>
-
-									<div class="kv-item">
-										<div class="kv-key">Dimensions</div>
-										<div class="kv-value">
-											{selectedImage.dimensions.width} × {selectedImage.dimensions.height}
-										</div>
-									</div>
-
-									<div class="kv-item">
-										<div class="kv-key">Content hash</div>
-										<div class="kv-value code wrap">{selectedImage.contentHash}</div>
-									</div>
-
-									{#if selectedImageAlignment}
-										<div class="kv-item">
-											<div class="kv-key">Alignment schema</div>
-											<div class="kv-value">{selectedImageAlignment.schemaId}</div>
-										</div>
-
-										<div class="kv-item">
-											<div class="kv-key">Transform model</div>
-											<div class="kv-value">
-												{selectedImageAlignment.result?.transformModel ?? '—'}
-											</div>
-										</div>
-									{/if}
-								</div>
-
-								{#if getMetadataEntries(selectedImage.metadata).length > 0}
-									<div class="meta-block">
-										<h4>Metadata</h4>
-
-										<div class="kv-grid compact">
-											{#each getMetadataEntries(selectedImage.metadata) as [key, value]}
-												<div class="kv-item">
-													<div class="kv-key">{key}</div>
-													<div class="kv-value">{formatValue(value)}</div>
-												</div>
-											{/each}
-										</div>
-									</div>
-								{/if}
-
-								<details class="raw-block">
-									<summary>Raw image record</summary>
-									<pre>{pretty(selectedImage)}</pre>
-								</details>
-							</div>
-						</div>
-					</section>
+					<div class="panel-wrap">
+						<ImageDetailCard
+							image={selectedImage}
+							title={getImageTitle(selectedImage)}
+							sourceKind={getImageSourceKind(selectedImage)}
+							sourceValue={getImageSourceValue(selectedImage)}
+							isBase={selectedImage.id === selectedGroup.baseImageId}
+							alignment={selectedImageAlignment}
+							{formatValue}
+							{pretty}
+						/>
+					</div>
 				{/if}
 
-				<section class="compact-panel">
-					<div class="detail-head">
-						<h3>Annotations</h3>
-						<span class="pill">{selectedGroupAnnotations.length}</span>
-					</div>
-
-					{#if selectedGroupAnnotations.length === 0}
-						<div class="empty-inline">No annotations recorded for this group</div>
-					{:else}
-						<div class="annotation-list">
-							{#each selectedGroupAnnotations as annotation (annotation.id)}
-								<div class="annotation-row">
-									<div class="annotation-main">
-										<div class="annotation-title">{annotation.schemaId}</div>
-										<div class="annotation-sub">
-											{geometrySummary(annotation.geometry)} · {annotation.targetImageIds.length} targets
-										</div>
-									</div>
-
-									<div class="annotation-id">{annotation.id}</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</section>
+				<!-- Show annotations panel for the selected group -->
+				<div class="panel-wrap">
+					<GroupAnnotationsPanel annotations={selectedGroupAnnotations} {geometrySummary} />
+				</div>
 			{:else}
 				<div class="empty-state main-empty">
 					<h2>No group selected</h2>
@@ -492,23 +396,11 @@
 		gap: 0.7rem;
 	}
 
-	.detail-head,
-	.group-header-card {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	.group-header-sub,
-	.annotation-sub,
-	.annotation-id {
+	.group-header-sub {
 		font-size: 0.73rem;
 		color: #64748b;
 	}
 
-	.code,
-	.wrap,
 	code {
 		word-break: break-word;
 		font-family:
@@ -519,59 +411,58 @@
 	.main {
 		flex: 1 1 auto;
 		min-width: 0;
-		padding: 1rem;
+		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
 	}
 
-	.group-header-card,
-	.detail-card,
-	.compact-panel {
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		box-shadow:
-			0 10px 30px rgba(15, 23, 42, 0.05),
-			0 2px 8px rgba(15, 23, 42, 0.04);
-		padding: 1rem;
+	.group-header-card {
+		flex: 0 0 auto;
+		padding: 0.9rem 1rem 0.75rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.96);
+		border-radius: 0;
+		border-left: 0;
+		border-right: 0;
+		border-top: 0;
+		box-shadow: none;
 	}
 
-	.group-header-main h2,
-	.detail-title,
-	.detail-head h3,
-	.compact-panel h3 {
-		margin: 0;
-		color: #111827;
+	.panel-wrap {
+		margin-left: 1rem;
+		margin-right: 1rem;
 	}
 
-	.group-header-main h2 {
-		font-size: 1.05rem;
-	}
-
-	.group-header-stats {
+	.group-line {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.45rem;
-	}
-
-	.pill {
-		display: inline-flex;
 		align-items: center;
-		justify-content: center;
-		padding: 0.28rem 0.55rem;
-		border-radius: 999px;
-		font-size: 0.72rem;
-		font-weight: 700;
-		background: #eef2ff;
-		color: #334155;
-		border: 1px solid rgba(51, 65, 85, 0.08);
-		white-space: nowrap;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.82rem;
+		line-height: 1.2;
 	}
 
-	.pill.ok {
-		background: rgba(16, 185, 129, 0.12);
-		color: #047857;
+	.group-name {
+		font-weight: 700;
+		font-size: 1rem;
+		color: #111827;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.group-summary {
+		color: #64748b;
+		white-space: nowrap;
+		font-size: 0.76rem;
+	}
+
+	.group-header-sub {
+		margin-top: 0.3rem;
+		font-size: 0.73rem;
+		color: #64748b;
 	}
 
 	.image-grid {
@@ -580,131 +471,16 @@
 		gap: 0.8rem;
 	}
 
-	.detail-thumb {
-		border-radius: 12px;
-		overflow: hidden;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #f8fafc;
+	.image-grid {
+		margin-left: 1rem;
+		margin-right: 1rem;
 	}
 
-	.detail-layout {
-		display: grid;
-		grid-template-columns: 180px minmax(0, 1fr);
-		gap: 1rem;
-		margin-top: 0.85rem;
-	}
-
-	.detail-thumb {
-		width: 180px;
-		height: 180px;
-	}
-
-	.detail-copy {
-		min-width: 0;
-	}
-
-	.detail-title {
-		font-size: 0.95rem;
-		font-weight: 700;
-		margin-bottom: 0.7rem;
-	}
-
-	.kv-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.65rem;
-	}
-
-	.kv-grid.compact {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		margin-top: 0.55rem;
-	}
-
-	.kv-item {
-		padding: 0.6rem 0.7rem;
-		border-radius: 12px;
-		background: rgba(248, 250, 252, 0.92);
-		border: 1px solid rgba(15, 23, 42, 0.06);
-		min-width: 0;
-	}
-
-	.kv-key {
-		font-size: 0.7rem;
-		font-weight: 700;
-		color: #64748b;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		margin-bottom: 0.22rem;
-	}
-
-	.kv-value {
-		font-size: 0.84rem;
-		color: #111827;
-	}
-
-	.meta-block {
-		margin-top: 0.9rem;
-	}
-
-	.meta-block h4 {
-		margin: 0 0 0.45rem;
-		font-size: 0.82rem;
-		color: #334155;
-	}
-
-	.annotation-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-		margin-top: 0.8rem;
-	}
-
-	.annotation-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.75rem 0.85rem;
-		border-radius: 12px;
-		background: rgba(248, 250, 252, 0.92);
-		border: 1px solid rgba(15, 23, 42, 0.06);
-	}
-
-	.annotation-main {
-		min-width: 0;
-	}
-
-	.annotation-title {
-		font-size: 0.84rem;
-		font-weight: 700;
-		color: #111827;
-	}
-
-	.raw-block {
-		margin-top: 0.8rem;
-	}
-
-	.raw-block summary {
-		cursor: pointer;
-		font-size: 0.8rem;
-		font-weight: 700;
-		color: #334155;
-	}
-
-	.raw-block pre {
-		margin: 0.65rem 0 0;
-		padding: 0.8rem;
-		border-radius: 12px;
-		background: #0f172a;
-		color: #e2e8f0;
-		font-size: 0.74rem;
-		line-height: 1.45;
-		overflow: auto;
-		max-height: 260px;
+	.image-grid {
+		margin-top: 1rem;
 	}
 
 	.empty,
-	.empty-inline,
 	.empty-state {
 		display: grid;
 		place-items: center;
@@ -712,8 +488,7 @@
 		color: #64748b;
 	}
 
-	.empty,
-	.empty-inline {
+	.empty {
 		border: 1px dashed rgba(15, 23, 42, 0.16);
 		border-radius: 12px;
 		background: rgba(248, 250, 252, 0.9);
@@ -734,23 +509,13 @@
 	}
 
 	@media (max-width: 900px) {
-		.detail-layout {
-			grid-template-columns: 1fr;
-		}
-
-		.detail-thumb {
-			width: 180px;
-			height: 180px;
-		}
-
-		.kv-grid,
-		.kv-grid.compact {
-			grid-template-columns: 1fr;
-		}
-
-		.annotation-row {
+		.group-line {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.group-summary {
+			white-space: normal;
 		}
 	}
 </style>
