@@ -2,6 +2,7 @@
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
+	import ImageCard from '$lib/ui/shared/ImageCard.svelte';
 	import { projectState } from '$lib/core/projectStore.svelte';
 
 	let leftPanelOpen = $state(true);
@@ -281,39 +282,16 @@
 					{#each selectedGroupImages as image (image.id)}
 						{@const alignment = alignmentByComparedId.get(image.id)}
 
-						<button
-							type="button"
-							class="image-card"
-							class:selected={image.id === selectedImageId}
-							class:base={image.id === selectedGroup.baseImageId}
-							onclick={() => selectImage(image.id)}
-						>
-							<div class="image-thumb">
-								<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
-							</div>
-
-							<div class="image-copy">
-								<div class="image-title-row">
-									<div class="image-title">{getImageTitle(image)}</div>
-
-									{#if image.id === selectedGroup.baseImageId}
-										<span class="badge base">Base</span>
-									{:else if alignment}
-										<span class="badge ok">{alignment.status}</span>
-									{:else}
-										<span class="badge muted">Unaligned</span>
-									{/if}
-								</div>
-
-								<div class="image-subline">
-									{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
-								</div>
-
-								<div class="image-path">{getImageSourceValue(image)}</div>
-
-								<div class="image-hash">hash: {image.contentHash}</div>
-							</div>
-						</button>
+						<ImageCard
+							{image}
+							title={getImageTitle(image)}
+							sourceKind={getImageSourceKind(image)}
+							sourceValue={getImageSourceValue(image)}
+							selected={image.id === selectedImageId}
+							isBase={image.id === selectedGroup.baseImageId}
+							alignmentStatus={alignment?.status ?? null}
+							onSelect={selectImage}
+						/>
 					{/each}
 				</section>
 
@@ -514,7 +492,6 @@
 		gap: 0.7rem;
 	}
 
-	.image-title-row,
 	.detail-head,
 	.group-header-card {
 		display: flex;
@@ -523,9 +500,6 @@
 		gap: 0.75rem;
 	}
 
-	.image-subline,
-	.image-path,
-	.image-hash,
 	.group-header-sub,
 	.annotation-sub,
 	.annotation-id {
@@ -533,8 +507,6 @@
 		color: #64748b;
 	}
 
-	.image-path,
-	.image-hash,
 	.code,
 	.wrap,
 	code {
@@ -583,8 +555,7 @@
 		gap: 0.45rem;
 	}
 
-	.pill,
-	.badge {
+	.pill {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -598,20 +569,9 @@
 		white-space: nowrap;
 	}
 
-	.pill.ok,
-	.badge.ok {
+	.pill.ok {
 		background: rgba(16, 185, 129, 0.12);
 		color: #047857;
-	}
-
-	.badge.base {
-		background: rgba(59, 130, 246, 0.12);
-		color: #1d4ed8;
-	}
-
-	.badge.muted {
-		background: rgba(148, 163, 184, 0.12);
-		color: #64748b;
 	}
 
 	.image-grid {
@@ -620,71 +580,11 @@
 		gap: 0.8rem;
 	}
 
-	.image-card {
-		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: linear-gradient(180deg, #ffffff, #f8fafc);
-		border-radius: 14px;
-		padding: 0.75rem;
-		display: grid;
-		grid-template-columns: 88px minmax(0, 1fr);
-		gap: 0.75rem;
-		text-align: left;
-		cursor: pointer;
-		color: inherit;
-		transition:
-			border-color 140ms ease,
-			box-shadow 140ms ease,
-			transform 140ms ease;
-	}
-
-	.image-card:hover {
-		transform: translateY(-1px);
-		border-color: rgba(59, 130, 246, 0.34);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-	}
-
-	.image-card.selected {
-		border-color: rgba(37, 99, 235, 0.48);
-		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
-		background: linear-gradient(180deg, #ffffff, #eff6ff);
-	}
-
-	.image-card.base {
-		border-left: 4px solid #2563eb;
-	}
-
-	.image-thumb,
 	.detail-thumb {
 		border-radius: 12px;
 		overflow: hidden;
 		border: 1px solid rgba(15, 23, 42, 0.08);
 		background: #f8fafc;
-	}
-
-	.image-thumb {
-		width: 88px;
-		height: 88px;
-	}
-
-	.image-copy {
-		min-width: 0;
-	}
-
-	.image-title {
-		font-size: 0.88rem;
-		font-weight: 700;
-		color: #111827;
-		min-width: 0;
-	}
-
-	.image-subline {
-		margin-top: 0.24rem;
-	}
-
-	.image-path,
-	.image-hash {
-		margin-top: 0.18rem;
 	}
 
 	.detail-layout {
