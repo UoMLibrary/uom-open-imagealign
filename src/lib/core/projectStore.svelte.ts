@@ -1,11 +1,10 @@
-// $lib/core/projectStore.svelte.ts
-
 import type { ImageAlignmentProject as Project } from '$lib/core/types';
 import {
     buildProjectFromFolderHandle,
     buildProjectFromSpreadsheetHandle,
     type GroupingStrategy
 } from '$lib/core/projectImport';
+import { getDerivedBlob } from '$lib/image/derivationService';
 import {
     pickDirectoryHandle,
     pickProjectFileHandle,
@@ -82,6 +81,51 @@ function fail(error: unknown) {
     projectState.busyAction = null;
     projectState.lastError =
         error instanceof Error ? error.message : 'An unknown error occurred.';
+}
+
+async function getFileFromRelativePath(
+    rootHandle: FileSystemDirectoryHandle,
+    relativePath: string
+): Promise<File> {
+    const parts = relativePath.split('/').filter(Boolean);
+
+    let dir = rootHandle;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+        dir = await dir.getDirectoryHandle(parts[i]);
+    }
+
+    const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
+    return await fileHandle.getFile();
+}
+
+async function rebuildLocalAssetCacheForRoot(
+    rootId: string,
+    rootHandle: FileSystemDirectoryHandle
+): Promise<{ rebuilt: number; failed: number }> {
+    const project = projectState.project;
+    if (!project) return { rebuilt: 0, failed: 0 };
+
+    const localImages = project.images.filter(
+        (img) => img.source.kind === 'local' && img.source.rootId === rootId
+    );
+
+    let rebuilt = 0;
+    let failed = 0;
+
+    for (const image of localImages) {
+        try {
+            const file = await getFileFromRelativePath(rootHandle, image.source.imageRef);
+            await getDerivedBlob(image.contentHash, 'work', file);
+            await getDerivedBlob(image.contentHash, 'thumb', file);
+            rebuilt++;
+        } catch (error) {
+            failed++;
+            console.warn(`Failed to rebuild cache for image ${image.id}`, error);
+        }
+    }
+
+    return { rebuilt, failed };
 }
 
 export function replaceProject(project: Project, handle: FileSystemFileHandle | null = null) {
@@ -183,7 +227,10 @@ export async function openProject() {
         projectState.assetRootHandles = {};
         projectState.dirty = false;
 
-        finish(`Opened project "${handle.name}".`);
+        finish(
+            `Opened project "${handle.name}". Local thumbnails/work images may need ` +
+            `"Rebuild Asset Cache" if the browser cache was cleared.`
+        );
     } catch (error) {
         fail(error);
     }
@@ -238,7 +285,7 @@ export async function saveProjectAs() {
     }
 }
 
-export async function relinkAssetFolder(rootId?: string) {
+export async function rebuildAssetCache(rootId?: string) {
     try {
         if (!projectState.project) return;
         if (projectState.project.assetRoots.length === 0) return;
@@ -264,10 +311,20 @@ export async function relinkAssetFolder(rootId?: string) {
 
         projectState.assetRootHandles[targetRoot.id] = handle;
 
-        finish(`Linked asset root "${targetRoot.label}" to folder "${handle.name}".`);
+        const { rebuilt, failed } = await rebuildLocalAssetCacheForRoot(targetRoot.id, handle);
+
+        finish(
+            `Rebuilt asset cache for "${targetRoot.label}" from folder "${handle.name}". ` +
+            `${rebuilt} rebuilt${failed ? `, ${failed} failed` : ''}.`
+        );
     } catch (error) {
         fail(error);
     }
+}
+
+// Backwards-compatible name for existing callers/buttons
+export async function relinkAssetFolder(rootId?: string) {
+    await rebuildAssetCache(rootId);
 }
 
 export function closeProject() {
