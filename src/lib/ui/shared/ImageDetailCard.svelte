@@ -151,7 +151,6 @@
 <section class="detail-card">
 	<div class="detail-head">
 		<div>
-			<h3>Selected image</h3>
 			<div class="detail-subtitle">{title}</div>
 		</div>
 
