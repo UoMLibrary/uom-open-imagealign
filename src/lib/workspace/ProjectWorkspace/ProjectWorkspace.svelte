@@ -304,10 +304,11 @@
 					<div class="panel-wrap">
 						<ImageDetailCard
 							image={selectedImage}
+							baseImage={selectedGroup ? (imageById.get(selectedGroup.baseImageId) ?? null) : null}
 							title={getImageTitle(selectedImage)}
-							sourceKind={getImageSourceKind(selectedImage)}
+							sourceKind={selectedImage.source.kind}
 							sourceValue={getImageSourceValue(selectedImage)}
-							isBase={selectedImage.id === selectedGroup.baseImageId}
+							isBase={selectedImage.id === selectedGroup?.baseImageId}
 							alignment={selectedImageAlignment}
 							{formatValue}
 							{pretty}
