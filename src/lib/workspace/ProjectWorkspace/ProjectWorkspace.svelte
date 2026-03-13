@@ -1,5 +1,4 @@
 <script lang="ts">
-	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
 	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
 	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
 	import ImageCard from '$lib/ui/shared/ImageCard.svelte';
