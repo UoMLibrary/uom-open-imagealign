@@ -1,0 +1,937 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/image-alignment-project.schema.json",
+    "title": "Image Alignment Project",
+    "type": "object",
+    "required": [
+        "version",
+        "createdAt",
+        "definitions",
+        "assetRoots",
+        "images",
+        "groups",
+        "alignments",
+        "annotations"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "version": {
+            "type": "string",
+            "pattern": "^0\\.\\d+$"
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "title": {
+            "type": "string"
+        },
+        "metadata": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/$defs/jsonValue"
+            }
+        },
+        "definitions": {
+            "$ref": "#/$defs/definitionRegistry"
+        },
+        "assetRoots": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/assetRoot"
+            },
+            "default": []
+        },
+        "images": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageRecord"
+            },
+            "default": []
+        },
+        "groups": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageGroup"
+            },
+            "default": []
+        },
+        "alignments": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/imageAlignment"
+            },
+            "default": []
+        },
+        "annotations": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/annotationRecord"
+            },
+            "default": []
+        },
+        "notes": {
+            "type": "string"
+        },
+        "ui": {
+            "$ref": "#/$defs/projectUIState"
+        }
+    },
+    "$defs": {
+        "idString": {
+            "type": "string",
+            "minLength": 1
+        },
+        "hashString": {
+            "type": "string",
+            "minLength": 32
+        },
+        "fieldKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_\\-]*$"
+        },
+        "jsonValue": {
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "number"
+                },
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            ]
+        },
+        "jsonSchemaObject": {
+            "type": "object",
+            "description": "Embedded schema-like object. Detailed validation is handled by the application/runtime.",
+            "additionalProperties": true
+        },
+        "dimensions": {
+            "type": "object",
+            "required": [
+                "width",
+                "height"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "width": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "height": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "assetRoot": {
+            "type": "object",
+            "required": [
+                "id",
+                "label"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "label": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expectedFolderName": {
+                    "type": "string"
+                }
+            }
+        },
+        "localImageSource": {
+            "type": "object",
+            "required": [
+                "kind",
+                "rootId",
+                "imageRef"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "const": "local"
+                },
+                "rootId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "imageRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Project-relative or asset-root-relative reference to the local image."
+                }
+            }
+        },
+        "urlImageSource": {
+            "type": "object",
+            "required": [
+                "kind",
+                "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "const": "url"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        },
+        "iiifImageSource": {
+            "type": "object",
+            "required": [
+                "kind",
+                "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "const": "iiif"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Resolved IIIF image request URL."
+                },
+                "infoJsonUrl": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        },
+        "imageSource": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/localImageSource"
+                },
+                {
+                    "$ref": "#/$defs/urlImageSource"
+                },
+                {
+                    "$ref": "#/$defs/iiifImageSource"
+                }
+            ]
+        },
+        "metadataFieldType": {
+            "type": "string",
+            "enum": [
+                "string",
+                "number",
+                "boolean",
+                "date",
+                "url"
+            ]
+        },
+        "scalarOptionValue": {
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "number"
+                },
+                {
+                    "type": "boolean"
+                }
+            ]
+        },
+        "metadataFieldDef": {
+            "type": "object",
+            "required": [
+                "key",
+                "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "key": {
+                    "$ref": "#/$defs/fieldKey"
+                },
+                "type": {
+                    "$ref": "#/$defs/metadataFieldType"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "default": {
+                    "$ref": "#/$defs/jsonValue"
+                },
+                "placeholder": {
+                    "type": "string"
+                },
+                "min": {
+                    "type": "number"
+                },
+                "max": {
+                    "type": "number"
+                },
+                "step": {
+                    "type": "number"
+                },
+                "minLength": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "maxLength": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/scalarOptionValue"
+                    }
+                },
+                "ui": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "metadataSchemaDef": {
+            "type": "object",
+            "required": [
+                "id",
+                "scope",
+                "fields"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "project",
+                        "image",
+                        "group",
+                        "alignment",
+                        "annotation"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "loadedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/metadataFieldDef"
+                    },
+                    "default": []
+                }
+            }
+        },
+        "alignmentSchemaDef": {
+            "type": "object",
+            "required": [
+                "id",
+                "method",
+                "paramsSchema"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "method": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "loadedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "paramsSchema": {
+                    "$ref": "#/$defs/jsonSchemaObject"
+                },
+                "resultSchema": {
+                    "$ref": "#/$defs/jsonSchemaObject"
+                },
+                "defaults": {
+                    "type": "object",
+                    "description": "Default values for alignment params.",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                },
+                "ui": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "annotationGeometryType": {
+            "type": "string",
+            "enum": [
+                "point",
+                "rect",
+                "polygon",
+                "line"
+            ]
+        },
+        "annotationSchemaDef": {
+            "type": "object",
+            "required": [
+                "id",
+                "dataSchema"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "loadedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "allowedGeometry": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/annotationGeometryType"
+                    }
+                },
+                "dataSchema": {
+                    "$ref": "#/$defs/jsonSchemaObject"
+                },
+                "defaults": {
+                    "type": "object",
+                    "description": "Default values for annotation data.",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                },
+                "ui": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "definitionRegistry": {
+            "type": "object",
+            "required": [
+                "metadataSchemas",
+                "alignmentSchemas",
+                "annotationSchemas"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "metadataSchemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/metadataSchemaDef"
+                    },
+                    "default": []
+                },
+                "alignmentSchemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/alignmentSchemaDef"
+                    },
+                    "default": []
+                },
+                "annotationSchemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/annotationSchemaDef"
+                    },
+                    "default": []
+                }
+            }
+        },
+        "imageRecord": {
+            "type": "object",
+            "required": [
+                "id",
+                "contentHash",
+                "source",
+                "dimensions"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "contentHash": {
+                    "$ref": "#/$defs/hashString"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "assetId": {
+                    "type": "string",
+                    "description": "Optional external/user asset identifier for feedback into upstream systems."
+                },
+                "source": {
+                    "$ref": "#/$defs/imageSource"
+                },
+                "dimensions": {
+                    "$ref": "#/$defs/dimensions"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "imageGroup": {
+            "type": "object",
+            "required": [
+                "id",
+                "baseImageId",
+                "imageIds"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "baseImageId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "imageIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/idString"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "alignmentParams": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/$defs/jsonValue"
+            }
+        },
+        "alignmentResult": {
+            "type": "object",
+            "required": [
+                "transformModel"
+            ],
+            "properties": {
+                "transformModel": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Stable discriminator for the stored result shape, e.g. matrix-3x3, mesh, tps."
+                }
+            },
+            "additionalProperties": {
+                "$ref": "#/$defs/jsonValue"
+            }
+        },
+        "imageAlignment": {
+            "type": "object",
+            "required": [
+                "id",
+                "groupId",
+                "baseImageId",
+                "comparedImageId",
+                "schemaId",
+                "status",
+                "params",
+                "result"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "groupId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "baseImageId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "comparedImageId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "schemaId": {
+                    "$ref": "#/$defs/idString",
+                    "description": "References definitions.alignmentSchemas[].id"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "confirmed"
+                    ]
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "params": {
+                    "$ref": "#/$defs/alignmentParams"
+                },
+                "result": {
+                    "$ref": "#/$defs/alignmentResult"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "pointValue": {
+            "type": "object",
+            "required": [
+                "x",
+                "y"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "rectValue": {
+            "type": "object",
+            "required": [
+                "x",
+                "y",
+                "w",
+                "h"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "w": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                },
+                "h": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                }
+            }
+        },
+        "lineValue": {
+            "type": "object",
+            "required": [
+                "points"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pointValue"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                }
+            }
+        },
+        "polygonValue": {
+            "type": "object",
+            "required": [
+                "points"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pointValue"
+                    },
+                    "minItems": 3
+                }
+            }
+        },
+        "annotationGeometry": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": [
+                        "space",
+                        "type",
+                        "value"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "enum": [
+                                "base-normalized",
+                                "base-pixels"
+                            ]
+                        },
+                        "type": {
+                            "type": "string",
+                            "const": "point"
+                        },
+                        "value": {
+                            "$ref": "#/$defs/pointValue"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "space",
+                        "type",
+                        "value"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "enum": [
+                                "base-normalized",
+                                "base-pixels"
+                            ]
+                        },
+                        "type": {
+                            "type": "string",
+                            "const": "rect"
+                        },
+                        "value": {
+                            "$ref": "#/$defs/rectValue"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "space",
+                        "type",
+                        "value"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "enum": [
+                                "base-normalized",
+                                "base-pixels"
+                            ]
+                        },
+                        "type": {
+                            "type": "string",
+                            "const": "line"
+                        },
+                        "value": {
+                            "$ref": "#/$defs/lineValue"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "space",
+                        "type",
+                        "value"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "enum": [
+                                "base-normalized",
+                                "base-pixels"
+                            ]
+                        },
+                        "type": {
+                            "type": "string",
+                            "const": "polygon"
+                        },
+                        "value": {
+                            "$ref": "#/$defs/polygonValue"
+                        }
+                    }
+                }
+            ]
+        },
+        "annotationRecord": {
+            "type": "object",
+            "required": [
+                "id",
+                "groupId",
+                "anchorImageId",
+                "targetImageIds",
+                "schemaId",
+                "geometry",
+                "data"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/idString"
+                },
+                "groupId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "anchorImageId": {
+                    "$ref": "#/$defs/idString",
+                    "description": "Usually the base image for the group."
+                },
+                "targetImageIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/idString"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "description": "One or more images involved in the comparison/annotation."
+                },
+                "schemaId": {
+                    "$ref": "#/$defs/idString",
+                    "description": "References definitions.annotationSchemas[].id"
+                },
+                "alignmentId": {
+                    "$ref": "#/$defs/idString",
+                    "description": "Optional link to the alignment used when the annotation was created."
+                },
+                "geometry": {
+                    "$ref": "#/$defs/annotationGeometry"
+                },
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    },
+                    "description": "Opaque, schema-driven annotation payload."
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/jsonValue"
+                    }
+                }
+            }
+        },
+        "projectUIState": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "lastSelectedImageId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "lastSelectedGroupId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "lastSelectedAlignmentId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "lastSelectedAnnotationId": {
+                    "$ref": "#/$defs/idString"
+                },
+                "lastMode": {
+                    "type": "string",
+                    "enum": [
+                        "project",
+                        "align",
+                        "annotate",
+                        "overview"
+                    ]
+                },
+                "sidePanelOpen": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}

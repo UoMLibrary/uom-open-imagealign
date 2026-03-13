@@ -1,38 +1,154 @@
 <script lang="ts">
-	import LoadProjectButton from '$lib/ui/shared/buttons/LoadProjectButton.svelte';
-	import SaveProjectButton from '$lib/ui/shared/buttons/SaveProjectButton.svelte';
-	import ImportImagesButton from '$lib/ui/shared/buttons/ImportImagesButton.svelte';
-	import ImportImagesModal from '$lib/ui/app/modals/ImportImagesModal.svelte';
-	import { beginImportImages, imageImportUI } from '$lib/core/projectStore';
 	import ModeTabs from '$lib/ui/app/ModeTabs.svelte';
 
-	// Add callback props for Help and About actions
-	export let onHelp: () => void;
-	export let onAbout: () => void;
+	type Props = {
+		appTitle?: string;
 
-	// Handlers to call the passed-in callbacks
-	function handleHelp() {
-		onHelp?.();
+		canSave?: boolean;
+		canExport?: boolean;
+		canRelinkAssetFolder?: boolean;
+		busy?: boolean;
+
+		onNewFromFolder?: () => void;
+		onNewFromSpreadsheet?: () => void;
+		onOpenProject?: () => void;
+		onRelinkAssetFolder?: () => void;
+		onSave?: () => void;
+		onSaveAs?: () => void;
+		onExport?: () => void;
+		onHelp?: () => void;
+		onAbout?: () => void;
+	};
+
+	let {
+		appTitle = 'Image Alignment Tool',
+
+		canSave = false,
+		canExport = false,
+		canRelinkAssetFolder = false,
+		busy = false,
+
+		onNewFromFolder,
+		onNewFromSpreadsheet,
+		onOpenProject,
+		onRelinkAssetFolder,
+		onSave,
+		onSaveAs,
+		onExport,
+		onHelp,
+		onAbout
+	}: Props = $props();
+
+	let projectMenuOpen = $state(false);
+	let projectMenuEl: HTMLDivElement | null = $state(null);
+
+	function toggleProjectMenu() {
+		if (busy) return;
+		projectMenuOpen = !projectMenuOpen;
 	}
-	function handleAbout() {
-		onAbout?.();
+
+	function closeProjectMenu() {
+		projectMenuOpen = false;
+	}
+
+	function runAndClose(action?: () => void) {
+		closeProjectMenu();
+		action?.();
+	}
+
+	function handleWindowPointerDown(event: PointerEvent) {
+		if (!projectMenuOpen || !projectMenuEl) return;
+
+		const target = event.target as Node | null;
+		if (target && !projectMenuEl.contains(target)) {
+			closeProjectMenu();
+		}
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			closeProjectMenu();
+		}
 	}
 </script>
+
+<svelte:window onpointerdown={handleWindowPointerDown} onkeydown={handleWindowKeydown} />
 
 <div class="header-wrapper">
 	<header class="header">
 		<div class="actions">
-			<ImportImagesButton
-				busy={$imageImportUI.ingesting}
-				disabled={$imageImportUI.ingesting}
-				onPress={beginImportImages}
-			/>
+			<div class="menu-shell" bind:this={projectMenuEl}>
+				<button
+					type="button"
+					class="toolbar-button menu-trigger"
+					class:open={projectMenuOpen}
+					aria-haspopup="menu"
+					aria-expanded={projectMenuOpen}
+					disabled={busy}
+					onclick={toggleProjectMenu}
+				>
+					Project
+				</button>
 
-			<LoadProjectButton />
-			<SaveProjectButton />
+				{#if projectMenuOpen}
+					<div class="menu" role="menu" aria-label="Project actions">
+						<button type="button" role="menuitem" onclick={() => runAndClose(onNewFromFolder)}>
+							New from Folder…
+						</button>
 
-			<button onclick={handleHelp}>Help</button>
-			<button onclick={handleAbout}>About</button>
+						<button type="button" role="menuitem" onclick={() => runAndClose(onNewFromSpreadsheet)}>
+							New from Spreadsheet…
+						</button>
+
+						<button type="button" role="menuitem" onclick={() => runAndClose(onOpenProject)}>
+							Open Project…
+						</button>
+
+						<hr />
+
+						<button
+							type="button"
+							role="menuitem"
+							disabled={!canRelinkAssetFolder}
+							onclick={() => runAndClose(onRelinkAssetFolder)}
+						>
+							Relink Asset Folder…
+						</button>
+
+						<hr />
+
+						<button
+							type="button"
+							role="menuitem"
+							disabled={!canSave}
+							onclick={() => runAndClose(onSave)}
+						>
+							Save
+						</button>
+
+						<button
+							type="button"
+							role="menuitem"
+							disabled={!canSave}
+							onclick={() => runAndClose(onSaveAs)}
+						>
+							Save As…
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<button type="button" class="toolbar-button" disabled={!canSave || busy} onclick={onSave}>
+				Save
+			</button>
+
+			<button type="button" class="toolbar-button" disabled={!canExport || busy} onclick={onExport}>
+				Export
+			</button>
+
+			<button type="button" class="toolbar-button" disabled={busy} onclick={onHelp}>Help</button>
+
+			<button type="button" class="toolbar-button" disabled={busy} onclick={onAbout}>About</button>
 		</div>
 
 		<div class="title">
@@ -41,7 +157,7 @@
 				target="_blank"
 				rel="noopener noreferrer"
 			>
-				Image Alignment Tool
+				{appTitle}
 			</a>
 		</div>
 	</header>
@@ -49,21 +165,18 @@
 	<ModeTabs />
 </div>
 
-<ImportImagesModal />
-
 <style>
-	/* =========================================================
-   Header Layout
-   ---------------------------------------------------------
-   Top-level horizontal bar.
-   Responsible for positioning title (left) and actions (right).
-   Fixed height to keep consistent app chrome.
-   ========================================================= */
+	.header-wrapper {
+		display: flex;
+		flex-direction: column;
+		background: #fff;
+	}
 
 	.header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 1rem;
 
 		height: 48px;
 		padding: 0 1rem;
@@ -79,17 +192,18 @@
 			sans-serif;
 	}
 
-	/* =========================================================
-   Title Area
-   ---------------------------------------------------------
-   Styled link used as primary app title / navigation anchor.
-   Focus styling ensures accessibility compliance.
-   ========================================================= */
+	.title {
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+	}
 
 	.title a {
 		color: #111827;
 		text-decoration: none;
 		font-weight: 600;
+		white-space: nowrap;
 	}
 
 	.title a:hover {
@@ -99,61 +213,124 @@
 	.title a:focus-visible {
 		outline: 2px solid #4c9ffe;
 		outline-offset: 2px;
+		border-radius: 4px;
 	}
-
-	/* =========================================================
-   Actions Container
-   ---------------------------------------------------------
-   Right-aligned toolbar area.
-   Uses flex to allow horizontal stacking of buttons.
-   Overflow hidden prevents focus ring bleed.
-   ========================================================= */
 
 	.actions {
 		display: flex;
-		align-items: stretch;
-		overflow: hidden;
+		align-items: center;
+		gap: 0.15rem;
+		flex-wrap: wrap;
 	}
 
-	/* =========================================================
-   Toolbar Button Styling
-   ---------------------------------------------------------
-   Resets native button styles.
-   Creates compact toolbar-style interaction targets.
-   Scoped globally because buttons may be slotted or child components.
-   ========================================================= */
+	.menu-shell {
+		position: relative;
+	}
 
-	.actions :global(button) {
-		all: unset;
+	.toolbar-button {
+		appearance: none;
+		border: 0;
+		background: transparent;
 
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 
-		padding: 0 0.9rem;
 		height: 32px;
+		padding: 0 0.85rem;
+		border-radius: 8px;
 
 		font-size: 0.8rem;
 		font-weight: 600;
 		letter-spacing: 0.02em;
+		color: #1f2937;
 
-		color: #222;
+		cursor: pointer;
+		transition:
+			background-color 120ms ease,
+			color 120ms ease;
+	}
+
+	.toolbar-button:hover:not(:disabled),
+	.menu-trigger.open {
+		background: #f3f4f6;
+	}
+
+	.toolbar-button:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+
+	.toolbar-button:focus-visible,
+	.menu button:focus-visible {
+		outline: 2px solid #4c9ffe;
+		outline-offset: 2px;
+	}
+
+	.menu {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		left: 0;
+		z-index: 30;
+
+		min-width: 220px;
+		padding: 0.35rem;
+
+		background: #ffffff;
+		border: 1px solid rgba(0, 0, 0, 0.08);
+		border-radius: 12px;
+		box-shadow:
+			0 10px 25px rgba(0, 0, 0, 0.12),
+			0 2px 8px rgba(0, 0, 0, 0.06);
+	}
+
+	.menu button {
+		appearance: none;
+		border: 0;
+		background: transparent;
+
+		display: flex;
+		align-items: center;
+		width: 100%;
+
+		padding: 0.65rem 0.75rem;
+		border-radius: 8px;
+
+		text-align: left;
+		font: inherit;
+		font-size: 0.86rem;
+		color: #111827;
+
 		cursor: pointer;
 	}
 
-	.actions :global(button:focus-visible) {
-		outline: 2px solid #4c9ffe;
-		outline-offset: -2px;
+	.menu button:hover:not(:disabled) {
+		background: #f3f4f6;
 	}
 
-	/* =========================================================
-   Wrapper
-   ---------------------------------------------------------
-   Allows stacking header with optional secondary bars.
-   ========================================================= */
+	.menu button:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
 
-	.header-wrapper {
-		display: flex;
-		flex-direction: column;
+	.menu hr {
+		margin: 0.35rem 0;
+		border: 0;
+		border-top: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	@media (max-width: 900px) {
+		.header {
+			height: auto;
+			min-height: 48px;
+			padding-top: 0.4rem;
+			padding-bottom: 0.4rem;
+			align-items: flex-start;
+			flex-direction: column;
+		}
+
+		.title {
+			justify-content: flex-start;
+		}
 	}
 </style>

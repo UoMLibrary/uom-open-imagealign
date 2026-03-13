@@ -1,163 +1,279 @@
 /* THIS FILE IS AUTO-GENERATED — DO NOT EDIT MANUALLY */
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | {
+      [k: string]: JsonValue;
+    };
+export type IdString = string;
+export type FieldKey = string;
+export type MetadataFieldType = 'string' | 'number' | 'boolean' | 'date' | 'url';
+export type ScalarOptionValue = string | number | boolean;
+export type AnnotationGeometryType = 'point' | 'rect' | 'polygon' | 'line';
+export type HashString = string;
+export type ImageSource = LocalImageSource | UrlImageSource | IiifImageSource;
+export type AnnotationGeometry =
+  | {
+      space: 'base-normalized' | 'base-pixels';
+      type: 'point';
+      value: PointValue;
+    }
+  | {
+      space: 'base-normalized' | 'base-pixels';
+      type: 'rect';
+      value: RectValue;
+    }
+  | {
+      space: 'base-normalized' | 'base-pixels';
+      type: 'line';
+      value: LineValue;
+    }
+  | {
+      space: 'base-normalized' | 'base-pixels';
+      type: 'polygon';
+      value: PolygonValue;
+    };
+
 export interface ImageAlignmentProject {
   version: string;
   createdAt: string;
   updatedAt?: string;
-  /**
-   * Config describing the expected cached artefacts (IndexedDB keys include these sizes/versions).
-   */
-  derivations?: {
-    work?: DerivationSpec;
-    thumb?: DerivationSpec;
+  title?: string;
+  metadata?: {
+    [k: string]: JsonValue;
   };
-  /**
-   * @minItems 0
-   */
+  definitions: DefinitionRegistry;
+  assetRoots: AssetRoot[];
   images: ImageRecord[];
-  /**
-   * @minItems 0
-   */
   groups: ImageGroup[];
-  /**
-   * @minItems 0
-   */
   alignments: ImageAlignment[];
-  /**
-   * @minItems 0
-   */
-  annotations?: AnnotationRecord[];
+  annotations: AnnotationRecord[];
   notes?: string;
   ui?: ProjectUIState;
 }
-export interface DerivationSpec {
-  kind: 'work' | 'thumb';
-  /**
-   * Square output dimension in pixels (e.g. 2048, 256).
-   */
-  size: number;
-  /**
-   * Bump when derivation algorithm changes (part of cache key).
-   */
-  version: string;
+export interface DefinitionRegistry {
+  metadataSchemas: MetadataSchemaDef[];
+  alignmentSchemas: AlignmentSchemaDef[];
+  annotationSchemas: AnnotationSchemaDef[];
 }
-export interface ImageRecord {
-  /**
-   * Unique ID for this image instance in the project (duplicates may share the same contentHash).
-   */
-  id: string;
-  /**
-   * Hash of the underlying image bytes, used to dedupe cached blobs in IndexedDB.
-   */
-  contentHash: string;
+export interface MetadataSchemaDef {
+  id: IdString;
+  scope: 'project' | 'image' | 'group' | 'alignment' | 'annotation';
+  title?: string;
+  description?: string;
+  sourceUrl?: string;
+  loadedAt?: string;
+  fields: MetadataFieldDef[];
+}
+export interface MetadataFieldDef {
+  key: FieldKey;
+  type: MetadataFieldType;
   label?: string;
+  description?: string;
+  required?: boolean;
+  default?: JsonValue;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  options?: ScalarOptionValue[];
+  ui?: {
+    [k: string]: JsonValue;
+  };
+}
+export interface AlignmentSchemaDef {
+  id: IdString;
+  method: string;
+  title?: string;
+  description?: string;
+  sourceUrl?: string;
+  loadedAt?: string;
+  paramsSchema: JsonSchemaObject;
+  resultSchema?: JsonSchemaObject;
   /**
-   * Optional logical path / folder path to preserve structure in UI.
+   * Default values for alignment params.
    */
-  structuralPath?: string;
-  dimensions: Dimensions;
-  metadata?: {
-    [k: string]: unknown;
+  defaults?: {
+    [k: string]: JsonValue;
+  };
+  ui?: {
+    [k: string]: JsonValue;
   };
 }
 /**
- * Original source image dimensions (not the derived work/thumb sizes).
+ * Embedded schema-like object. Detailed validation is handled by the application/runtime.
  */
+export interface JsonSchemaObject {
+  [k: string]: unknown;
+}
+export interface AnnotationSchemaDef {
+  id: IdString;
+  title?: string;
+  description?: string;
+  sourceUrl?: string;
+  loadedAt?: string;
+  allowedGeometry?: AnnotationGeometryType[];
+  dataSchema: JsonSchemaObject;
+  /**
+   * Default values for annotation data.
+   */
+  defaults?: {
+    [k: string]: JsonValue;
+  };
+  ui?: {
+    [k: string]: JsonValue;
+  };
+}
+export interface AssetRoot {
+  id: IdString;
+  label: string;
+  description?: string;
+  expectedFolderName?: string;
+}
+export interface ImageRecord {
+  id: IdString;
+  contentHash: HashString;
+  label?: string;
+  /**
+   * Optional external/user asset identifier for feedback into upstream systems.
+   */
+  assetId?: string;
+  source: ImageSource;
+  dimensions: Dimensions;
+  metadata?: {
+    [k: string]: JsonValue;
+  };
+}
+export interface LocalImageSource {
+  kind: 'local';
+  rootId: IdString;
+  /**
+   * Project-relative or asset-root-relative reference to the local image.
+   */
+  imageRef: string;
+}
+export interface UrlImageSource {
+  kind: 'url';
+  url: string;
+}
+export interface IiifImageSource {
+  kind: 'iiif';
+  /**
+   * Resolved IIIF image request URL.
+   */
+  url: string;
+  infoJsonUrl?: string;
+}
 export interface Dimensions {
   width: number;
   height: number;
 }
 export interface ImageGroup {
-  id: string;
+  id: IdString;
+  label?: string;
+  baseImageId: IdString;
   /**
-   * The base/reference image for this group.
-   */
-  baseImageId: string;
-  /**
-   * All image instance IDs in the group (should include the baseImageId).
-   *
    * @minItems 1
    */
-  imageIds: [string, ...string[]];
-  locked: boolean;
-}
-export interface ImageAlignment {
-  id: string;
-  groupId: string;
-  /**
-   * The image that served as the *source* when computing the transform. In
-   * many parts of the UI this is referred to as the "base" image, but the
-   * store and workspace code operate in terms of source/target nomenclature.
-   */
-  sourceImageId: string;
-  /**
-   * The image that is being aligned *to* the source.
-   */
-  targetImageId: string;
-  /**
-   * Alignment method identifier (e.g. 'manual', 'auto', future methods).
-   */
-  method: string;
-  confidence?: number;
-  transform: AlignmentTransform;
-  /**
-   * Method-specific data sufficient to reproduce alignment against cached work images.
-   */
-  methodData:
-  | ManualMethodData
-  | AutoMethodData
-  | {
-    [k: string]: unknown;
+  imageIds: [IdString, ...IdString[]];
+  metadata?: {
+    [k: string]: JsonValue;
   };
 }
-export interface AlignmentTransform {
-  type: 'affine' | 'homography';
+export interface ImageAlignment {
+  id: IdString;
+  groupId: IdString;
+  baseImageId: IdString;
+  comparedImageId: IdString;
   /**
-   * 3x3 row-major matrix.
-   *
-   * @minItems 9
-   * @maxItems 9
+   * References definitions.alignmentSchemas[].id
    */
-  matrix: [number, number, number, number, number, number, number, number, number];
+  schemaId: string;
+  status: 'draft' | 'confirmed';
+  confidence?: number;
+  params: AlignmentParams;
+  result: AlignmentResult;
+  metadata?: {
+    [k: string]: JsonValue;
+  };
 }
-export interface ManualMethodData {
-  type: 'manual';
+export interface AlignmentParams {
+  [k: string]: JsonValue;
+}
+export interface AlignmentResult {
   /**
-   * @minItems 1
+   * Stable discriminator for the stored result shape, e.g. matrix-3x3, mesh, tps.
    */
-  points: [ManualPointPair, ...ManualPointPair[]];
-}
-export interface ManualPointPair {
-  base: Pt01;
-  compared: Pt01;
-}
-export interface Pt01 {
-  x: number;
-  y: number;
-}
-export interface AutoMethodData {
-  type: 'auto';
-  [k: string]: unknown;
+  transformModel: string;
+  [k: string]: JsonValue;
 }
 export interface AnnotationRecord {
-  id: string;
-  groupId: string;
-  baseImageId: string;
-  comparedImageId: string;
+  id: IdString;
+  groupId: IdString;
+  /**
+   * Usually the base image for the group.
+   */
+  anchorImageId: string;
+  /**
+   * One or more images involved in the comparison/annotation.
+   *
+   * @minItems 1
+   */
+  targetImageIds: [IdString, ...IdString[]];
+  /**
+   * References definitions.annotationSchemas[].id
+   */
+  schemaId: string;
   /**
    * Optional link to the alignment used when the annotation was created.
    */
   alignmentId?: string;
+  geometry: AnnotationGeometry;
   /**
-   * Opaque, organisation-configurable annotation payload.
+   * Opaque, schema-driven annotation payload.
    */
   data: {
-    [k: string]: unknown;
+    [k: string]: JsonValue;
+  };
+  metadata?: {
+    [k: string]: JsonValue;
   };
 }
+export interface PointValue {
+  x: number;
+  y: number;
+}
+export interface RectValue {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface LineValue {
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  points: [PointValue, PointValue];
+}
+export interface PolygonValue {
+  /**
+   * @minItems 3
+   */
+  points: [PointValue, PointValue, PointValue, ...PointValue[]];
+}
 export interface ProjectUIState {
-  lastSelectedImageId?: string;
-  lastSelectedGroupId?: string;
-  lastMode?: 'ingest' | 'group' | 'align' | 'annotate' | 'output';
-  SidePanelOpen?: boolean;
+  lastSelectedImageId?: IdString;
+  lastSelectedGroupId?: IdString;
+  lastSelectedAlignmentId?: IdString;
+  lastSelectedAnnotationId?: IdString;
+  lastMode?: 'project' | 'align' | 'annotate' | 'overview';
+  sidePanelOpen?: boolean;
 }

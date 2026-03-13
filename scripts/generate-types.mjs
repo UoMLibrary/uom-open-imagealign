@@ -1,7 +1,7 @@
 import { compileFromFile } from 'json-schema-to-typescript';
 import { writeFile } from 'fs/promises';
 
-const schemaPath = './src/lib/core/schema.json';
+const schemaPath = './src/lib/core/project.schema.json';
 const outPath = './src/lib/core/types.ts';
 
 const ts = await compileFromFile(schemaPath, {

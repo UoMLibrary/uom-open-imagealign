@@ -1,0 +1,35 @@
+filepath,group_key,group_label,is_base,asset_id,s:title,s:source,n:pair_index,b:reviewed,d:createdAt,u:catalogueUrl,s:notes
+F1 A/A 1998.04.0106l.jpg,f1-a,F1 A,1,EXT-F1-A-001,A 1998.04.0106l,F1 A,1,True,2024-01-01,https://example.org/catalog/f1-a/1,Base image
+F1 A/A axc0108-0.jpg,f1-a,F1 A,0,EXT-F1-A-002,A axc0108-0,F1 A,2,False,2024-02-02,https://example.org/catalog/f1-a/2,Comparison image
+F1 B/B axc0843-0.jpg,f1-b,F1 B,1,EXT-F1-B-001,B axc0843-0,F1 B,1,True,2024-03-03,https://example.org/catalog/f1-b/1,Base image
+F1 B/B OthF1_0841l.jpg,f1-b,F1 B,0,EXT-F1-B-002,B OthF1 0841l,F1 B,2,False,2024-04-04,https://example.org/catalog/f1-b/2,Comparison image
+F1 C/C 1998.04.0858l.jpg,f1-c,F1 C,1,EXT-F1-C-001,C 1998.04.0858l,F1 C,1,True,2024-05-05,https://example.org/catalog/f1-c/1,Base image
+F1 C/C axc0860-0.jpg,f1-c,F1 C,0,EXT-F1-C-002,C axc0860-0,F1 C,2,False,2024-06-06,https://example.org/catalog/f1-c/2,Comparison image
+F1 D/D First Folio (Bodleian copy).jpg,f1-d,F1 D,1,EXT-F1-D-001,D First Folio (Bodleian copy),F1 D,1,True,2024-07-07,https://example.org/catalog/f1-d/1,Base image
+F1 D/D First Folio (Boston public library copy).jpg,f1-d,F1 D,0,EXT-F1-D-002,D First Folio (Boston public library copy),F1 D,2,False,2024-08-08,https://example.org/catalog/f1-d/2,Comparison image
+Hobbes/PW29_Burt_p.153.jpg,hobbes,Hobbes,1,EXT-HOBBES-001,PW29 Burt p.153,Hobbes,1,True,2024-09-09,https://example.org/catalog/hobbes/1,Base image
+Hobbes/PW29_Seld_p.153.jpg,hobbes,Hobbes,0,EXT-HOBBES-002,PW29 Seld p.153,Hobbes,2,False,2024-10-10,https://example.org/catalog/hobbes/2,Comparison image
+Hobbes 2/PW29_Burt_p.322.jpg,hobbes-2,Hobbes 2,1,EXT-HOBBES-2-001,PW29 Burt p.322,Hobbes 2,1,True,2024-11-11,https://example.org/catalog/hobbes-2/1,Base image
+Hobbes 2/PW29_Seld_p.322.jpg,hobbes-2,Hobbes 2,0,EXT-HOBBES-2-002,PW29 Seld p.322,Hobbes 2,2,False,2024-12-12,https://example.org/catalog/hobbes-2/2,Comparison image
+Hobbes 3/PW29_Burt_p.327.jpg,hobbes-3,Hobbes 3,1,EXT-HOBBES-3-001,PW29 Burt p.327,Hobbes 3,1,True,2024-01-13,https://example.org/catalog/hobbes-3/1,Base image
+Hobbes 3/PW29_Seld_p.327.jpg,hobbes-3,Hobbes 3,0,EXT-HOBBES-3-002,PW29 Seld p.327,Hobbes 3,2,False,2024-02-14,https://example.org/catalog/hobbes-3/2,Comparison image
+Marston/Marston - What You Will - BPL copy - sig. C4r.jpg,marston,Marston,1,EXT-MARSTON-001,Marston - What You Will - BPL copy - sig. C4r,Marston,1,True,2024-03-15,https://example.org/catalog/marston/1,Base image
+"Marston/Marston - What You Will, Austin TX, sig. c4r.jpg",marston,Marston,0,EXT-MARSTON-002,"Marston - What You Will, Austin TX, sig. c4r",Marston,2,False,2024-04-16,https://example.org/catalog/marston/2,Comparison image
+Morison/III-Sect_08_t04-Sherard_733 medium.jpg,morison,Morison,1,EXT-MORISON-001,III-Sect 08 t04-Sherard 733 medium,Morison,1,True,2024-05-17,https://example.org/catalog/morison/1,Base image
+Morison/Sherard_731_051r medium.jpg,morison,Morison,0,EXT-MORISON-002,Sherard 731 051r medium,Morison,2,False,2024-06-18,https://example.org/catalog/morison/2,Comparison image
+Q2 Hamlet/Q2Hamlet_BL_N2v.jpg,q2-hamlet,Q2 Hamlet,1,EXT-Q2-HAMLET-001,Q2Hamlet BL N2v,Q2 Hamlet,1,True,2024-07-19,https://example.org/catalog/q2-hamlet/1,Base image
+Q2 Hamlet/Q2Hamlet_Folger_N2v.jpg,q2-hamlet,Q2 Hamlet,0,EXT-Q2-HAMLET-002,Q2Hamlet Folger N2v,Q2 Hamlet,2,False,2024-08-20,https://example.org/catalog/q2-hamlet/2,Comparison image
+Q2 Hamlet 2/Q2Hamlet_Huntingdon_N2v.jpg,q2-hamlet-2,Q2 Hamlet 2,1,EXT-Q2-HAMLET-2-001,Q2Hamlet Huntingdon N2v,Q2 Hamlet 2,1,True,2024-09-21,https://example.org/catalog/q2-hamlet-2/1,Base image
+Q2 Hamlet 2/Q2Hamlet_TrinityCollCambridge_N2v.jpg,q2-hamlet-2,Q2 Hamlet 2,0,EXT-Q2-HAMLET-2-002,Q2Hamlet TrinityCollCambridge N2v,Q2 Hamlet 2,2,False,2024-10-22,https://example.org/catalog/q2-hamlet-2/2,Comparison image
+Shakespeare portrait/Folger 02 Droeshout.jpg,shakespeare-portrait,Shakespeare portrait,1,EXT-SHAKESPEARE-PORTRAIT-001,Folger 02 Droeshout,Shakespeare portrait,1,True,2024-11-23,https://example.org/catalog/shakespeare-portrait/1,Base image
+Shakespeare portrait/Folger 75 Droeshout (state 3) 031816.jpg,shakespeare-portrait,Shakespeare portrait,0,EXT-SHAKESPEARE-PORTRAIT-002,Folger 75 Droeshout (state 3) 031816,Shakespeare portrait,2,False,2024-12-24,https://example.org/catalog/shakespeare-portrait/2,Comparison image
+Swift 1/01 Conduct 1711 A.jpg,swift-1,Swift 1,1,EXT-SWIFT-1-001,01 Conduct 1711 A,Swift 1,1,True,2024-01-25,https://example.org/catalog/swift-1/1,Base image
+Swift 1/01 Conduct 1711 B.jpg,swift-1,Swift 1,0,EXT-SWIFT-1-002,01 Conduct 1711 B,Swift 1,2,False,2024-02-26,https://example.org/catalog/swift-1/2,Comparison image
+Swift 3/04 Conduct 1711 A.jpg,swift-3,Swift 3,1,EXT-SWIFT-3-001,04 Conduct 1711 A,Swift 3,1,True,2024-03-27,https://example.org/catalog/swift-3/1,Base image
+Swift 3/04 Conduct 1711 B.jpg,swift-3,Swift 3,0,EXT-SWIFT-3-002,04 Conduct 1711 B,Swift 3,2,False,2024-04-01,https://example.org/catalog/swift-3/2,Comparison image
+Swift 4/05 Contests 1701 A.jpg,swift-4,Swift 4,1,EXT-SWIFT-4-001,05 Contests 1701 A,Swift 4,1,True,2024-05-02,https://example.org/catalog/swift-4/1,Base image
+Swift 4/05 Contests 1701 B.jpg,swift-4,Swift 4,0,EXT-SWIFT-4-002,05 Contests 1701 B,Swift 4,2,False,2024-06-03,https://example.org/catalog/swift-4/2,Comparison image
+Traherne/RF_NLS_Prot.77_1A07v.JPG,traherne,Traherne,1,EXT-TRAHERNE-001,RF NLS Prot.77 1A07v,Traherne,1,True,2024-07-04,https://example.org/catalog/traherne/1,Base image
+Traherne/RF_OxWorc_AA.nu.11_1A07v.JPG,traherne,Traherne,0,EXT-TRAHERNE-002,RF OxWorc AA.nu.11 1A07v,Traherne,2,False,2024-08-05,https://example.org/catalog/traherne/2,Comparison image
+Traherne 2/RF_Bod_8¯B 294 [O] 1A04r.JPG,traherne-2,Traherne 2,1,EXT-TRAHERNE-2-001,RF Bod 8¯B 294 [O] 1A04r,Traherne 2,1,True,2024-09-06,https://example.org/catalog/traherne-2/1,Base image
+Traherne 2/RF_NLS_Prot.77_1A04r.JPG,traherne-2,Traherne 2,0,EXT-TRAHERNE-2-002,RF NLS Prot.77 1A04r,Traherne 2,2,False,2024-10-07,https://example.org/catalog/traherne-2/2,Comparison image
