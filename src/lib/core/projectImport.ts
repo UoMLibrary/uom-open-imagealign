@@ -1,5 +1,7 @@
 // $lib/core/projectImport.ts
 
+import { getDerivedBlob } from '$lib/image/derivationService';
+
 import type {
     ImageAlignmentProject as Project,
     AssetRoot,
@@ -118,6 +120,13 @@ async function readImageDimensions(file: File): Promise<{ width: number; height:
     }
 }
 
+async function ensureLocalDerivationsCached(contentHash: string, file: File): Promise<void> {
+    await Promise.all([
+        getDerivedBlob(contentHash, 'work', file),
+        getDerivedBlob(contentHash, 'thumb', file)
+    ]);
+}
+
 export async function defaultLocalFileImporter(
     file: File,
     relativePath: string
@@ -126,6 +135,8 @@ export async function defaultLocalFileImporter(
         sha256Hex(file),
         readImageDimensions(file)
     ]);
+
+    await ensureLocalDerivationsCached(contentHash, file);
 
     return {
         contentHash,

@@ -150,7 +150,11 @@ async function build(
     if (kind === 'work') {
         if (!file) throw new Error('Missing file to build work image');
         const bitmap = await createImageBitmap(file);
-        return buildSquareFit(bitmap, CONFIG.work);
+        try {
+            return await buildSquareFit(bitmap, CONFIG.work);
+        } finally {
+            bitmap.close();
+        }
     }
 
     if (kind === 'thumb') {
@@ -159,13 +163,16 @@ async function build(
 
         if (!workBlob) {
             if (!file) throw new Error('Work image missing and no source file');
-            // build work first
             await getDerivedBlob(contentHash, 'work', file);
             return build(kind, contentHash, file);
         }
 
         const bitmap = await createImageBitmap(workBlob as Blob);
-        return buildSquareFit(bitmap, CONFIG.thumb);
+        try {
+            return await buildSquareFit(bitmap, CONFIG.thumb);
+        } finally {
+            bitmap.close();
+        }
     }
 
     throw new Error('Unsupported derivation kind');
