@@ -79,10 +79,24 @@
 
 	function requestRedraw() {
 		if (!viewer) return;
+
 		const v: any = viewer;
 		if (typeof v.forceRedraw === 'function') v.forceRedraw();
 		else if ((viewer.world as any)?.requestDraw) (viewer.world as any).requestDraw();
+
+		requestAnimationFrame(() => {
+			const v2: any = viewer;
+			if (typeof v2?.forceRedraw === 'function') v2.forceRedraw();
+			else if ((viewer?.world as any)?.requestDraw) (viewer.world as any).requestDraw();
+		});
 	}
+
+	// function requestRedraw() {
+	// 	if (!viewer) return;
+	// 	const v: any = viewer;
+	// 	if (typeof v.forceRedraw === 'function') v.forceRedraw();
+	// 	else if ((viewer.world as any)?.requestDraw) (viewer.world as any).requestDraw();
+	// }
 
 	function clamp(n: number, min = 0, max = 1) {
 		return Math.max(min, Math.min(max, n));
@@ -164,7 +178,7 @@
 		}
 
 		if (enableHoldDifferencePreview && holdDifferenceActive && overlayUrl) {
-			return clamp01(holdDifferenceOpacity);
+			return Math.max(HIDDEN_EPSILON, clamp01(holdDifferenceOpacity));
 		}
 
 		return clamp01(overlayOpacity);
