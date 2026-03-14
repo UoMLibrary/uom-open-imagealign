@@ -12,7 +12,10 @@
 
 	export let wheelAdjustOpacity = true;
 	export let wheelAdjustRequiresShift = true;
-	export let wheelSensitivityPctPerPx = 0.05;
+
+	export let wheelUseFixedStep = true;
+	export let wheelOpacityStep = 0.2;
+	export let wheelSensitivityPctPerPx = 0.05; // keep only for trackpad fallback
 
 	export let refreshKey: number = 0;
 	export let mode: string | null = null;
@@ -219,8 +222,6 @@
 		const oe = e.originalEvent as WheelEvent | undefined;
 		if (!oe) return 0;
 
-		// On some setups, Shift+wheel behaves more like horizontal scrolling.
-		// Prefer deltaX when Shift is held and deltaX is present.
 		let dominant: number;
 
 		if (oe.shiftKey && oe.deltaX !== 0) {
@@ -231,9 +232,27 @@
 			dominant = oe.deltaX;
 		}
 
-		if (oe.deltaMode === 1) return dominant * 16; // lines -> px
-		if (oe.deltaMode === 2) return dominant * 800; // pages -> px
-		return dominant; // already px
+		if (oe.deltaMode === 1) return dominant * 16;
+		if (oe.deltaMode === 2) return dominant * 800;
+		return dominant;
+	}
+
+	function wheelDirectionFromOriginalEvent(e: any) {
+		const oe = e.originalEvent as WheelEvent | undefined;
+		if (!oe) return 0;
+
+		let dominant: number;
+
+		if (oe.shiftKey && oe.deltaX !== 0) {
+			dominant = oe.deltaX;
+		} else if (Math.abs(oe.deltaY) >= Math.abs(oe.deltaX) && oe.deltaY !== 0) {
+			dominant = oe.deltaY;
+		} else {
+			dominant = oe.deltaX;
+		}
+
+		if (dominant === 0) return 0;
+		return dominant > 0 ? 1 : -1;
 	}
 
 	function onCanvasScroll(e: any) {
@@ -241,18 +260,24 @@
 		if (!overlayUrl) return;
 
 		const shiftHeld = Boolean(e.shift || e.originalEvent?.shiftKey);
-
 		if (wheelAdjustRequiresShift && !shiftHeld) return;
 
 		e.preventDefaultAction = true;
 		e.preventDefault = true;
 
+		if (wheelUseFixedStep) {
+			const dir = wheelDirectionFromOriginalEvent(e);
+			if (dir === 0) return;
+
+			const delta = -dir * wheelOpacityStep;
+			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
+			return;
+		}
+
 		const pixels = wheelPixelsFromOriginalEvent(e);
-
-		// Fallback if originalEvent is missing for some reason
 		const basis = pixels !== 0 ? pixels : (e.scroll ?? 0);
-
 		const delta = (-basis * wheelSensitivityPctPerPx) / 100;
+
 		overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
 	}
 
