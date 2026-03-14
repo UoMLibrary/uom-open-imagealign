@@ -2,14 +2,15 @@
 	import { onDestroy, onMount } from 'svelte';
 	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
-	import { renderWarpedImageUrl } from '$lib/imagealign/vggRenderService';
 
 	import {
-		initVggAlign,
-		getTransformForImages,
-		type TransformData,
-		type TransformType
-	} from '$lib/imagealign/vggAlignService';
+		ensureAlignmentEngine,
+		runAlignmentWorkflow,
+		createAlignmentSpecKey,
+		type AlignmentSpec
+	} from '$lib/imagealign/alignmentWorkflow';
+
+	import type { TransformData } from '$lib/imagealign/vggAlignService';
 
 	type ImageInfo = {
 		width: number;
@@ -31,8 +32,10 @@
 	let baseInfo = $state<ImageInfo | null>(null);
 	let queryInfo = $state<ImageInfo | null>(null);
 
-	let transformType = $state<TransformType>('affine');
-	let photometric = $state(false);
+	let spec = $state<AlignmentSpec>({
+		type: 'affine',
+		photometric: false
+	});
 
 	let isRunning = $state(false);
 	let error = $state<string | null>(null);
@@ -56,7 +59,7 @@
 	);
 
 	onMount(() => {
-		void initVggAlign()
+		void ensureAlignmentEngine()
 			.then(() => {
 				engineReady = true;
 				engineStatus = 'VGG alignment engine ready';
@@ -161,15 +164,14 @@
 		clearWarpedResult();
 
 		try {
-			const transform = await getTransformForImages(baseFile, queryFile, {
-				type: transformType,
-				photometric
+			const result = await runAlignmentWorkflow({
+				baseFile,
+				queryFile,
+				spec
 			});
 
-			transformData = transform;
-
-			const nextWarpedUrl = await renderWarpedImageUrl(queryFile, transform);
-			warpedUrl = nextWarpedUrl;
+			transformData = result.transform;
+			warpedUrl = result.warpedUrl;
 			warpedRefreshKey++;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Alignment failed';
@@ -187,7 +189,16 @@
 	function copyTransformToClipboard() {
 		if (!transformData) return;
 
-		const text = JSON.stringify(transformData, null, 2);
+		const text = JSON.stringify(
+			{
+				spec,
+				specKey: createAlignmentSpecKey(spec),
+				transform: transformData
+			},
+			null,
+			2
+		);
+
 		void navigator.clipboard.writeText(text);
 	}
 
@@ -266,18 +277,16 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 	</div>
 
 	<TransformControls
-		{transformType}
-		{photometric}
+		{spec}
 		{engineStatus}
 		{isRunning}
 		{canAlign}
 		{error}
 		onRun={runAlignment}
-		onTransformTypeChange={(value) => (transformType = value)}
-		onPhotometricChange={(value) => (photometric = value)}
+		onSpecChange={(nextSpec) => (spec = nextSpec)}
 	/>
 
-	{#if transformData}
+	<!-- {#if transformData}
 		<section class="panel">
 			<header class="transform-head">
 				<h2>Transform Data</h2>
@@ -286,6 +295,12 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 					Copy JSON
 				</button>
 			</header>
+
+			<div class="transform-spec">
+				<div><strong>Type:</strong> {spec.type}</div>
+				<div><strong>Photometric:</strong> {spec.photometric ? 'Yes' : 'No'}</div>
+				<div><strong>Spec key:</strong> <code>{createAlignmentSpecKey(spec)}</code></div>
+			</div>
 
 			<div class="transform-grid">
 				<div>
@@ -303,10 +318,10 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 
 			<details class="raw">
 				<summary>Full transform JSON</summary>
-				<pre>{JSON.stringify(transformData, null, 2)}</pre>
+				<pre>{JSON.stringify({ spec, transform: transformData }, null, 2)}</pre>
 			</details>
 		</section>
-	{/if}
+	{/if} -->
 
 	{#if warpedUrl}
 		<section class="panel">
@@ -483,6 +498,14 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 		align-items: center;
 		margin-bottom: 0.75rem;
 		gap: 1rem;
+	}
+
+	.transform-spec {
+		display: grid;
+		gap: 0.35rem;
+		margin-bottom: 1rem;
+		font-size: 0.92rem;
+		color: #374151;
 	}
 
 	.transform-grid {

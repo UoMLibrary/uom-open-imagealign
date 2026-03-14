@@ -1,40 +1,32 @@
 <script lang="ts">
-	import type { TransformType } from '$lib/imagealign/vggAlignService';
+	import type { AlignmentSpec } from '$lib/imagealign/alignmentWorkflow';
 
 	type Props = {
-		transformType: TransformType;
-		photometric: boolean;
+		spec: AlignmentSpec;
 		engineStatus: string;
 		isRunning: boolean;
 		canAlign: boolean;
 		error: string | null;
 		onRun?: () => void;
-		onTransformTypeChange?: (value: TransformType) => void;
-		onPhotometricChange?: (value: boolean) => void;
+		onSpecChange?: (spec: AlignmentSpec) => void;
 	};
 
-	let {
-		transformType,
-		photometric,
-		engineStatus,
-		isRunning,
-		canAlign,
-		error,
-		onRun,
-		onTransformTypeChange,
-		onPhotometricChange
-	}: Props = $props();
+	let { spec, engineStatus, isRunning, canAlign, error, onRun, onSpecChange }: Props = $props();
 
-	const transformOptions: TransformType[] = ['similarity', 'affine', 'perspective', 'tps'];
-
-	function handleTransformChange(event: Event) {
-		const value = (event.currentTarget as HTMLSelectElement).value as TransformType;
-		onTransformTypeChange?.(value);
+	function handleTypeChange(event: Event) {
+		const value = (event.currentTarget as HTMLSelectElement).value as AlignmentSpec['type'];
+		onSpecChange?.({
+			...spec,
+			type: value
+		});
 	}
 
 	function handlePhotometricChange(event: Event) {
 		const checked = (event.currentTarget as HTMLInputElement).checked;
-		onPhotometricChange?.(checked);
+		onSpecChange?.({
+			...spec,
+			photometric: checked
+		});
 	}
 </script>
 
@@ -44,15 +36,21 @@
 	<div class="controls">
 		<label class="field">
 			<span class="label">Model</span>
-			<select value={transformType} on:change={handleTransformChange}>
-				{#each transformOptions as option}
-					<option value={option}>{option}</option>
-				{/each}
+			<select value={spec.type} on:change={handleTypeChange} disabled={isRunning}>
+				<option value="similarity">similarity</option>
+				<option value="affine">affine</option>
+				<option value="perspective">perspective</option>
+				<option value="tps">tps</option>
 			</select>
 		</label>
 
 		<label class="checkbox">
-			<input type="checkbox" checked={photometric} on:change={handlePhotometricChange} />
+			<input
+				type="checkbox"
+				checked={spec.photometric}
+				on:change={handlePhotometricChange}
+				disabled={isRunning}
+			/>
 			<span>Photometric match</span>
 		</label>
 	</div>
@@ -71,7 +69,7 @@
 <style>
 	.panel {
 		background: white;
-		border: 1px solid #e5e7eb;
+		border: 1px solid #2163e8;
 		border-radius: 12px;
 		padding: 1rem;
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -133,7 +131,9 @@
 		cursor: pointer;
 	}
 
-	button:disabled {
+	button:disabled,
+	select:disabled,
+	input:disabled {
 		cursor: not-allowed;
 		opacity: 0.6;
 	}
