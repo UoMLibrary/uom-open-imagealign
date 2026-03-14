@@ -2,33 +2,27 @@
 	import { onMount, onDestroy } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 
-	type Pt = { x: number; y: number }; // normalised 0..1
+	type Pt = { x: number; y: number };
 
-	// Base layer (world index 0)
 	export let imageUrl: string | null = null;
-
-	// Overlay layer (world index 1)
 	export let overlayUrl: string | null = null;
 
-	// Overlay appearance
-	export let overlayOpacity: number = 0.6; // 0..1
+	export let overlayOpacity: number = 0.6;
 	export let overlayCompositeOperation: string | null = null;
 
-	// Wheel interaction
 	export let wheelAdjustOpacity = true;
 	export let wheelAdjustRequiresShift = true;
-	export let wheelSensitivityPctPerPx = 0.05; // matches previous parent behaviour
+	export let wheelSensitivityPctPerPx = 0.05;
 
-	// Bump this whenever the pixels behind a data:/blob: URL change (e.g. warped output)
 	export let refreshKey: number = 0;
-
-	// Optional: tag for signatures
 	export let mode: string | null = null;
-
-	// Optional external sync
 	export let focus: Pt | null = null;
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
+
+	// New: temporary hold-to-difference preview
+	export let enableHoldDifferencePreview = false;
+	export let holdDifferenceKey: 'Control' | 'Shift' | 'Alt' | 'Meta' = 'Control';
 
 	let el: HTMLDivElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
@@ -39,10 +33,12 @@
 
 	let pendingAppearance = false;
 	let pendingOpacity = overlayOpacity;
-	let pendingComposite = overlayCompositeOperation;
+	let pendingComposite: string | null = overlayCompositeOperation;
 
 	let wheelPendingPx = 0;
 	let wheelRaf = 0;
+
+	let holdDifferenceActive = false;
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
@@ -93,7 +89,6 @@
 	}
 
 	function cacheBust(url: string, layer: 'base' | 'overlay') {
-		// data:/blob: cannot safely accept query params; use #fragment
 		const base = url.split('#')[0];
 		const frag = `v=${refreshKey}&m=${encodeURIComponent(mode ?? '')}&l=${layer}`;
 
@@ -153,6 +148,13 @@
 		viewer.viewport.applyConstraints(true);
 	}
 
+	function effectiveCompositeOperation() {
+		if (enableHoldDifferencePreview && holdDifferenceActive && overlayUrl) {
+			return 'difference';
+		}
+		return overlayCompositeOperation;
+	}
+
 	function setOrReplaceOverlay(url: string) {
 		if (!viewer) return;
 		const base = baseItem() as any;
@@ -167,15 +169,11 @@
 			index: 1,
 			replace: hasOverlay,
 			tileSource: { type: 'image', url: cacheBust(url, 'overlay') },
-
-			// match base placement (assumes same dimensions/aspect)
 			x: b.x,
 			y: b.y,
 			width: b.width,
-
 			opacity: clamp01(overlayOpacity),
-			compositeOperation: overlayCompositeOperation ?? undefined,
-
+			compositeOperation: effectiveCompositeOperation() ?? undefined,
 			success: () => requestRedraw()
 		} as any);
 
@@ -193,7 +191,7 @@
 
 	function scheduleOverlayAppearance() {
 		pendingOpacity = overlayOpacity;
-		pendingComposite = overlayCompositeOperation;
+		pendingComposite = effectiveCompositeOperation();
 
 		if (pendingAppearance) return;
 		pendingAppearance = true;
@@ -237,28 +235,59 @@
 		if (wheelRaf) return;
 		wheelRaf = requestAnimationFrame(() => {
 			wheelRaf = 0;
-
 			const delta = (-wheelPendingPx * wheelSensitivityPctPerPx) / 100;
 			wheelPendingPx = 0;
-
 			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
 		});
+	}
+
+	function matchesHoldKey(e: KeyboardEvent) {
+		return e.key === holdDifferenceKey;
+	}
+
+	function onWindowKeyDown(e: KeyboardEvent) {
+		if (!enableHoldDifferencePreview) return;
+		if (!overlayUrl) return;
+		if (!matchesHoldKey(e)) return;
+		if (holdDifferenceActive) return;
+
+		holdDifferenceActive = true;
+		scheduleOverlayAppearance();
+	}
+
+	function onWindowKeyUp(e: KeyboardEvent) {
+		if (!enableHoldDifferencePreview) return;
+		if (!matchesHoldKey(e)) return;
+		if (!holdDifferenceActive) return;
+
+		holdDifferenceActive = false;
+		scheduleOverlayAppearance();
+	}
+
+	function onWindowBlur() {
+		if (!holdDifferenceActive) return;
+		holdDifferenceActive = false;
+		scheduleOverlayAppearance();
 	}
 
 	onMount(() => {
 		if (!el) return;
 		viewer = makeViewer(el);
+
+		window.addEventListener('keydown', onWindowKeyDown);
+		window.addEventListener('keyup', onWindowKeyUp);
+		window.addEventListener('blur', onWindowBlur);
 	});
 
 	onDestroy(() => {
 		if (wheelRaf) cancelAnimationFrame(wheelRaf);
+
+		window.removeEventListener('keydown', onWindowKeyDown);
+		window.removeEventListener('keyup', onWindowKeyUp);
+		window.removeEventListener('blur', onWindowBlur);
+
 		viewer?.destroy();
 	});
-
-	/* ---------------------------
-	   Base image open (index 0)
-	   Preserve viewport on refresh.
-	--------------------------- */
 
 	$: if (viewer) {
 		if (!imageUrl) {
@@ -276,16 +305,13 @@
 
 				openedBaseSig = nextBaseSig;
 
-				// Attach handler BEFORE open (data URLs can load very fast)
 				viewer.addOnceHandler('open', () => {
-					// Restore zoom/pan where user left it
 					if (prevCenter && prevZoom != null) {
 						viewer!.viewport.panTo(prevCenter, true);
 						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
 						viewer!.viewport.applyConstraints(true);
 					}
 
-					// open() replaces world; re-add overlay if needed
 					if (overlayUrl) {
 						openedOverlaySig = null;
 						setOrReplaceOverlay(overlayUrl);
@@ -299,10 +325,6 @@
 			}
 		}
 	}
-
-	/* ---------------------------
-	   Overlay swap (index 1)
-	--------------------------- */
 
 	$: if (viewer) {
 		if (!overlayUrl && openedOverlaySig) {
@@ -319,19 +341,13 @@
 		}
 	}
 
-	/* ---------------------------
-	   Overlay appearance updates
-	--------------------------- */
-
 	$: if (viewer && overlayUrl) {
 		overlayOpacity;
 		overlayCompositeOperation;
+		enableHoldDifferencePreview;
+		holdDifferenceActive;
 		scheduleOverlayAppearance();
 	}
-
-	/* ---------------------------
-	   Focus updates
-	--------------------------- */
 
 	$: if (viewer && focus) {
 		const sig = `${focus.x},${focus.y}`;
