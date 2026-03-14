@@ -30,11 +30,25 @@
 	}
 </script>
 
-<section class="panel">
-	<h2>Transform</h2>
+<section class="transform-card">
+	<div class="transform-top">
+		<div class="title-block">
+			<h2>Transform</h2>
+			<p>{engineStatus}</p>
+		</div>
 
-	<div class="controls">
-		<label class="field">
+		<button
+			class="primary run-button"
+			type="button"
+			on:click={() => onRun?.()}
+			disabled={!canAlign}
+		>
+			{isRunning ? 'Running…' : 'Generate'}
+		</button>
+	</div>
+
+	<div class="transform-controls">
+		<label class="field model-field">
 			<span class="label">Model</span>
 			<select value={spec.type} on:change={handleTypeChange} disabled={isRunning}>
 				<option value="similarity">similarity</option>
@@ -44,7 +58,7 @@
 			</select>
 		</label>
 
-		<label class="checkbox">
+		<label class="toggle">
 			<input
 				type="checkbox"
 				checked={spec.photometric}
@@ -55,78 +69,99 @@
 		</label>
 	</div>
 
-	<p class="engine-status">{engineStatus}</p>
-
-	<button class="primary" type="button" on:click={() => onRun?.()} disabled={!canAlign}>
-		{isRunning ? 'Running alignment…' : 'Generate transform'}
-	</button>
-
 	{#if error}
 		<p class="error">{error}</p>
 	{/if}
 </section>
 
 <style>
-	.panel {
-		background: white;
-		border: 1px solid #2163e8;
-		border-radius: 12px;
-		padding: 1rem;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+	.transform-card {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.96);
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 16px;
+		padding: 0.9rem 1rem;
+		box-shadow:
+			0 8px 24px rgba(15, 23, 42, 0.05),
+			0 1px 2px rgba(15, 23, 42, 0.04);
+		display: flex;
+		flex-direction: column;
+		gap: 0.9rem;
+		box-sizing: border-box;
 	}
 
-	h2 {
-		margin: 0 0 0.75rem 0;
-		font-size: 1rem;
+	.transform-top {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
 	}
 
-	.controls {
+	.title-block h2 {
+		margin: 0;
+		font-size: 0.98rem;
+		line-height: 1.1;
+	}
+
+	.title-block p {
+		margin: 0.28rem 0 0;
+		font-size: 0.84rem;
+		color: #64748b;
+		line-height: 1.35;
+	}
+
+	.transform-controls {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 1rem;
 		align-items: end;
-		margin-bottom: 0.75rem;
+		gap: 0.85rem 1rem;
 	}
 
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
-		min-width: 220px;
+		min-width: 180px;
+	}
+
+	.model-field {
+		flex: 0 0 200px;
 	}
 
 	.label {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #374151;
+		font-size: 0.78rem;
+		font-weight: 700;
+		color: #475569;
 	}
 
 	select {
-		padding: 0.6rem 0.75rem;
-		border-radius: 8px;
+		padding: 0.55rem 0.7rem;
+		border-radius: 10px;
 		border: 1px solid #d1d5db;
 		background: white;
 		font: inherit;
+		color: #0f172a;
 	}
 
-	.checkbox {
+	.toggle {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.65rem 0;
-		color: #374151;
+		min-height: 40px;
+		padding: 0.15rem 0;
+		color: #334155;
+		font-size: 0.9rem;
 	}
 
-	.engine-status {
-		margin: 0 0 0.75rem 0;
-		color: #4b5563;
-		font-size: 0.95rem;
+	.run-button {
+		flex: 0 0 auto;
+		white-space: nowrap;
 	}
 
 	button {
 		padding: 0.6rem 0.9rem;
-		border-radius: 8px;
-		border: 1px solid #ccc;
+		border-radius: 10px;
+		border: 1px solid #dbe1e8;
 		font: inherit;
 		cursor: pointer;
 	}
@@ -145,7 +180,20 @@
 	}
 
 	.error {
-		margin: 0.75rem 0 0 0;
+		margin: 0;
+		font-size: 0.84rem;
 		color: #b91c1c;
+	}
+
+	@media (max-width: 700px) {
+		.transform-top {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.model-field {
+			flex-basis: 100%;
+			min-width: 0;
+		}
 	}
 </style>

@@ -217,11 +217,11 @@
 </svelte:head>
 
 <div class="page-shell">
-	<section class="topbar panel">
-		<div class="topbar-row">
+	<section class="setup-panel panel">
+		<div class="setup-row">
 			<div class="title-wrap">
 				<h1>VGG Align</h1>
-				<p>Load two images, adjust the transform, then inspect the result below.</p>
+				<p>Load two images, generate a transform, then inspect the result below.</p>
 			</div>
 
 			<div
@@ -233,7 +233,7 @@
 			</div>
 		</div>
 
-		<div class="source-strip">
+		<div class="setup-grid">
 			<ImageDropSlot
 				label="Base image"
 				imageUrl={baseUrl}
@@ -249,19 +249,19 @@
 				onFileSelected={(file) => setSelectedFile('query', file)}
 				onClear={clearQuery}
 			/>
-		</div>
-	</section>
 
-	<section class="controls-wrap panel">
-		<TransformControls
-			{spec}
-			{engineStatus}
-			{isRunning}
-			{canAlign}
-			{error}
-			onRun={runAlignment}
-			onSpecChange={(nextSpec) => (spec = nextSpec)}
-		/>
+			<div class="transform-slot">
+				<TransformControls
+					{spec}
+					{engineStatus}
+					{isRunning}
+					{canAlign}
+					{error}
+					onRun={runAlignment}
+					onSpecChange={(nextSpec) => (spec = nextSpec)}
+				/>
+			</div>
+		</div>
 	</section>
 
 	<section class="result-panel panel">
@@ -405,6 +405,17 @@
 		color: #0f172a;
 	}
 
+	.page-shell {
+		min-height: 100vh;
+		height: 100vh;
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		box-sizing: border-box;
+		overflow: auto;
+	}
+
 	.panel {
 		background: rgba(255, 255, 255, 0.82);
 		backdrop-filter: blur(10px);
@@ -415,18 +426,31 @@
 			0 1px 2px rgba(15, 23, 42, 0.05);
 	}
 
-	.topbar {
+	.setup-panel {
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		flex: 0 0 auto;
 	}
 
-	.topbar-row {
+	.setup-row {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 1rem;
+	}
+
+	.setup-grid {
+		display: grid;
+		grid-template-columns: 148px 148px minmax(300px, 1fr);
+		gap: 1rem;
+		align-items: stretch;
+	}
+
+	.transform-slot {
+		min-width: 0;
+		display: flex;
 	}
 
 	.title-wrap h1 {
@@ -462,15 +486,14 @@
 		color: #991b1b;
 	}
 
-	.source-strip {
+	.result-panel {
+		flex: 1 1 auto;
+		min-height: 420px;
+		padding: 1rem;
 		display: flex;
-		gap: 1rem;
-		align-items: flex-start;
-		flex-wrap: wrap;
-	}
-
-	.controls-wrap {
-		padding: 0.9rem 1rem;
+		flex-direction: column;
+		gap: 0.75rem;
+		overflow: hidden;
 	}
 
 	.result-head {
@@ -550,39 +573,23 @@
 		gap: 0.5rem;
 	}
 
-	.page-shell {
-		height: 100vh;
-		padding: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+	.viewer-shell {
+		position: relative;
+		flex: 1 1 auto;
+		min-height: clamp(320px, 46vh, 760px);
+		border-radius: 16px;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		background: #f8fafc;
+		padding: 0.5rem;
 		box-sizing: border-box;
 		overflow: hidden;
 	}
 
-	.result-panel {
-		flex: 1 1 auto;
-		min-height: 0;
-		padding: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.9rem;
-		overflow: hidden;
-	}
-
-	.viewer-shell {
-		position: relative;
-		flex: 1 1 auto;
-		min-height: 420px;
-		border-radius: 16px;
-		overflow: hidden;
-		border: 1px solid rgba(148, 163, 184, 0.22);
-		background: #f8fafc;
-	}
-
 	.viewer-host {
 		position: absolute;
-		inset: 0;
+		inset: 0.5rem;
+		border-radius: 12px;
+		overflow: hidden;
 	}
 
 	.viewer-host :global(.wheel-capture) {
@@ -600,7 +607,6 @@
 	.viewer-empty {
 		width: 100%;
 		height: 100%;
-		min-height: 420px;
 		display: grid;
 		place-items: center;
 		padding: 1rem;
@@ -658,15 +664,25 @@
 		box-shadow: none;
 	}
 
-	@media (max-width: 960px) {
+	@media (max-width: 980px) {
 		.page-shell {
+			height: auto;
+			min-height: 100vh;
 			padding: 0.75rem;
 		}
 
-		.topbar-row,
+		.setup-row,
 		.result-head {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.setup-grid {
+			grid-template-columns: 148px 148px;
+		}
+
+		.transform-slot {
+			grid-column: 1 / -1;
 		}
 
 		.result-tools {
@@ -675,10 +691,8 @@
 	}
 
 	@media (max-width: 640px) {
-		.source-strip {
-			width: 100%;
-			display: grid;
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+		.setup-grid {
+			grid-template-columns: 1fr;
 		}
 
 		.opacity-control {

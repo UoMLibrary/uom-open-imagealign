@@ -54,6 +54,7 @@
 			showNavigator: true,
 			autoResize: true,
 			drawer,
+			navigatorSizeRatio: 0.16,
 			crossOriginPolicy: 'Anonymous',
 			keyboardNavEnabled: false,
 			gestureSettingsKeyboard: { rotate: false },
