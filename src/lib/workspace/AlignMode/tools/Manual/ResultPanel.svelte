@@ -23,6 +23,8 @@
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
+	const HIDDEN_EPSILON = 0.0001;
+
 	// Hold-to-difference preview
 	export let enableHoldDifferencePreview = false;
 	export let holdDifferenceKey: 'Control' | 'Shift' | 'Alt' | 'Meta' = 'Control';
@@ -158,7 +160,7 @@
 
 	function effectiveOverlayOpacity() {
 		if (enableHoldShowBasePreview && holdShowBaseActive) {
-			return 0;
+			return HIDDEN_EPSILON;
 		}
 
 		if (enableHoldDifferencePreview && holdDifferenceActive && overlayUrl) {
