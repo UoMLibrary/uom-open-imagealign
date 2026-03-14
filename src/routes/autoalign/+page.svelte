@@ -46,9 +46,7 @@
 	let engineReady = $state(false);
 	let engineStatus = $state('Loading VGG alignment engine...');
 
-	let resultMode = $state<'warped' | 'composite' | 'difference'>('composite');
 	let overlayOpacity = $state(0.6);
-	let resultFocus = $state<{ x: number; y: number } | null>(null);
 
 	let drawer = $state<'auto' | 'canvas' | 'webgl' | 'html' | Array<string>>('canvas');
 
@@ -78,12 +76,6 @@
 		if (queryUrl) URL.revokeObjectURL(queryUrl);
 		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 	});
-
-	function formatBytes(bytes: number) {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-	}
 
 	async function readImageInfo(file: File): Promise<ImageInfo> {
 		const bitmap = await createImageBitmap(file);
@@ -199,17 +191,6 @@
 			isRunning = false;
 		}
 	}
-
-	function downloadImage(url: string | null, filename: string) {
-		if (!url) return;
-
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-	}
 </script>
 
 <svelte:head>
@@ -265,100 +246,28 @@
 	</section>
 
 	<section class="result-panel panel">
-		<header class="result-head">
-			<div class="result-title-group">
-				<h2>Result</h2>
-				<p>
-					{#if warpedUrl}
-						Pan, zoom, compare, and inspect the aligned output.
-					{:else if baseFile && queryFile}
-						Ready to align. Adjust settings above and run the transform.
-					{:else}
-						Load two images above to begin.
-					{/if}
-				</p>
+		{#if warpedUrl}
+			<div class="result-toolbar">
+				<label class="opacity-control">
+					<span>Opacity</span>
+					<input type="range" min="0" max="1" step="0.01" bind:value={overlayOpacity} />
+					<strong>{Math.round(overlayOpacity * 100)}%</strong>
+				</label>
 			</div>
-
-			<div class="result-tools">
-				{#if resultMode !== 'warped'}
-					<label class="opacity-control">
-						<span>Opacity</span>
-						<input
-							type="range"
-							min="0"
-							max="1"
-							step="0.01"
-							bind:value={overlayOpacity}
-							disabled={!warpedUrl}
-						/>
-						<strong>{Math.round(overlayOpacity * 100)}%</strong>
-					</label>
-				{/if}
-
-				<div class="mode-switch" aria-label="Result mode">
-					<button
-						type="button"
-						class:selected={resultMode === 'warped'}
-						on:click={() => (resultMode = 'warped')}
-						disabled={!warpedUrl}
-					>
-						Warped
-					</button>
-					<button
-						type="button"
-						class:selected={resultMode === 'composite'}
-						on:click={() => (resultMode = 'composite')}
-						disabled={!warpedUrl}
-					>
-						Composite
-					</button>
-					<button
-						type="button"
-						class:selected={resultMode === 'difference'}
-						on:click={() => (resultMode = 'difference')}
-						disabled={!warpedUrl}
-					>
-						Difference
-					</button>
-				</div>
-
-				<div class="download-actions">
-					<button
-						class="secondary"
-						type="button"
-						on:click={() => downloadImage(baseUrl, 'base-image.png')}
-						disabled={!baseUrl}
-					>
-						Base
-					</button>
-
-					<button
-						class="secondary"
-						type="button"
-						on:click={() => downloadImage(warpedUrl, 'warped-image.png')}
-						disabled={!warpedUrl}
-					>
-						Warped
-					</button>
-				</div>
-			</div>
-		</header>
+		{/if}
 
 		<div class="viewer-shell">
 			{#if warpedUrl && baseUrl}
-				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}:${resultMode}`}
+				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
 						<ResultPanel
-							imageUrl={resultMode === 'warped' ? warpedUrl : baseUrl}
-							overlayUrl={resultMode === 'warped' ? null : warpedUrl}
+							imageUrl={baseUrl}
+							overlayUrl={warpedUrl}
 							bind:overlayOpacity
-							overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
-							enableHoldDifferencePreview={resultMode !== 'warped'}
+							enableHoldDifferencePreview={true}
 							holdDifferenceKey="Alt"
 							refreshKey={warpedRefreshKey}
-							mode={resultMode}
-							focus={resultFocus}
-							wheelAdjustOpacity={resultMode !== 'warped'}
+							wheelAdjustOpacity={true}
 							wheelAdjustRequiresShift={true}
 							wheelSensitivityPctPerPx={0.05}
 							{drawer}
@@ -496,60 +405,10 @@
 		overflow: hidden;
 	}
 
-	.result-head {
+	.result-toolbar {
 		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1rem;
-		flex-wrap: wrap;
-	}
-
-	.result-title-group h2 {
-		margin: 0;
-		font-size: 1rem;
-		letter-spacing: -0.01em;
-	}
-
-	.result-title-group p {
-		margin: 0.35rem 0 0;
-		color: #64748b;
-		font-size: 0.9rem;
-	}
-
-	.result-tools {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		align-items: center;
 		justify-content: flex-end;
-	}
-
-	.mode-switch {
-		display: inline-flex;
-		padding: 0.2rem;
-		border-radius: 999px;
-		background: #e2e8f0;
-		gap: 0.2rem;
-	}
-
-	.mode-switch button {
-		margin: 0;
-		padding: 0.5rem 0.8rem;
-		border: 0;
-		border-radius: 999px;
-		background: transparent;
-		color: #334155;
-		font: inherit;
-		font-size: 0.86rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.15s ease;
-	}
-
-	.mode-switch button.selected {
-		background: white;
-		color: #0f172a;
-		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+		align-items: center;
 	}
 
 	.opacity-control {
@@ -566,11 +425,6 @@
 
 	.opacity-control input[type='range'] {
 		width: 120px;
-	}
-
-	.download-actions {
-		display: flex;
-		gap: 0.5rem;
 	}
 
 	.viewer-shell {
@@ -634,36 +488,6 @@
 		line-height: 1.5;
 	}
 
-	button,
-	.secondary {
-		padding: 0.6rem 0.9rem;
-		border-radius: 10px;
-		border: 1px solid #dbe1e8;
-		background: white;
-		color: #0f172a;
-		font: inherit;
-		cursor: pointer;
-		transition:
-			transform 0.15s ease,
-			box-shadow 0.15s ease,
-			border-color 0.15s ease;
-	}
-
-	button:hover,
-	.secondary:hover {
-		transform: translateY(-1px);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-		border-color: #cbd5e1;
-	}
-
-	button:disabled,
-	.secondary:disabled {
-		cursor: not-allowed;
-		opacity: 0.5;
-		transform: none;
-		box-shadow: none;
-	}
-
 	@media (max-width: 980px) {
 		.page-shell {
 			height: auto;
@@ -671,8 +495,7 @@
 			padding: 0.75rem;
 		}
 
-		.setup-row,
-		.result-head {
+		.setup-row {
 			flex-direction: column;
 			align-items: flex-start;
 		}
@@ -685,7 +508,7 @@
 			grid-column: 1 / -1;
 		}
 
-		.result-tools {
+		.result-toolbar {
 			justify-content: flex-start;
 		}
 	}
