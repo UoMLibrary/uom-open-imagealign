@@ -171,7 +171,9 @@
 							overlayUrl={overlayUrl ?? baseUrl}
 							bind:overlayOpacity={compareOpacity}
 							overlayCompositeOperation={compareMode === 'difference' ? 'difference' : null}
+							enableHoldDifferencePreview={true}
 							refreshKey={panelRefreshKey}
+							holdDifferenceKey="Alt"
 							mode={compareMode}
 							wheelAdjustOpacity={true}
 							wheelAdjustRequiresShift={true}
