@@ -23,9 +23,16 @@
 
 	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
 
-	// New: temporary hold-to-difference preview
+	// Hold-to-difference preview
 	export let enableHoldDifferencePreview = false;
 	export let holdDifferenceKey: 'Control' | 'Shift' | 'Alt' | 'Meta' = 'Control';
+
+	// New: hold-to-show-base preview
+	export let enableHoldShowBasePreview = true;
+	export let holdShowBaseKey = 'x';
+
+	// While difference is held, force the overlay visible even if user opacity is 0
+	export let holdDifferenceOpacity = 1;
 
 	let el: HTMLDivElement | null = null;
 	let viewer: OpenSeadragon.Viewer | null = null;
@@ -39,6 +46,7 @@
 	let pendingComposite: string | null = overlayCompositeOperation;
 
 	let holdDifferenceActive = false;
+	let holdShowBaseActive = false;
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
@@ -148,6 +156,18 @@
 		viewer.viewport.applyConstraints(true);
 	}
 
+	function effectiveOverlayOpacity() {
+		if (enableHoldShowBasePreview && holdShowBaseActive) {
+			return 0;
+		}
+
+		if (enableHoldDifferencePreview && holdDifferenceActive && overlayUrl) {
+			return clamp01(holdDifferenceOpacity);
+		}
+
+		return clamp01(overlayOpacity);
+	}
+
 	function effectiveCompositeOperation() {
 		if (enableHoldDifferencePreview && holdDifferenceActive && overlayUrl) {
 			return 'difference';
@@ -172,7 +192,7 @@
 			x: b.x,
 			y: b.y,
 			width: b.width,
-			opacity: clamp01(overlayOpacity),
+			opacity: effectiveOverlayOpacity(),
 			compositeOperation: effectiveCompositeOperation() ?? undefined,
 			success: () => requestRedraw()
 		} as any);
@@ -190,7 +210,7 @@
 	}
 
 	function scheduleOverlayAppearance() {
-		pendingOpacity = overlayOpacity;
+		pendingOpacity = effectiveOverlayOpacity();
 		pendingComposite = effectiveCompositeOperation();
 
 		if (pendingAppearance) return;
@@ -210,10 +230,10 @@
 			if (item.setCompositeOperation) item.setCompositeOperation(composite);
 			else item.compositeOperation = composite;
 
-			viewer.forceRedraw();
+			requestRedraw();
 
 			requestAnimationFrame(() => {
-				viewer?.forceRedraw();
+				requestRedraw();
 			});
 		});
 	}
@@ -281,32 +301,68 @@
 		overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
 	}
 
-	function matchesHoldKey(e: KeyboardEvent) {
+	function isEditableTarget(target: EventTarget | null) {
+		const node = target as HTMLElement | null;
+		if (!node) return false;
+		if (node instanceof HTMLInputElement) return true;
+		if (node instanceof HTMLTextAreaElement) return true;
+		if (node instanceof HTMLSelectElement) return true;
+		if (node.isContentEditable) return true;
+		return !!node.closest?.('[contenteditable="true"]');
+	}
+
+	function matchesHoldDifferenceKey(e: KeyboardEvent) {
 		return e.key === holdDifferenceKey;
 	}
 
-	function onWindowKeyDown(e: KeyboardEvent) {
-		if (!enableHoldDifferencePreview) return;
-		if (!overlayUrl) return;
-		if (!matchesHoldKey(e)) return;
-		if (holdDifferenceActive) return;
+	function matchesShowBaseKey(e: KeyboardEvent) {
+		return e.key.toLowerCase() === holdShowBaseKey.toLowerCase();
+	}
 
-		holdDifferenceActive = true;
-		scheduleOverlayAppearance();
+	function onWindowKeyDown(e: KeyboardEvent) {
+		if (isEditableTarget(e.target)) return;
+		if (!overlayUrl) return;
+
+		let changed = false;
+
+		if (enableHoldDifferencePreview && matchesHoldDifferenceKey(e) && !holdDifferenceActive) {
+			holdDifferenceActive = true;
+			changed = true;
+		}
+
+		if (enableHoldShowBasePreview && matchesShowBaseKey(e) && !holdShowBaseActive) {
+			holdShowBaseActive = true;
+			changed = true;
+		}
+
+		if (changed) {
+			scheduleOverlayAppearance();
+		}
 	}
 
 	function onWindowKeyUp(e: KeyboardEvent) {
-		if (!enableHoldDifferencePreview) return;
-		if (!matchesHoldKey(e)) return;
-		if (!holdDifferenceActive) return;
+		let changed = false;
 
-		holdDifferenceActive = false;
-		scheduleOverlayAppearance();
+		if (enableHoldDifferencePreview && matchesHoldDifferenceKey(e) && holdDifferenceActive) {
+			holdDifferenceActive = false;
+			changed = true;
+		}
+
+		if (enableHoldShowBasePreview && matchesShowBaseKey(e) && holdShowBaseActive) {
+			holdShowBaseActive = false;
+			changed = true;
+		}
+
+		if (changed) {
+			scheduleOverlayAppearance();
+		}
 	}
 
 	function onWindowBlur() {
-		if (!holdDifferenceActive) return;
+		if (!holdDifferenceActive && !holdShowBaseActive) return;
+
 		holdDifferenceActive = false;
+		holdShowBaseActive = false;
 		scheduleOverlayAppearance();
 	}
 
@@ -390,6 +446,9 @@
 		overlayCompositeOperation;
 		enableHoldDifferencePreview;
 		holdDifferenceActive;
+		enableHoldShowBasePreview;
+		holdShowBaseActive;
+		holdDifferenceOpacity;
 		scheduleOverlayAppearance();
 	}
 
