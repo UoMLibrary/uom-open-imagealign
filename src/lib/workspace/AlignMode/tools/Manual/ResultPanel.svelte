@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 
 	type Pt = { x: number; y: number };
@@ -15,7 +15,7 @@
 
 	export let wheelUseFixedStep = true;
 	export let wheelOpacityStep = 0.2;
-	export let wheelSensitivityPctPerPx = 0.05; // keep only for trackpad fallback
+	export let wheelSensitivityPctPerPx = 0.05;
 
 	export let refreshKey: number = 0;
 	export let mode: string | null = null;
@@ -25,15 +25,12 @@
 
 	const HIDDEN_EPSILON = 0.0001;
 
-	// Hold-to-difference preview
 	export let enableHoldDifferencePreview = false;
 	export let holdDifferenceKey: 'Control' | 'Shift' | 'Alt' | 'Meta' = 'Control';
 
-	// New: hold-to-show-base preview
 	export let enableHoldShowBasePreview = true;
 	export let holdShowBaseKey = 'x';
 
-	// While difference is held, force the overlay visible even if user opacity is 0
 	export let holdDifferenceOpacity = 1;
 
 	let el: HTMLDivElement | null = null;
@@ -77,6 +74,12 @@
 		});
 	}
 
+	function forceViewerResize() {
+		const v: any = viewer;
+		if (!v) return;
+		if (typeof v.forceResize === 'function') v.forceResize();
+	}
+
 	function requestRedraw() {
 		if (!viewer) return;
 
@@ -90,13 +93,6 @@
 			else if ((viewer?.world as any)?.requestDraw) (viewer.world as any).requestDraw();
 		});
 	}
-
-	// function requestRedraw() {
-	// 	if (!viewer) return;
-	// 	const v: any = viewer;
-	// 	if (typeof v.forceRedraw === 'function') v.forceRedraw();
-	// 	else if ((viewer.world as any)?.requestDraw) (viewer.world as any).requestDraw();
-	// }
 
 	function clamp(n: number, min = 0, max = 1) {
 		return Math.max(min, Math.min(max, n));
@@ -210,7 +206,10 @@
 			width: b.width,
 			opacity: effectiveOverlayOpacity(),
 			compositeOperation: effectiveCompositeOperation() ?? undefined,
-			success: () => requestRedraw()
+			success: () => {
+				forceViewerResize();
+				requestRedraw();
+			}
 		} as any);
 
 		openedOverlaySig = `${url}|${isDynamicUrl(url) ? refreshKey : 0}|${mode ?? ''}`;
@@ -383,14 +382,33 @@
 	}
 
 	onMount(() => {
-		if (!el) return;
-		viewer = makeViewer(el);
+		let destroyed = false;
 
-		viewer.addHandler('canvas-scroll', onCanvasScroll);
+		async function setup() {
+			await tick();
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+			if (!el || destroyed) return;
+
+			viewer = makeViewer(el);
+			viewer.addHandler('canvas-scroll', onCanvasScroll);
+
+			forceViewerResize();
+			requestAnimationFrame(() => {
+				forceViewerResize();
+				requestRedraw();
+			});
+		}
+
+		void setup();
 
 		window.addEventListener('keydown', onWindowKeyDown);
 		window.addEventListener('keyup', onWindowKeyUp);
 		window.addEventListener('blur', onWindowBlur);
+
+		return () => {
+			destroyed = true;
+		};
 	});
 
 	onDestroy(() => {
@@ -422,6 +440,8 @@
 				openedBaseSig = nextBaseSig;
 
 				viewer.addOnceHandler('open', () => {
+					forceViewerResize();
+
 					if (prevCenter && prevZoom != null) {
 						viewer!.viewport.panTo(prevCenter, true);
 						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
@@ -435,6 +455,11 @@
 
 					applyFocus(true);
 					requestRedraw();
+
+					requestAnimationFrame(() => {
+						forceViewerResize();
+						requestRedraw();
+					});
 				});
 
 				viewer.open({ type: 'image', url: cacheBust(imageUrl, 'base') });
@@ -483,14 +508,17 @@
 
 <style>
 	.wheel-capture {
+		position: relative;
 		width: 100%;
 		height: 100%;
 		min-height: 0;
+		overflow: hidden;
 	}
 
 	.osd {
-		width: 100%;
-		height: 100%;
+		position: absolute;
+		inset: 0;
+		min-height: 0;
 		background: rgba(255, 255, 255, 0.65);
 	}
 </style>
