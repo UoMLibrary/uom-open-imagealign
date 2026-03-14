@@ -35,9 +35,6 @@
 	let pendingOpacity = overlayOpacity;
 	let pendingComposite: string | null = overlayCompositeOperation;
 
-	let wheelPendingPx = 0;
-	let wheelRaf = 0;
-
 	let holdDifferenceActive = false;
 
 	function makeViewer(node: HTMLElement) {
@@ -206,39 +203,57 @@
 			const op = clamp01(pendingOpacity);
 			if (item.setOpacity) item.setOpacity(op);
 
-			if (item.setCompositeOperation) item.setCompositeOperation(pendingComposite ?? 'source-over');
-			else item.compositeOperation = pendingComposite ?? 'source-over';
+			const composite = pendingComposite ?? 'source-over';
+			if (item.setCompositeOperation) item.setCompositeOperation(composite);
+			else item.compositeOperation = composite;
 
-			requestRedraw();
+			viewer.forceRedraw();
+
+			requestAnimationFrame(() => {
+				viewer?.forceRedraw();
+			});
 		});
 	}
 
-	function wheelPixels(e: WheelEvent) {
-		const dominant =
-			Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0 ? e.deltaY : e.deltaX;
+	function wheelPixelsFromOriginalEvent(e: any) {
+		const oe = e.originalEvent as WheelEvent | undefined;
+		if (!oe) return 0;
 
-		if (e.deltaMode === 1) return dominant * 16;
-		if (e.deltaMode === 2) return dominant * 800;
-		return dominant;
+		// On some setups, Shift+wheel behaves more like horizontal scrolling.
+		// Prefer deltaX when Shift is held and deltaX is present.
+		let dominant: number;
+
+		if (oe.shiftKey && oe.deltaX !== 0) {
+			dominant = oe.deltaX;
+		} else if (Math.abs(oe.deltaY) >= Math.abs(oe.deltaX) && oe.deltaY !== 0) {
+			dominant = oe.deltaY;
+		} else {
+			dominant = oe.deltaX;
+		}
+
+		if (oe.deltaMode === 1) return dominant * 16; // lines -> px
+		if (oe.deltaMode === 2) return dominant * 800; // pages -> px
+		return dominant; // already px
 	}
 
-	function onWheel(e: WheelEvent) {
+	function onCanvasScroll(e: any) {
 		if (!wheelAdjustOpacity) return;
 		if (!overlayUrl) return;
-		if (wheelAdjustRequiresShift && !e.shiftKey) return;
 
-		e.preventDefault();
-		e.stopPropagation();
+		const shiftHeld = Boolean(e.shift || e.originalEvent?.shiftKey);
 
-		wheelPendingPx += wheelPixels(e);
+		if (wheelAdjustRequiresShift && !shiftHeld) return;
 
-		if (wheelRaf) return;
-		wheelRaf = requestAnimationFrame(() => {
-			wheelRaf = 0;
-			const delta = (-wheelPendingPx * wheelSensitivityPctPerPx) / 100;
-			wheelPendingPx = 0;
-			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
-		});
+		e.preventDefaultAction = true;
+		e.preventDefault = true;
+
+		const pixels = wheelPixelsFromOriginalEvent(e);
+
+		// Fallback if originalEvent is missing for some reason
+		const basis = pixels !== 0 ? pixels : (e.scroll ?? 0);
+
+		const delta = (-basis * wheelSensitivityPctPerPx) / 100;
+		overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
 	}
 
 	function matchesHoldKey(e: KeyboardEvent) {
@@ -274,13 +289,17 @@
 		if (!el) return;
 		viewer = makeViewer(el);
 
+		viewer.addHandler('canvas-scroll', onCanvasScroll);
+
 		window.addEventListener('keydown', onWindowKeyDown);
 		window.addEventListener('keyup', onWindowKeyUp);
 		window.addEventListener('blur', onWindowBlur);
 	});
 
 	onDestroy(() => {
-		if (wheelRaf) cancelAnimationFrame(wheelRaf);
+		if (viewer) {
+			viewer.removeHandler('canvas-scroll', onCanvasScroll);
+		}
 
 		window.removeEventListener('keydown', onWindowKeyDown);
 		window.removeEventListener('keyup', onWindowKeyUp);
@@ -358,7 +377,7 @@
 	}
 </script>
 
-<div class="wheel-capture" on:wheel|capture={onWheel}>
+<div class="wheel-capture">
 	<div class="osd" bind:this={el}></div>
 </div>
 
