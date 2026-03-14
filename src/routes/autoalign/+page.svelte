@@ -280,6 +280,21 @@
 			</div>
 
 			<div class="result-tools">
+				{#if resultMode !== 'warped'}
+					<label class="opacity-control">
+						<span>Opacity</span>
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.01"
+							bind:value={overlayOpacity}
+							disabled={!warpedUrl}
+						/>
+						<strong>{Math.round(overlayOpacity * 100)}%</strong>
+					</label>
+				{/if}
+
 				<div class="mode-switch" aria-label="Result mode">
 					<button
 						type="button"
@@ -306,21 +321,6 @@
 						Difference
 					</button>
 				</div>
-
-				{#if resultMode !== 'warped'}
-					<label class="opacity-control">
-						<span>Opacity</span>
-						<input
-							type="range"
-							min="0"
-							max="1"
-							step="0.01"
-							bind:value={overlayOpacity}
-							disabled={!warpedUrl}
-						/>
-						<strong>{Math.round(overlayOpacity * 100)}%</strong>
-					</label>
-				{/if}
 
 				<div class="download-actions">
 					<button
