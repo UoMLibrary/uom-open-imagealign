@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
+	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import { renderWarpedImageUrl } from '$lib/imagealign/vggRenderService';
 
 	import {
@@ -88,9 +89,19 @@
 		}
 	}
 
+	function clearWarpedResult() {
+		transformData = null;
+
+		if (warpedUrl) {
+			URL.revokeObjectURL(warpedUrl);
+			warpedUrl = null;
+			warpedRefreshKey++;
+		}
+	}
+
 	async function setSelectedFile(kind: 'base' | 'query', file: File | null) {
 		error = null;
-		transformData = null;
+		clearWarpedResult();
 
 		if (kind === 'base') {
 			if (baseUrl) URL.revokeObjectURL(baseUrl);
@@ -147,7 +158,7 @@
 
 		isRunning = true;
 		error = null;
-		transformData = null;
+		clearWarpedResult();
 
 		try {
 			const transform = await getTransformForImages(baseFile, queryFile, {
@@ -158,9 +169,6 @@
 			transformData = transform;
 
 			const nextWarpedUrl = await renderWarpedImageUrl(queryFile, transform);
-
-			if (warpedUrl) URL.revokeObjectURL(warpedUrl);
-
 			warpedUrl = nextWarpedUrl;
 			warpedRefreshKey++;
 		} catch (err) {
@@ -176,12 +184,11 @@
 		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
 	});
 
-	// helpers
 	function copyTransformToClipboard() {
 		if (!transformData) return;
 
 		const text = JSON.stringify(transformData, null, 2);
-		navigator.clipboard.writeText(text);
+		void navigator.clipboard.writeText(text);
 	}
 
 	function formatMatrix(H: number[]) {
@@ -218,7 +225,9 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 
 			<input bind:this={baseInputEl} type="file" accept="image/*" on:change={onBaseChange} />
 
-			<button class="secondary" on:click={clearBase} disabled={!baseFile}> Clear </button>
+			<button class="secondary" type="button" on:click={clearBase} disabled={!baseFile}>
+				Clear
+			</button>
 
 			{#if baseInfo}
 				<div class="meta">
@@ -229,7 +238,7 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 			{/if}
 
 			{#if baseUrl}
-				<img src={baseUrl} class="preview" />
+				<img src={baseUrl} class="preview" alt="Base preview" />
 			{/if}
 		</section>
 
@@ -238,7 +247,9 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 
 			<input bind:this={queryInputEl} type="file" accept="image/*" on:change={onQueryChange} />
 
-			<button class="secondary" on:click={clearQuery} disabled={!queryFile}> Clear </button>
+			<button class="secondary" type="button" on:click={clearQuery} disabled={!queryFile}>
+				Clear
+			</button>
 
 			{#if queryInfo}
 				<div class="meta">
@@ -249,43 +260,31 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 			{/if}
 
 			{#if queryUrl}
-				<img src={queryUrl} class="preview" />
+				<img src={queryUrl} class="preview" alt="Moving preview" />
 			{/if}
 		</section>
 	</div>
 
-	<section class="panel">
-		<h2>Transform</h2>
-
-		<select bind:value={transformType}>
-			<option value="similarity">similarity</option>
-			<option value="affine">affine</option>
-			<option value="perspective">perspective</option>
-			<option value="tps">tps</option>
-		</select>
-
-		<label class="checkbox">
-			<input type="checkbox" bind:checked={photometric} />
-			Photometric match
-		</label>
-
-		<p class="engine-status">{engineStatus}</p>
-
-		<button class="primary" on:click={runAlignment} disabled={!canAlign}>
-			{isRunning ? 'Running alignment…' : 'Generate transform'}
-		</button>
-
-		{#if error}
-			<p class="error">{error}</p>
-		{/if}
-	</section>
+	<TransformControls
+		{transformType}
+		{photometric}
+		{engineStatus}
+		{isRunning}
+		{canAlign}
+		{error}
+		onRun={runAlignment}
+		onTransformTypeChange={(value) => (transformType = value)}
+		onPhotometricChange={(value) => (photometric = value)}
+	/>
 
 	{#if transformData}
 		<section class="panel">
 			<header class="transform-head">
 				<h2>Transform Data</h2>
 
-				<button class="secondary" on:click={copyTransformToClipboard}> Copy JSON </button>
+				<button class="secondary" type="button" on:click={copyTransformToClipboard}>
+					Copy JSON
+				</button>
 			</header>
 
 			<div class="transform-grid">
@@ -317,6 +316,7 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 				<div class="result-controls">
 					<button
 						class="secondary"
+						type="button"
 						on:click={() => downloadImage(baseUrl, 'base-image.png')}
 						disabled={!baseUrl}
 					>
@@ -325,6 +325,7 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 
 					<button
 						class="secondary"
+						type="button"
 						on:click={() => downloadImage(warpedUrl, 'warped-image.png')}
 						disabled={!warpedUrl}
 					>
@@ -385,8 +386,15 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 
 	.page {
 		max-width: 1200px;
-		margin: auto;
+		margin: 0 auto;
 		padding: 2rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	h1 {
+		margin: 0;
 	}
 
 	.grid {
@@ -395,19 +403,27 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 		gap: 1rem;
 	}
 
-	.page {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 2rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+	.panel {
+		background: white;
+		border: 1px solid #e5e7eb;
+		border-radius: 12px;
+		padding: 1rem;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 	}
 
 	.preview {
-		max-width: 100%;
+		display: block;
+		max-width: 50%;
 		margin-top: 1rem;
 		border-radius: 8px;
+	}
+
+	.meta {
+		display: grid;
+		gap: 0.25rem;
+		margin-top: 0.75rem;
+		color: #4b5563;
+		font-size: 0.95rem;
 	}
 
 	.viewer {
@@ -421,11 +437,13 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 	.result-head {
 		display: flex;
 		justify-content: space-between;
+		gap: 1rem;
 		margin-bottom: 0.75rem;
 	}
 
 	.result-controls {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 1rem;
 		align-items: center;
 	}
@@ -435,31 +453,36 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 		padding: 0.6rem 0.9rem;
 		border-radius: 8px;
 		border: 1px solid #ccc;
+		background: white;
+		font: inherit;
+		cursor: pointer;
 	}
 
-	.primary {
-		background: #111827;
-		color: white;
-		border-color: #111827;
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.6;
 	}
 
-	.error {
-		color: #b91c1c;
+	.secondary {
+		background: white;
+		color: #111827;
 	}
 
-	input[type='file'] {
+	input[type='file'],
+	select {
 		padding: 0.5rem;
 		border-radius: 8px;
 		border: 1px solid #d1d5db;
 		background: white;
+		font: inherit;
 	}
 
-	/* Transform display styles */
 	.transform-head {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 0.75rem;
+		gap: 1rem;
 	}
 
 	.transform-grid {
@@ -476,6 +499,7 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 		font-family: monospace;
 		font-size: 0.85rem;
 		line-height: 1.4;
+		overflow: auto;
 	}
 
 	.raw pre {
@@ -484,5 +508,17 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 		border-radius: 6px;
 		font-size: 0.8rem;
 		overflow: auto;
+	}
+
+	@media (max-width: 900px) {
+		.grid,
+		.transform-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.result-head {
+			flex-direction: column;
+			align-items: flex-start;
+		}
 	}
 </style>
