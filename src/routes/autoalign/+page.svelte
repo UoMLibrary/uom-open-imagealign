@@ -370,7 +370,7 @@ ${H[6].toFixed(6)}  ${H[7].toFixed(6)}  ${H[8].toFixed(6)}
 					bind:overlayOpacity
 					overlayCompositeOperation={resultMode === 'difference' ? 'difference' : null}
 					enableHoldDifferencePreview={resultMode !== 'warped'}
-					holdDifferenceKey="Control"
+					holdDifferenceKey="Alt"
 					refreshKey={warpedRefreshKey}
 					mode={resultMode}
 					focus={resultFocus}
