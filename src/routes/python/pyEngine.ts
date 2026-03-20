@@ -1,4 +1,4 @@
-import { loadPyodide } from "pyodide";
+import { loadPyodide, version } from "pyodide";
 
 let pyodide: any;
 let ready: Promise<void> | null = null;
@@ -7,7 +7,7 @@ export function initPy() {
     if (!ready) {
         ready = (async () => {
             pyodide = await loadPyodide({
-                indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/"
+                indexURL: `https://cdn.jsdelivr.net/pyodide/v${version}/full/`
             });
         })();
     }
@@ -17,11 +17,11 @@ export function initPy() {
 export async function runPython(script: string, data: any) {
     await initPy();
 
-    // ✅ Convert JS → real Python object
+    // ✅ Convert JS → Python
     const pyData = pyodide.toPy(data);
-
     pyodide.globals.set("input_data", pyData);
 
+    // Run user script
     await pyodide.runPythonAsync(script);
 
     const hasProcess = pyodide.runPython(
@@ -32,7 +32,12 @@ export async function runPython(script: string, data: any) {
         throw new Error("Script must define process(data)");
     }
 
-    const result = await pyodide.runPythonAsync(`process(input_data)`);
+    // ✅ SAFE RETURN PATH (JSON only)
+    const jsonResult = await pyodide.runPythonAsync(`
+import json
+json.dumps(process(input_data))
+`);
 
-    return result;
+    // ✅ Convert to JS
+    return JSON.parse(jsonResult);
 }
