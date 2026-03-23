@@ -242,6 +242,28 @@ It allows grouping strategies to improve or change without breaking existing pro
 - The tool asserts image identity and geometric relationships, not interpretive meaning.
 - **Annotation data is treated as opaque** and is not interpreted, validated, or rendered by this tool.
 
+## More from notes
+
+All scenarios of ingest an loading with or without cacheWhat Happens Now Across All Scenarios
+
+Fresh ingest
+
+- Thumbnail generated once
+- Canonical generated once
+- Default prep stored
+- User edits preparation
+- Project updated
+- Canonical overwritten
+- Thumbnail untouched
+- IndexedDB cleared
+  On project load you call:
+
+await ensureThumbnail(...)
+await ensureCanonicalNormalised(...)
+
+Because keys missing → they rebuild.
+Deterministic. Clean.
+
 ## TODO
 
 - Adding 4 corner points should call compute
@@ -292,3 +314,18 @@ It allows grouping strategies to improve or change without breaking existing pro
 - DONE: Fix prep SidePanel header
 - DONE: Add 5 digit hash into Prepare cell
 - DONE: SHow Dimensions, source and filename at bottom as well
+
+## TODO 23rd March 2026
+
+- [ ] Disable OSD keypress
+- [ ] Setting for max size (shouldn’t affect annotations which are 0 to 1 based)
+- [ ] How to select grouping strategy (if not spreadsheet)
+- [ ] Show loading progress as images are cached
+- [ ] Cache thumbs at smaller size
+- [ ] Get GroupCell working in other Workspaces
+- [ ] Apply faint hatch lines for images with white background? Optional SWIFT 3
+- [ ] Add file size (formatBytes) from auto align
+- [ ] KEYPRESS BETWEEN DIFF AND COMPOSITE
+- [ ] Login to add user to captured events
+- [ ] Allow import of Tiff images (convert to another cached form)
+- [ ] Rethink Result panel from Base + other to any images

@@ -26,10 +26,10 @@
 	const HIDDEN_EPSILON = 0.0001;
 
 	export let enableHoldDifferencePreview = false;
-	export let holdDifferenceKey: 'Control' | 'Shift' | 'Alt' | 'Meta' = 'Control';
+	export let holdDifferenceKey = 'q';
 
 	export let enableHoldShowBasePreview = true;
-	export let holdShowBaseKey = 'x';
+	export let holdShowBaseKey = 'e';
 
 	export let holdDifferenceOpacity = 1;
 
@@ -328,7 +328,7 @@
 	}
 
 	function matchesHoldDifferenceKey(e: KeyboardEvent) {
-		return e.key === holdDifferenceKey;
+		return e.code === 'KeyQ';
 	}
 
 	function matchesShowBaseKey(e: KeyboardEvent) {
