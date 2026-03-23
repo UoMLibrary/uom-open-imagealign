@@ -329,3 +329,4 @@ Deterministic. Clean.
 - [ ] Login to add user to captured events
 - [ ] Allow import of Tiff images (convert to another cached form)
 - [ ] Rethink Result panel from Base + other to any images
+- [ ] Handle Tiffs
