@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
-	import ResultPanel from '$lib/ui/shared/ResultPanel.svelte';
+	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
 	import { getDerivedUrl } from '$lib/image/derivationService';
 	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';
 
@@ -166,7 +166,7 @@
 			<div class="preview-shell">
 				{#if previewState === 'ready' && baseUrl}
 					{#key `${baseUrl}:${overlayUrl ?? baseUrl}:${panelRefreshKey}`}
-						<ResultPanel
+						<ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={overlayUrl ?? baseUrl}
 							bind:overlayOpacity={compareOpacity}

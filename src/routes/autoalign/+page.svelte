@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import ResultPanel from '$lib/ui/shared/ResultPanel.svelte';
+	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 
@@ -260,7 +260,7 @@
 			{#if warpedUrl && baseUrl}
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
-						<ResultPanel
+						<ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							bind:overlayOpacity
