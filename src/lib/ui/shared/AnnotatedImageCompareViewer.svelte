@@ -121,7 +121,7 @@
 	let annotationLayer: AnnotationLayerHandle | null = null;
 
 	let unsubSelectedId: (() => void) | null = null;
-	let unsubViewState: (() => void) | null = null;
+	// let unsubViewState: (() => void) | null = null;
 
 	function isEditableTarget(target: EventTarget | null) {
 		const node = target as HTMLElement | null;
@@ -217,12 +217,10 @@
 	onDestroy(() => {
 		window.removeEventListener('keydown', onWindowKeyDown);
 		unsubSelectedId?.();
-		unsubViewState?.();
 	});
 
 	$effect(() => {
 		unsubSelectedId?.();
-		unsubViewState?.();
 
 		if (!session) return;
 
@@ -234,33 +232,10 @@
 			unsubSelectedId = null;
 		}
 
-		if (session.viewState?.subscribe) {
-			unsubViewState = session.viewState.subscribe((state) => {
-				const nextOpacity = state?.overlayOpacity;
-				if (typeof nextOpacity === 'number' && nextOpacity !== overlayOpacity) {
-					overlayOpacity = nextOpacity;
-				}
-			});
-		} else {
-			unsubViewState = null;
-		}
-
 		return () => {
 			unsubSelectedId?.();
 			unsubSelectedId = null;
-
-			unsubViewState?.();
-			unsubViewState = null;
 		};
-	});
-
-	$effect(() => {
-		if (!session?.viewState?.update) return;
-
-		session.viewState.update((state) => {
-			if (state?.overlayOpacity === overlayOpacity) return state;
-			return { ...(state ?? {}), overlayOpacity };
-		});
 	});
 
 	$effect(() => {

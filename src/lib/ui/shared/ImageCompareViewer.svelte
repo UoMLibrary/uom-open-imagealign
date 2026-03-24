@@ -334,29 +334,14 @@
 	}
 
 	function onCanvasScroll(e: any) {
-		if (!wheelAdjustOpacity) return;
-		if (!overlayUrl) return;
+		const oe = e.originalEvent as WheelEvent | undefined;
+		if (!oe) return;
 
-		const shiftHeld = Boolean(e.shift || e.originalEvent?.shiftKey);
-		if (wheelAdjustRequiresShift && !shiftHeld) return;
+		const handled = applyOpacityWheelDeltaFromNativeEvent(oe);
+		if (!handled) return;
 
 		e.preventDefaultAction = true;
 		e.preventDefault = true;
-
-		if (wheelUseFixedStep) {
-			const dir = wheelDirectionFromOriginalEvent(e);
-			if (dir === 0) return;
-
-			const delta = -dir * wheelOpacityStep;
-			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
-			return;
-		}
-
-		const pixels = wheelPixelsFromOriginalEvent(e);
-		const basis = pixels !== 0 ? pixels : (e.scroll ?? 0);
-		const delta = (-basis * wheelSensitivityPctPerPx) / 100;
-
-		overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
 	}
 
 	function isEditableTarget(target: EventTarget | null) {
@@ -445,6 +430,48 @@
 		scheduleOverlayAppearance();
 	}
 
+	function applyOpacityWheelDeltaFromNativeEvent(oe: WheelEvent) {
+		if (!wheelAdjustOpacity) return false;
+		if (!overlayUrl) return false;
+
+		const shiftHeld = oe.shiftKey;
+		if (wheelAdjustRequiresShift && !shiftHeld) return false;
+
+		oe.preventDefault();
+		oe.stopPropagation();
+
+		let dominant: number;
+
+		if (oe.shiftKey && oe.deltaX !== 0) {
+			dominant = oe.deltaX;
+		} else if (Math.abs(oe.deltaY) >= Math.abs(oe.deltaX) && oe.deltaY !== 0) {
+			dominant = oe.deltaY;
+		} else {
+			dominant = oe.deltaX;
+		}
+
+		if (wheelUseFixedStep) {
+			if (dominant === 0) return true;
+
+			const dir = dominant > 0 ? 1 : -1;
+			const delta = -dir * wheelOpacityStep;
+			overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
+			return true;
+		}
+
+		if (oe.deltaMode === 1) dominant *= 16;
+		if (oe.deltaMode === 2) dominant *= 800;
+
+		const delta = (-dominant * wheelSensitivityPctPerPx) / 100;
+		overlayOpacity = clamp(overlayOpacity + delta, 0, 1);
+
+		return true;
+	}
+
+	function onNativeWheel(e: WheelEvent) {
+		applyOpacityWheelDeltaFromNativeEvent(e);
+	}
+
 	onMount(() => {
 		let destroyed = false;
 
@@ -456,6 +483,7 @@
 
 			viewer = makeViewer(el);
 			viewer.addHandler('canvas-scroll', onCanvasScroll);
+			el.addEventListener('wheel', onNativeWheel, { passive: false, capture: true });
 
 			onReady?.({
 				viewer,
@@ -477,6 +505,8 @@
 
 		return () => {
 			destroyed = true;
+
+			el?.removeEventListener('wheel', onNativeWheel, true);
 
 			if (viewer) {
 				viewer.removeHandler('canvas-scroll', onCanvasScroll);
