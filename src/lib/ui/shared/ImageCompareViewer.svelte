@@ -221,7 +221,9 @@
 			return Math.max(HIDDEN_EPSILON, clamp01(holdDifferenceOpacity));
 		}
 
-		return clamp01(overlayOpacity);
+		const opacity = clamp01(overlayOpacity);
+		if (overlayUrl && opacity <= 0) return HIDDEN_EPSILON;
+		return opacity;
 	}
 
 	function effectiveCompositeOperation() {
@@ -282,7 +284,7 @@
 			const item: any = overlayItem();
 			if (!item) return;
 
-			const op = clamp01(pendingOpacity);
+			const op = pendingOpacity;
 			if (item.setOpacity) item.setOpacity(op);
 
 			const composite = pendingComposite ?? 'source-over';
