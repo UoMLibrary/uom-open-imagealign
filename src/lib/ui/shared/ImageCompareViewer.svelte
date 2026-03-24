@@ -113,7 +113,8 @@
 			maxZoomPixelRatio: 5,
 			showFullPageControl: false,
 			showHomeControl: true,
-			showZoomControl: true
+			showZoomControl: true,
+			silenceMultiImageWarnings: true
 		});
 	}
 

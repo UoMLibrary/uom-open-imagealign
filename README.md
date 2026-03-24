@@ -317,6 +317,7 @@ Deterministic. Clean.
 
 ## TODO 23rd March 2026
 
+- [ ] Need a hide all toggle for the annotations
 - [ ] Make the Storage control part of a settings tab
 - [ ] Add a user ID for recording against the annotations
 - [ ] Setting for max size (shouldn’t affect annotations which are 0 to 1 based)
