@@ -134,17 +134,20 @@
 						>
 							Save As…
 						</button>
+
+						<hr />
+
+						<button
+							type="button"
+							role="menuitem"
+							disabled={!canExport}
+							onclick={() => runAndClose(onExport)}
+						>
+							Export…
+						</button>
 					</div>
 				{/if}
 			</div>
-
-			<button type="button" class="toolbar-button" disabled={!canSave || busy} onclick={onSave}>
-				Save
-			</button>
-
-			<button type="button" class="toolbar-button" disabled={!canExport || busy} onclick={onExport}>
-				Export
-			</button>
 
 			<button type="button" class="toolbar-button" disabled={busy} onclick={onHelp}>Help</button>
 
