@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ModeTabs from '$lib/ui/app/ModeTabs.svelte';
-
 	type Props = {
 		appTitle?: string;
 
@@ -87,7 +85,7 @@
 					disabled={busy}
 					onclick={toggleProjectMenu}
 				>
-					Project
+					File
 				</button>
 
 				{#if projectMenuOpen}
@@ -164,8 +162,6 @@
 			</a>
 		</div>
 	</header>
-
-	<ModeTabs />
 </div>
 
 <style>
