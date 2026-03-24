@@ -317,6 +317,7 @@ Deterministic. Clean.
 
 ## TODO 23rd March 2026
 
+- [ ] Add version number into about page with What has been added in that version (from Github?)
 - [ ] Need a hide all toggle for the annotations
 - [ ] Make the Storage control part of a settings tab
 - [ ] Add a user ID for recording against the annotations
