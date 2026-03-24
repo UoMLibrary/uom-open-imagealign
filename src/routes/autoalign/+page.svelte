@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
+	import ImageCompareViewer, {
+		type ImageCompareViewerReadyPayload
+	} from '$lib/ui/shared/ImageCompareViewer.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 
@@ -46,7 +48,11 @@
 	let engineReady = $state(false);
 	let engineStatus = $state('Loading VGG alignment engine...');
 
+	// Image CompareViewer setup
 	let overlayOpacity = $state(0.6);
+	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
+		console.log('viewer ready', viewer, element);
+	}
 
 	let drawer = $state<'auto' | 'canvas' | 'webgl' | 'html' | Array<string>>('canvas');
 
@@ -264,6 +270,13 @@
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							bind:overlayOpacity
+							onReady={handleReady}
+							enableHoldDifferencePreview={true}
+						/>
+						<!-- <ImageCompareViewer
+							imageUrl={baseUrl}
+							overlayUrl={warpedUrl}
+							bind:overlayOpacity
 							enableHoldDifferencePreview={true}
 							holdDifferenceKey="Alt"
 							refreshKey={warpedRefreshKey}
@@ -271,7 +284,7 @@
 							wheelAdjustRequiresShift={true}
 							wheelSensitivityPctPerPx={0.05}
 							{drawer}
-						/>
+						/> -->
 					</div>
 				{/key}
 			{:else}

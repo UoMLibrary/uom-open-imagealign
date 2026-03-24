@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
-	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
+	import ImageCompareViewer, {
+		type ImageCompareViewerReadyPayload
+	} from '$lib/ui/shared/ImageCompareViewer.svelte';
+
 	import { getDerivedUrl } from '$lib/image/derivationService';
 	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';
 
@@ -146,6 +149,10 @@
 		previewRunId += 1;
 		cleanupPreview();
 	});
+
+	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
+		console.log('viewer ready', viewer, element);
+	}
 </script>
 
 <section class="detail-card">
@@ -166,7 +173,7 @@
 			<div class="preview-shell">
 				{#if previewState === 'ready' && baseUrl}
 					{#key `${baseUrl}:${overlayUrl ?? baseUrl}:${panelRefreshKey}`}
-						<ImageCompareViewer
+						<!-- <ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={overlayUrl ?? baseUrl}
 							bind:overlayOpacity={compareOpacity}
@@ -179,6 +186,13 @@
 							wheelAdjustRequiresShift={true}
 							wheelSensitivityPctPerPx={0.05}
 							{drawer}
+						/> -->
+						<ImageCompareViewer
+							imageUrl={baseUrl}
+							overlayUrl={overlayUrl ?? baseUrl}
+							bind:overlayOpacity={compareOpacity}
+							onReady={handleReady}
+							enableHoldDifferencePreview={true}
 						/>
 					{/key}
 				{:else if previewState === 'loading'}

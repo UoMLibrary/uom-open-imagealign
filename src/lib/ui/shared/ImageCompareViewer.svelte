@@ -1,40 +1,82 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import OpenSeadragon from 'openseadragon';
 
 	type Pt = { x: number; y: number };
 
-	export let imageUrl: string | null = null;
-	export let overlayUrl: string | null = null;
+	type Drawer = 'auto' | 'canvas' | 'webgl' | 'html' | Array<string>;
 
-	export let overlayOpacity: number = 0.6;
-	export let overlayCompositeOperation: string | null = null;
+	export type ImageCompareViewerReadyPayload = {
+		viewer: OpenSeadragon.Viewer;
+		element: HTMLDivElement;
+	};
 
-	export let wheelAdjustOpacity = true;
-	export let wheelAdjustRequiresShift = true;
+	type Props = {
+		imageUrl?: string | null;
+		overlayUrl?: string | null;
 
-	export let wheelUseFixedStep = true;
-	export let wheelOpacityStep = 0.2;
-	export let wheelSensitivityPctPerPx = 0.05;
+		overlayOpacity?: number;
+		overlayCompositeOperation?: string | null;
 
-	export let refreshKey: number = 0;
-	export let mode: string | null = null;
-	export let focus: Pt | null = null;
+		wheelAdjustOpacity?: boolean;
+		wheelAdjustRequiresShift?: boolean;
 
-	export let drawer: 'auto' | 'canvas' | 'webgl' | 'html' | Array<string> = 'canvas';
+		wheelUseFixedStep?: boolean;
+		wheelOpacityStep?: number;
+		wheelSensitivityPctPerPx?: number;
+
+		refreshKey?: number;
+		mode?: string | null;
+		focus?: Pt | null;
+
+		drawer?: Drawer;
+
+		enableHoldDifferencePreview?: boolean;
+		holdDifferenceKey?: string;
+
+		enableHoldShowBasePreview?: boolean;
+		holdShowBaseKey?: string;
+
+		holdDifferenceOpacity?: number;
+
+		onReady?: (payload: ImageCompareViewerReadyPayload) => void;
+	};
+
+	let {
+		imageUrl = null,
+		overlayUrl = null,
+
+		overlayOpacity = $bindable(0.6),
+		overlayCompositeOperation = null,
+
+		wheelAdjustOpacity = true,
+		wheelAdjustRequiresShift = true,
+
+		wheelUseFixedStep = true,
+		wheelOpacityStep = 0.2,
+		wheelSensitivityPctPerPx = 0.05,
+
+		refreshKey = 0,
+		mode = null,
+		focus = null,
+
+		drawer = 'canvas',
+
+		enableHoldDifferencePreview = false,
+		holdDifferenceKey = 'q',
+
+		enableHoldShowBasePreview = true,
+		holdShowBaseKey = 'e',
+
+		holdDifferenceOpacity = 1,
+
+		onReady
+	}: Props = $props();
 
 	const HIDDEN_EPSILON = 0.0001;
 
-	export let enableHoldDifferencePreview = false;
-	export let holdDifferenceKey = 'q';
-
-	export let enableHoldShowBasePreview = true;
-	export let holdShowBaseKey = 'e';
-
-	export let holdDifferenceOpacity = 1;
-
 	let el: HTMLDivElement | null = null;
-	let viewer: OpenSeadragon.Viewer | null = null;
+	let viewer = $state.raw<OpenSeadragon.Viewer | null>(null);
 
 	let openedBaseSig: string | null = null;
 	let openedOverlaySig: string | null = null;
@@ -44,8 +86,8 @@
 	let pendingOpacity = overlayOpacity;
 	let pendingComposite: string | null = overlayCompositeOperation;
 
-	let holdDifferenceActive = false;
-	let holdShowBaseActive = false;
+	let holdDifferenceActive = $state(false);
+	let holdShowBaseActive = $state(false);
 
 	function makeViewer(node: HTMLElement) {
 		return OpenSeadragon({
@@ -327,12 +369,17 @@
 		return !!node.closest?.('[contenteditable="true"]');
 	}
 
-	function matchesHoldDifferenceKey(e: KeyboardEvent) {
-		return e.code === 'KeyQ';
-	}
+	function matchesConfiguredKey(e: KeyboardEvent, configured: string) {
+		const wanted = configured.toLowerCase();
 
-	function matchesShowBaseKey(e: KeyboardEvent) {
-		return e.key.toLowerCase() === holdShowBaseKey.toLowerCase();
+		if (e.key.toLowerCase() === wanted) return true;
+		if (e.code.toLowerCase() === wanted) return true;
+
+		if (configured.length === 1 && e.code === `Key${configured.toUpperCase()}`) {
+			return true;
+		}
+
+		return false;
 	}
 
 	function onWindowKeyDown(e: KeyboardEvent) {
@@ -341,12 +388,20 @@
 
 		let changed = false;
 
-		if (enableHoldDifferencePreview && matchesHoldDifferenceKey(e) && !holdDifferenceActive) {
+		if (
+			enableHoldDifferencePreview &&
+			matchesConfiguredKey(e, holdDifferenceKey) &&
+			!holdDifferenceActive
+		) {
 			holdDifferenceActive = true;
 			changed = true;
 		}
 
-		if (enableHoldShowBasePreview && matchesShowBaseKey(e) && !holdShowBaseActive) {
+		if (
+			enableHoldShowBasePreview &&
+			matchesConfiguredKey(e, holdShowBaseKey) &&
+			!holdShowBaseActive
+		) {
 			holdShowBaseActive = true;
 			changed = true;
 		}
@@ -359,12 +414,20 @@
 	function onWindowKeyUp(e: KeyboardEvent) {
 		let changed = false;
 
-		if (enableHoldDifferencePreview && matchesHoldDifferenceKey(e) && holdDifferenceActive) {
+		if (
+			enableHoldDifferencePreview &&
+			matchesConfiguredKey(e, holdDifferenceKey) &&
+			holdDifferenceActive
+		) {
 			holdDifferenceActive = false;
 			changed = true;
 		}
 
-		if (enableHoldShowBasePreview && matchesShowBaseKey(e) && holdShowBaseActive) {
+		if (
+			enableHoldShowBasePreview &&
+			matchesConfiguredKey(e, holdShowBaseKey) &&
+			holdShowBaseActive
+		) {
 			holdShowBaseActive = false;
 			changed = true;
 		}
@@ -394,6 +457,11 @@
 			viewer = makeViewer(el);
 			viewer.addHandler('canvas-scroll', onCanvasScroll);
 
+			onReady?.({
+				viewer,
+				element: el
+			});
+
 			forceViewerResize();
 			requestAnimationFrame(() => {
 				forceViewerResize();
@@ -409,98 +477,99 @@
 
 		return () => {
 			destroyed = true;
+
+			if (viewer) {
+				viewer.removeHandler('canvas-scroll', onCanvasScroll);
+			}
+
+			window.removeEventListener('keydown', onWindowKeyDown);
+			window.removeEventListener('keyup', onWindowKeyUp);
+			window.removeEventListener('blur', onWindowBlur);
+
+			viewer?.destroy();
+			viewer = null;
 		};
 	});
 
-	onDestroy(() => {
-		if (viewer) {
-			viewer.removeHandler('canvas-scroll', onCanvasScroll);
-		}
+	$effect(() => {
+		if (!viewer) return;
 
-		window.removeEventListener('keydown', onWindowKeyDown);
-		window.removeEventListener('keyup', onWindowKeyUp);
-		window.removeEventListener('blur', onWindowBlur);
-
-		viewer?.destroy();
-	});
-
-	$: if (viewer) {
 		if (!imageUrl) {
 			if (viewer.world.getItemCount() > 0) viewer.world.removeAll();
 			openedBaseSig = null;
 			openedOverlaySig = null;
-		} else {
-			const baseKey = isDynamicUrl(imageUrl) ? refreshKey : 0;
-			const nextBaseSig = `${imageUrl}|${baseKey}|${mode ?? ''}`;
-
-			if (openedBaseSig !== nextBaseSig) {
-				const hadImage = viewer.world.getItemCount() > 0;
-				const prevCenter = hadImage ? viewer.viewport.getCenter(true) : null;
-				const prevZoom = hadImage ? viewer.viewport.getZoom(true) : null;
-
-				openedBaseSig = nextBaseSig;
-
-				viewer.addOnceHandler('open', () => {
-					forceViewerResize();
-
-					if (prevCenter && prevZoom != null) {
-						viewer!.viewport.panTo(prevCenter, true);
-						viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
-						viewer!.viewport.applyConstraints(true);
-					}
-
-					if (overlayUrl) {
-						openedOverlaySig = null;
-						setOrReplaceOverlay(overlayUrl);
-					}
-
-					applyFocus(true);
-					requestRedraw();
-
-					requestAnimationFrame(() => {
-						forceViewerResize();
-						requestRedraw();
-					});
-				});
-
-				viewer.open({ type: 'image', url: cacheBust(imageUrl, 'base') });
-			}
+			return;
 		}
-	}
 
-	$: if (viewer) {
+		const baseKey = isDynamicUrl(imageUrl) ? refreshKey : 0;
+		const nextBaseSig = `${imageUrl}|${baseKey}|${mode ?? ''}`;
+
+		if (openedBaseSig === nextBaseSig) return;
+
+		const hadImage = viewer.world.getItemCount() > 0;
+		const prevCenter = hadImage ? viewer.viewport.getCenter(true) : null;
+		const prevZoom = hadImage ? viewer.viewport.getZoom(true) : null;
+
+		openedBaseSig = nextBaseSig;
+
+		viewer.addOnceHandler('open', () => {
+			forceViewerResize();
+
+			if (prevCenter && prevZoom != null) {
+				viewer!.viewport.panTo(prevCenter, true);
+				viewer!.viewport.zoomTo(prevZoom, prevCenter, true);
+				viewer!.viewport.applyConstraints(true);
+			}
+
+			if (overlayUrl) {
+				openedOverlaySig = null;
+				setOrReplaceOverlay(overlayUrl);
+			}
+
+			applyFocus(true);
+			requestRedraw();
+
+			requestAnimationFrame(() => {
+				forceViewerResize();
+				requestRedraw();
+			});
+		});
+
+		viewer.open({ type: 'image', url: cacheBust(imageUrl, 'base') });
+	});
+
+	$effect(() => {
+		if (!viewer) return;
+
 		if (!overlayUrl && openedOverlaySig) {
 			removeOverlay();
+			return;
 		}
 
-		if (overlayUrl) {
-			const overlayKey = isDynamicUrl(overlayUrl) ? refreshKey : 0;
-			const nextOverlaySig = `${overlayUrl}|${overlayKey}|${mode ?? ''}`;
+		if (!overlayUrl) return;
 
-			if (openedOverlaySig !== nextOverlaySig) {
-				if (baseItem()) setOrReplaceOverlay(overlayUrl);
-			}
+		const overlayKey = isDynamicUrl(overlayUrl) ? refreshKey : 0;
+		const nextOverlaySig = `${overlayUrl}|${overlayKey}|${mode ?? ''}`;
+
+		if (openedOverlaySig !== nextOverlaySig) {
+			if (baseItem()) setOrReplaceOverlay(overlayUrl);
 		}
-	}
+	});
 
-	$: if (viewer && overlayUrl) {
-		overlayOpacity;
-		overlayCompositeOperation;
-		enableHoldDifferencePreview;
-		holdDifferenceActive;
-		enableHoldShowBasePreview;
-		holdShowBaseActive;
-		holdDifferenceOpacity;
+	$effect(() => {
+		if (!viewer || !overlayUrl) return;
 		scheduleOverlayAppearance();
-	}
+	});
 
-	$: if (viewer && focus) {
+	$effect(() => {
+		if (!viewer || !focus) return;
+
 		const sig = `${focus.x},${focus.y}`;
 		if (lastAppliedFocusSig !== sig) {
 			lastAppliedFocusSig = sig;
 			applyFocus(false);
 		}
-	}
+	});
 </script>
 
 <div class="wheel-capture">
