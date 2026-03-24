@@ -197,6 +197,16 @@
 			isRunning = false;
 		}
 	}
+
+	// ANnotation example
+	import AnnotatedImageCompareViewer from '$lib/ui/shared/AnnotatedImageCompareViewer.svelte';
+	import { createAnnotationEditorSession } from '$lib/ui/shared/annotationEditorSession';
+
+	const session = createAnnotationEditorSession();
+
+	//let overlayOpacity = $state(0.6);
+	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
+	let selectedAnnotationId = $state<string | null>(null);
 </script>
 
 <svelte:head>
@@ -266,25 +276,23 @@
 			{#if warpedUrl && baseUrl}
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
-						<ImageCompareViewer
+						<!-- <ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							bind:overlayOpacity
 							onReady={handleReady}
 							enableHoldDifferencePreview={true}
-						/>
-						<!-- <ImageCompareViewer
+						/> -->
+						<AnnotatedImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
+							{session}
 							bind:overlayOpacity
+							bind:annotationMode
+							bind:selectedAnnotationId
 							enableHoldDifferencePreview={true}
-							holdDifferenceKey="Alt"
-							refreshKey={warpedRefreshKey}
-							wheelAdjustOpacity={true}
-							wheelAdjustRequiresShift={true}
-							wheelSensitivityPctPerPx={0.05}
-							{drawer}
-						/> -->
+							enableHoldShowBasePreview={true}
+						/>
 					</div>
 				{/key}
 			{:else}

@@ -33,11 +33,11 @@
 		"vite": "^8.0.1"
 	},
 	"dependencies": {
-		"@annotorious/annotorious": "^3.7.20",
-		"@annotorious/openseadragon": "^3.7.20",
+		"@annotorious/annotorious": "3.7.20",
+		"@annotorious/openseadragon": "3.7.20",
+		"openseadragon": "5.0.1",
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
-		"openseadragon": "^5.0.1",
 		"pyodide": "^0.29.3"
 	}
 }
