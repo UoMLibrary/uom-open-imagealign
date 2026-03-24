@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
-	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
+	import ResultPanel from '$lib/ui/shared/ResultPanel.svelte';
 	import { getDerivedUrl } from '$lib/image/derivationService';
 	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';
 

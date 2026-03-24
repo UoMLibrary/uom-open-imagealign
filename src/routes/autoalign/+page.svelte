@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import ResultPanel from '$lib/workspace/AlignMode/tools/Manual/ResultPanel.svelte';
+	import ResultPanel from '$lib/ui/shared/ResultPanel.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 
