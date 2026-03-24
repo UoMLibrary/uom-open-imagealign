@@ -3,5 +3,5 @@
 	import StorageUsage from '$lib/StorageUsage.svelte';
 </script>
 
-<StorageUsage />
+<!-- <StorageUsage /> -->
 <AppShell />

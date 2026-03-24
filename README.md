@@ -317,7 +317,8 @@ Deterministic. Clean.
 
 ## TODO 23rd March 2026
 
-- [ ] Disable OSD keypress
+- [ ] Make the Storage control part of a settings tab
+- [ ] Add a user ID for recording against the annotations
 - [ ] Setting for max size (shouldn’t affect annotations which are 0 to 1 based)
 - [ ] How to select grouping strategy (if not spreadsheet)
 - [ ] Show loading progress as images are cached
