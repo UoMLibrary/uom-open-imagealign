@@ -462,4 +462,9 @@
 		width: 16px;
 		height: 16px;
 	}
+
+	.tool-icon svg {
+		width: 19px;
+		height: 19px;
+	}
 </style>

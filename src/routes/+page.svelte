@@ -278,22 +278,7 @@
 		</div>
 	</section>
 
-	<section class="result-panel panel">
-		{#if warpedUrl}
-			<div class="result-toolbar">
-				{#if annotationsVisible}
-					<p>Annotations are visible</p>
-				{:else}
-					<p>Annotations are hidden</p>
-				{/if}
-				<label class="opacity-control">
-					<span>Opacity</span>
-					<input type="range" min="0" max="1" step="0.01" bind:value={overlayOpacity} />
-					<strong>{Math.round(overlayOpacity * 100)}%</strong>
-				</label>
-			</div>
-		{/if}
-
+	<section class="result-panel">
 		<div class="viewer-shell">
 			{#if warpedUrl && baseUrl}
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
