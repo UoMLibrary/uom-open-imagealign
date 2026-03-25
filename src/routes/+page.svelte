@@ -38,7 +38,7 @@
 	let readingFocusEnabled = $state(false);
 	let readingFocusClearCenterPct = $state(30);
 	let readingFocusOpacity = $state(0.35);
-	let readingFocusBlurPx = $state(10);
+	let readingFocusBlurPx = $state(3);
 
 	type SlotKind = 'base' | 'query';
 
