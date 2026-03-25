@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 
@@ -10,8 +9,6 @@
 		type AlignmentSpec
 	} from '$lib/imagealign/alignmentWorkflow';
 
-	import type { TransformData } from '$lib/imagealign/vggAlignService';
-
 	type ImageInfo = {
 		width: number;
 		height: number;
@@ -20,8 +17,6 @@
 		name: string;
 	};
 
-	// ================================================================================================
-	// Annotation example
 	import type OpenSeadragon from 'openseadragon';
 	import AnnotatedImageCompareViewer from '$lib/ui/shared/AnnotatedImageCompareViewer.svelte';
 	import CompareViewerToolbar from '$lib/ui/shared/CompareViewerToolbar.svelte';
@@ -33,7 +28,6 @@
 	let viewer = $state<OpenSeadragon.Viewer | null>(null);
 
 	let annotationsVisible = $state(true);
-	// Is toolbar collapsed (only show expand button) or expanded (show all controls)
 	let collapsed = $state(false);
 
 	let overlayOpacity = $state(0.6);
@@ -41,8 +35,10 @@
 	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
 	let selectedAnnotationId = $state<string | null>(null);
 
-	// End Annotation example
-	// ================================================================================================
+	let readingFocusEnabled = $state(false);
+	let readingFocusClearCenterPct = $state(30);
+	let readingFocusOpacity = $state(0.35);
+	let readingFocusBlurPx = $state(10);
 
 	type SlotKind = 'base' | 'query';
 
@@ -65,14 +61,9 @@
 
 	let isRunning = $state(false);
 	let error = $state<string | null>(null);
-	let transformData = $state<TransformData | null>(null);
 
 	let engineReady = $state(false);
 	let engineStatus = $state('Loading VGG alignment engine...');
-
-	// Image CompareViewer setup
-
-	let drawer = $state<'auto' | 'canvas' | 'webgl' | 'html' | Array<string>>('canvas');
 
 	const canAlign = $derived(
 		Boolean(baseFile && queryFile && baseInfo && queryInfo && engineReady && !isRunning)
@@ -82,6 +73,24 @@
 		base: 0,
 		query: 0
 	};
+
+	const readingFocusPresets = [0, 30, 20, 10] as const;
+
+	function cycleReadingFocus() {
+		const current = readingFocusEnabled ? readingFocusClearCenterPct : 0;
+		const currentIndex = readingFocusPresets.findIndex((value) => value === current);
+		const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % readingFocusPresets.length : 1;
+		const nextValue = readingFocusPresets[nextIndex];
+
+		if (nextValue === 0) {
+			readingFocusEnabled = false;
+			readingFocusClearCenterPct = 30;
+			return;
+		}
+
+		readingFocusEnabled = true;
+		readingFocusClearCenterPct = nextValue;
+	}
 
 	onMount(() => {
 		window.addEventListener('keydown', onWindowKeyDown);
@@ -122,8 +131,6 @@
 	}
 
 	function clearWarpedResult() {
-		transformData = null;
-
 		if (warpedUrl) {
 			URL.revokeObjectURL(warpedUrl);
 			warpedUrl = null;
@@ -210,7 +217,6 @@
 				spec
 			});
 
-			transformData = result.transform;
 			warpedUrl = result.warpedUrl;
 			warpedRefreshKey++;
 		} catch (err) {
@@ -307,6 +313,10 @@
 							bind:annotationMode
 							bind:annotationsVisible
 							bind:selectedAnnotationId
+							{readingFocusEnabled}
+							{readingFocusClearCenterPct}
+							{readingFocusOpacity}
+							{readingFocusBlurPx}
 							enableHoldDifferencePreview={true}
 							enableHoldShowBasePreview={true}
 						/>
@@ -332,6 +342,9 @@
 									annotatedViewerRef?.hideAnnotations?.();
 								}
 							}}
+							{readingFocusEnabled}
+							{readingFocusClearCenterPct}
+							onReadingFocusCycle={cycleReadingFocus}
 						/>
 					</div>
 				{/key}
@@ -466,28 +479,6 @@
 		overflow: hidden;
 	}
 
-	.result-toolbar {
-		display: flex;
-		justify-content: flex-end;
-		align-items: center;
-	}
-
-	.opacity-control {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: 999px;
-		background: #f8fafc;
-		border: 1px solid #e2e8f0;
-		font-size: 0.84rem;
-		color: #475569;
-	}
-
-	.opacity-control input[type='range'] {
-		width: 120px;
-	}
-
 	.viewer-shell {
 		position: relative;
 		flex: 1 1 auto;
@@ -568,25 +559,11 @@
 		.transform-slot {
 			grid-column: 1 / -1;
 		}
-
-		.result-toolbar {
-			justify-content: flex-start;
-		}
 	}
 
 	@media (max-width: 640px) {
 		.setup-grid {
 			grid-template-columns: 1fr;
-		}
-
-		.opacity-control {
-			width: 100%;
-			justify-content: space-between;
-		}
-
-		.opacity-control input[type='range'] {
-			flex: 1;
-			min-width: 0;
 		}
 	}
 </style>

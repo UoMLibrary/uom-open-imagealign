@@ -5,6 +5,7 @@
 		type ImageCompareViewerReadyPayload
 	} from './ImageCompareViewer.svelte';
 	import ViewerAnnotationLayer from './ViewerAnnotationLayer.svelte';
+	import ReadingFocusOverlay from './ReadingFocusOverlay.svelte';
 
 	type Pt = { x: number; y: number };
 	type Drawer = 'auto' | 'canvas' | 'webgl' | 'html' | Array<string>;
@@ -75,6 +76,11 @@
 
 		viewer?: OpenSeadragon.Viewer | null;
 
+		readingFocusEnabled?: boolean;
+		readingFocusClearCenterPct?: number;
+		readingFocusOpacity?: number;
+		readingFocusBlurPx?: number;
+
 		onViewerReady?: (payload: ImageCompareViewerReadyPayload) => void;
 		onAnnotationReady?: (payload: { annotator: any; viewer: OpenSeadragon.Viewer }) => void;
 		onCreate?: (annotation: any) => void;
@@ -117,6 +123,11 @@
 		selectedAnnotationId = $bindable<string | null>(null),
 
 		viewer = $bindable<OpenSeadragon.Viewer | null>(null),
+
+		readingFocusEnabled = false,
+		readingFocusClearCenterPct = 30,
+		readingFocusOpacity = 0.35,
+		readingFocusBlurPx = 0,
 
 		onViewerReady,
 		onAnnotationReady,
@@ -405,6 +416,13 @@
 			onSelect={handleSelect}
 		/>
 	{/if}
+
+	<ReadingFocusOverlay
+		enabled={readingFocusEnabled}
+		clearCenterPct={readingFocusClearCenterPct}
+		opacity={readingFocusOpacity}
+		blurPx={readingFocusBlurPx}
+	/>
 </div>
 
 <style>

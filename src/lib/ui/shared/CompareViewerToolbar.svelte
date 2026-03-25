@@ -22,6 +22,10 @@
 		canUseRectangle?: boolean;
 		canUsePolygon?: boolean;
 
+		readingFocusEnabled?: boolean;
+		readingFocusClearCenterPct?: number;
+		onReadingFocusCycle?: () => void;
+
 		onOverlayOpacityChange?: (value: number) => void;
 		onModeChange?: (mode: AnnotationMode) => void;
 		onAnnotationsVisibleChange?: (visible: boolean) => void;
@@ -45,6 +49,10 @@
 		canUseRectangle = true,
 		canUsePolygon = true,
 
+		readingFocusEnabled = false,
+		readingFocusClearCenterPct = 30,
+		onReadingFocusCycle,
+
 		onOverlayOpacityChange,
 		onModeChange,
 		onAnnotationsVisibleChange,
@@ -52,6 +60,12 @@
 	}: Props = $props();
 
 	const isVertical = $derived(position === 'left' || position === 'right');
+
+	const readingFocusLabel = $derived(
+		readingFocusEnabled
+			? `Reading focus on, clear center ${readingFocusClearCenterPct}%`
+			: 'Reading focus off'
+	);
 
 	function home() {
 		viewer?.viewport?.goHome?.();
@@ -206,6 +220,25 @@
 					</button>
 				</div>
 
+				<div class="group focus-group" aria-label="Reading focus">
+					<button
+						class="icon-button"
+						class:active={readingFocusEnabled}
+						type="button"
+						aria-label={readingFocusLabel}
+						aria-pressed={readingFocusEnabled}
+						onpointerdown={keepViewerInteraction}
+						onclick={() => onReadingFocusCycle?.()}
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M4 4h16" />
+							<path d="M4 8h16" opacity="0.45" />
+							<path d="M4 16h16" opacity="0.45" />
+							<path d="M4 20h16" />
+						</svg>
+					</button>
+				</div>
+
 				{#if showAnnotationControls}
 					<div class="group annotation-group" aria-label="Annotation controls">
 						<button
@@ -214,6 +247,7 @@
 							type="button"
 							aria-label={annotationsVisible ? 'Hide annotations' : 'Show annotations'}
 							aria-pressed={annotationsVisible}
+							onpointerdown={keepViewerInteraction}
 							onclick={toggleAnnotationsVisible}
 						>
 							{#if annotationsVisible}
@@ -243,16 +277,12 @@
 							<svg viewBox="0 0 24 24" aria-hidden="true">
 								<path d="M12 8v8" />
 								<path d="M8 12h8" />
-
 								<path d="M12 4l-2 2" />
 								<path d="M12 4l2 2" />
-
 								<path d="M12 20l-2-2" />
 								<path d="M12 20l2-2" />
-
 								<path d="M4 12l2-2" />
 								<path d="M4 12l2 2" />
-
 								<path d="M20 12l-2-2" />
 								<path d="M20 12l-2 2" />
 							</svg>
