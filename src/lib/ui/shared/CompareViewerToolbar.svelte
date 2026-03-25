@@ -97,6 +97,10 @@
 		overlayOpacity = next;
 		onOverlayOpacityChange?.(next);
 	}
+
+	function keepViewerInteraction(e: PointerEvent) {
+		e.preventDefault();
+	}
 </script>
 
 <div
@@ -233,6 +237,7 @@
 							disabled={!annotationsVisible || !canUsePan}
 							aria-label="Pan mode"
 							aria-pressed={annotationMode === 'pan'}
+							onpointerdown={keepViewerInteraction}
 							onclick={() => setMode('pan')}
 						>
 							<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -260,6 +265,7 @@
 							disabled={!annotationsVisible || !canUseRectangle}
 							aria-label="Rectangle mode"
 							aria-pressed={annotationMode === 'rectangle'}
+							onpointerdown={keepViewerInteraction}
 							onclick={() => setMode('rectangle')}
 						>
 							<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -274,6 +280,7 @@
 							disabled={!annotationsVisible || !canUsePolygon}
 							aria-label="Polygon mode"
 							aria-pressed={annotationMode === 'polygon'}
+							onpointerdown={keepViewerInteraction}
 							onclick={() => setMode('polygon')}
 						>
 							<svg viewBox="0 0 24 24" aria-hidden="true">

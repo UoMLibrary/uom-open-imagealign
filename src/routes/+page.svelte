@@ -295,6 +295,19 @@
 							bind:annotationsVisible
 							showAnnotationControls={true}
 							position="left"
+							onModeChange={(mode) => {
+								annotationMode = mode;
+								annotatedViewerRef?.setAnnotationMode?.(mode);
+							}}
+							onAnnotationsVisibleChange={(visible) => {
+								annotationsVisible = visible;
+
+								if (visible) {
+									annotatedViewerRef?.showAnnotations?.();
+								} else {
+									annotatedViewerRef?.hideAnnotations?.();
+								}
+							}}
 						/>
 					</div>
 				{/key}
