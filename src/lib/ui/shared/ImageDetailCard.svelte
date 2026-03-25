@@ -173,20 +173,6 @@
 			<div class="preview-shell">
 				{#if previewState === 'ready' && baseUrl}
 					{#key `${baseUrl}:${overlayUrl ?? baseUrl}:${panelRefreshKey}`}
-						<!-- <ImageCompareViewer
-							imageUrl={baseUrl}
-							overlayUrl={overlayUrl ?? baseUrl}
-							bind:overlayOpacity={compareOpacity}
-							overlayCompositeOperation={compareMode === 'difference' ? 'difference' : null}
-							enableHoldDifferencePreview={true}
-							refreshKey={panelRefreshKey}
-							holdDifferenceKey="Alt"
-							mode={compareMode}
-							wheelAdjustOpacity={true}
-							wheelAdjustRequiresShift={true}
-							wheelSensitivityPctPerPx={0.05}
-							{drawer}
-						/> -->
 						<ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={overlayUrl ?? baseUrl}

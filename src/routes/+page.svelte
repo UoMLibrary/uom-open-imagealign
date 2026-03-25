@@ -22,6 +22,37 @@
 		name: string;
 	};
 
+	// ================================================================================================
+	// Annotation example
+	import type OpenSeadragon from 'openseadragon';
+	import AnnotatedImageCompareViewer from '$lib/ui/shared/AnnotatedImageCompareViewer.svelte';
+	import CompareViewerToolbar from '$lib/ui/shared/CompareViewerToolbar.svelte';
+	import { createAnnotationEditorSession } from '$lib/ui/shared/annotationEditorSession';
+
+	const session = createAnnotationEditorSession();
+
+	let annotatedViewerRef: any = null;
+	let viewer = $state.raw<OpenSeadragon.Viewer | null>(null);
+
+	let annotationsVisible = $state(true);
+	let collapsed = $state(false);
+
+	let overlayOpacity = $state(0.6);
+
+	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
+	let selectedAnnotationId = $state<string | null>(null);
+
+	$effect(() => {
+		viewer = annotatedViewerRef?.getViewer?.() ?? null;
+	});
+
+	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
+		console.log('viewer ready', viewer, element);
+	}
+
+	// End Annotation example
+	// ================================================================================================
+
 	type SlotKind = 'base' | 'query';
 
 	let baseFile = $state<File | null>(null);
@@ -48,13 +79,7 @@
 	let engineReady = $state(false);
 	let engineStatus = $state('Loading VGG alignment engine...');
 
-	let annotationsVisible = $state(true);
-
 	// Image CompareViewer setup
-	let overlayOpacity = $state(0.6);
-	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
-		console.log('viewer ready', viewer, element);
-	}
 
 	let drawer = $state<'auto' | 'canvas' | 'webgl' | 'html' | Array<string>>('canvas');
 
@@ -199,16 +224,6 @@
 			isRunning = false;
 		}
 	}
-
-	// ANnotation example
-	import AnnotatedImageCompareViewer from '$lib/ui/shared/AnnotatedImageCompareViewer.svelte';
-	import { createAnnotationEditorSession } from '$lib/ui/shared/annotationEditorSession';
-
-	const session = createAnnotationEditorSession();
-
-	//let overlayOpacity = $state(0.6);
-	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
-	let selectedAnnotationId = $state<string | null>(null);
 </script>
 
 <svelte:head>
@@ -293,6 +308,16 @@
 							bind:selectedAnnotationId
 							enableHoldDifferencePreview={true}
 							enableHoldShowBasePreview={true}
+						/>
+
+						<CompareViewerToolbar
+							{viewer}
+							bind:collapsed
+							bind:overlayOpacity
+							bind:annotationMode
+							bind:annotationsVisible
+							showAnnotationControls={true}
+							position="left"
 						/>
 					</div>
 				{/key}

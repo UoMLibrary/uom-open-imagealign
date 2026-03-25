@@ -112,8 +112,8 @@
 			maxZoomLevel: 20,
 			maxZoomPixelRatio: 5,
 			showFullPageControl: false,
-			showHomeControl: true,
-			showZoomControl: true,
+			showHomeControl: false,
+			showZoomControl: false,
 			silenceMultiImageWarnings: true
 		});
 	}
