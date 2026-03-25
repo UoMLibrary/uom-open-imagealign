@@ -33,6 +33,7 @@
 	let viewer = $state<OpenSeadragon.Viewer | null>(null);
 
 	let annotationsVisible = $state(true);
+	// Is toolbar collapsed (only show expand button) or expanded (show all controls)
 	let collapsed = $state(false);
 
 	let overlayOpacity = $state(0.6);
@@ -83,6 +84,8 @@
 	};
 
 	onMount(() => {
+		window.addEventListener('keydown', onWindowKeyDown);
+
 		void ensureAlignmentEngine()
 			.then(() => {
 				engineReady = true;
@@ -95,6 +98,8 @@
 	});
 
 	onDestroy(() => {
+		window.removeEventListener('keydown', onWindowKeyDown);
+
 		if (baseUrl) URL.revokeObjectURL(baseUrl);
 		if (queryUrl) URL.revokeObjectURL(queryUrl);
 		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
@@ -212,6 +217,25 @@
 			error = err instanceof Error ? err.message : 'Alignment failed';
 		} finally {
 			isRunning = false;
+		}
+	}
+
+	function isEditableTarget(target: EventTarget | null) {
+		const node = target as HTMLElement | null;
+		if (!node) return false;
+		if (node instanceof HTMLInputElement) return true;
+		if (node instanceof HTMLTextAreaElement) return true;
+		if (node instanceof HTMLSelectElement) return true;
+		if (node.isContentEditable) return true;
+		return !!node.closest?.('[contenteditable="true"]');
+	}
+
+	function onWindowKeyDown(e: KeyboardEvent) {
+		if (isEditableTarget(e.target)) return;
+
+		if (e.key === 't' || e.key === 'T') {
+			e.preventDefault();
+			collapsed = !collapsed;
 		}
 	}
 </script>
