@@ -1,0 +1,1 @@
+import{ft as e}from"./CGt2TFpF.js";e();

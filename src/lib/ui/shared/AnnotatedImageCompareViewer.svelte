@@ -217,6 +217,7 @@
 			annotationsVisible = !annotationsVisible;
 
 			if (!annotationsVisible) {
+				applyAnnotationMode('pan');
 				selectedAnnotationId = null;
 				session?.selectAnnotation?.(null);
 			} else {
@@ -230,6 +231,8 @@
 			applyAnnotationMode('pan');
 			return;
 		}
+
+		if (!annotationsVisible) return;
 
 		if (key === 'b' || key === '2') {
 			applyAnnotationMode('rectangle');
@@ -288,10 +291,17 @@
 
 	$effect(() => {
 		if (!annotationLayer) return;
+
 		annotationLayer.setAnnotationsVisible(annotationsVisible);
 
 		if (!annotationsVisible) {
+			if (annotationMode !== 'pan') {
+				annotationMode = 'pan';
+			}
+
 			annotationLayer.clearSelection();
+			selectedAnnotationId = null;
+			session?.selectAnnotation?.(null);
 		} else {
 			focusViewerSurface();
 		}
