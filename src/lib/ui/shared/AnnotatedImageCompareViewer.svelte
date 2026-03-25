@@ -32,6 +32,9 @@
 		polygon: () => void;
 		setMode: (mode: AnnotationMode) => void;
 		getMode: () => AnnotationMode;
+		setAnnotationsVisible: (visible: boolean) => void;
+		toggleAnnotationsVisible: () => boolean;
+		getAnnotationsVisible: () => boolean;
 		select: (id: string | null) => void;
 		clearSelection: () => void;
 		getAnnotator: () => any;
@@ -67,6 +70,7 @@
 		session?: AnnotationSession | null;
 		enableAnnotationShortcuts?: boolean;
 		annotationMode?: AnnotationMode;
+		annotationsVisible?: boolean;
 		selectedAnnotationId?: string | null;
 
 		onViewerReady?: (payload: ImageCompareViewerReadyPayload) => void;
@@ -107,6 +111,7 @@
 		session = null,
 		enableAnnotationShortcuts = true,
 		annotationMode = $bindable<AnnotationMode>('pan'),
+		annotationsVisible = $bindable(true),
 		selectedAnnotationId = $bindable<string | null>(null),
 
 		onViewerReady,
@@ -194,6 +199,17 @@
 
 		const key = e.key.toLowerCase();
 
+		if (key === '4') {
+			annotationsVisible = !annotationsVisible;
+
+			if (!annotationsVisible) {
+				selectedAnnotationId = null;
+				session?.selectAnnotation?.(null);
+			}
+
+			return;
+		}
+
 		if (e.key === 'Escape' || key === '1') {
 			applyAnnotationMode('pan');
 			return;
@@ -253,6 +269,15 @@
 		}
 	});
 
+	$effect(() => {
+		if (!annotationLayer) return;
+		annotationLayer.setAnnotationsVisible(annotationsVisible);
+
+		if (!annotationsVisible) {
+			annotationLayer.clearSelection();
+		}
+	});
+
 	export function pan() {
 		applyAnnotationMode('pan');
 	}
@@ -290,6 +315,23 @@
 	export function getAnnotator() {
 		return annotationLayer?.getAnnotator?.() ?? null;
 	}
+
+	export function showAnnotations() {
+		annotationsVisible = true;
+	}
+
+	export function hideAnnotations() {
+		annotationsVisible = false;
+	}
+
+	export function toggleAnnotationsVisibility() {
+		annotationsVisible = !annotationsVisible;
+		return annotationsVisible;
+	}
+
+	export function getAnnotationsVisible() {
+		return annotationsVisible;
+	}
 </script>
 
 <div
@@ -324,6 +366,7 @@
 			{viewer}
 			{session}
 			initialMode={annotationMode}
+			visible={annotationsVisible}
 			onReady={handleAnnotationReady}
 			onCreate={handleCreate}
 			onUpdate={handleUpdate}

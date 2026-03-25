@@ -276,13 +276,6 @@
 			{#if warpedUrl && baseUrl}
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
-						<!-- <ImageCompareViewer
-							imageUrl={baseUrl}
-							overlayUrl={warpedUrl}
-							bind:overlayOpacity
-							onReady={handleReady}
-							enableHoldDifferencePreview={true}
-						/> -->
 						<AnnotatedImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}

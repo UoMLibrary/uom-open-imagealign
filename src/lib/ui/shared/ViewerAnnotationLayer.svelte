@@ -19,6 +19,7 @@
 		viewer: OpenSeadragon.Viewer | null;
 		session?: AnnotationSession | null;
 		initialMode?: AnnotationMode;
+		visible?: boolean;
 
 		onReady?: (payload: { annotator: any; viewer: OpenSeadragon.Viewer }) => void;
 		onCreate?: (annotation: any) => void;
@@ -31,6 +32,7 @@
 		viewer,
 		session = null,
 		initialMode = 'pan',
+		visible = true,
 		onReady,
 		onCreate,
 		onUpdate,
@@ -38,8 +40,8 @@
 		onSelect
 	}: Props = $props();
 
-	let annotator: any = null;
-	let initializedForViewer: OpenSeadragon.Viewer | null = null;
+	let annotator = $state.raw<any>(null);
+	let initializedForViewer = $state.raw<OpenSeadragon.Viewer | null>(null);
 	let unsubscribeSessionAnnotations: (() => void) | null = null;
 
 	let mode = $state<AnnotationMode>(initialMode);
@@ -153,9 +155,33 @@
 	}
 
 	function applyMode(nextMode: AnnotationMode) {
+		if (!visible) return;
+
 		if (nextMode === 'pan') setPanMode();
 		if (nextMode === 'rectangle') setRectangleMode();
 		if (nextMode === 'polygon') setPolygonMode();
+	}
+
+	function applyVisibility() {
+		if (!annotator) return;
+
+		annotator.setSelected?.();
+
+		if (visible) {
+			annotator.setVisible?.(true);
+			annotator.setFilter?.(); // clear filter
+			applyMode(mode);
+		} else {
+			annotator.setVisible?.(false);
+			annotator.setFilter?.(() => false);
+			annotator.setDrawingEnabled?.(false);
+
+			if (viewer) {
+				viewer.setMouseNavEnabled(true);
+			}
+		}
+
+		requestViewerRedraw();
 	}
 
 	function initAnnotator(nextViewer: OpenSeadragon.Viewer) {
@@ -193,11 +219,25 @@
 
 		hydrateFromSession();
 		startSessionSync();
-		applyMode(mode);
+		applyVisibility();
 
 		onReady?.({
 			annotator,
 			viewer: nextViewer
+		});
+	}
+
+	function requestViewerRedraw() {
+		const v: any = viewer;
+		if (!v) return;
+
+		if (typeof v.forceRedraw === 'function') v.forceRedraw();
+		else if ((viewer?.world as any)?.requestDraw) (viewer.world as any).requestDraw();
+
+		requestAnimationFrame(() => {
+			const v2: any = viewer;
+			if (typeof v2?.forceRedraw === 'function') v2.forceRedraw();
+			else if ((viewer?.world as any)?.requestDraw) (viewer.world as any).requestDraw();
 		});
 	}
 
@@ -220,38 +260,67 @@
 		viewer.addOnceHandler('open', handleOpen);
 	});
 
+	$effect(() => {
+		const currentAnnotator = annotator;
+		const currentVisible = visible;
+
+		if (!currentAnnotator) return;
+
+		applyVisibility();
+	});
+
 	onDestroy(() => {
 		teardownAnnotator();
 	});
 
 	export function pan() {
-		setPanMode();
+		mode = 'pan';
+		applyMode(mode);
 	}
 
 	export function rectangle() {
-		setRectangleMode();
+		mode = 'rectangle';
+		applyMode(mode);
 	}
 
 	export function polygon() {
-		setPolygonMode();
+		mode = 'polygon';
+		applyMode(mode);
 	}
 
 	export function setMode(nextMode: AnnotationMode) {
-		applyMode(nextMode);
+		mode = nextMode;
+		applyMode(mode);
 	}
 
 	export function getMode() {
 		return mode;
 	}
 
+	export function setAnnotationsVisible(nextVisible: boolean) {
+		visible = nextVisible;
+		applyVisibility();
+	}
+
+	export function toggleAnnotationsVisible() {
+		visible = !visible;
+		applyVisibility();
+		return visible;
+	}
+
+	export function getAnnotationsVisible() {
+		return visible;
+	}
+
 	export function select(id: string | null) {
-		if (!annotator) return;
-		annotator.setSelected?.(id);
+		if (!annotator || !visible) return;
+		if (id) annotator.setSelected?.(id);
+		else annotator.setSelected?.();
 	}
 
 	export function clearSelection() {
 		if (!annotator) return;
-		annotator.setSelected?.(null);
+		annotator.setSelected?.();
 	}
 
 	export function getAnnotator() {

@@ -48,6 +48,8 @@
 	let engineReady = $state(false);
 	let engineStatus = $state('Loading VGG alignment engine...');
 
+	let annotationsVisible = $state(true);
+
 	// Image CompareViewer setup
 	let overlayOpacity = $state(0.6);
 	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
@@ -264,6 +266,11 @@
 	<section class="result-panel panel">
 		{#if warpedUrl}
 			<div class="result-toolbar">
+				{#if annotationsVisible}
+					<p>Annotations are visible</p>
+				{:else}
+					<p>Annotations are hidden</p>
+				{/if}
 				<label class="opacity-control">
 					<span>Opacity</span>
 					<input type="range" min="0" max="1" step="0.01" bind:value={overlayOpacity} />
@@ -276,19 +283,13 @@
 			{#if warpedUrl && baseUrl}
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
-						<!-- <ImageCompareViewer
-							imageUrl={baseUrl}
-							overlayUrl={warpedUrl}
-							bind:overlayOpacity
-							onReady={handleReady}
-							enableHoldDifferencePreview={true}
-						/> -->
 						<AnnotatedImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							{session}
 							bind:overlayOpacity
 							bind:annotationMode
+							bind:annotationsVisible
 							bind:selectedAnnotationId
 							enableHoldDifferencePreview={true}
 							enableHoldShowBasePreview={true}
