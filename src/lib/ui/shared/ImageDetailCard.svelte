@@ -4,6 +4,7 @@
 	import ImageCompareViewer, {
 		type ImageCompareViewerReadyPayload
 	} from '$lib/ui/shared/compare/ImageCompareViewer.svelte';
+	import AnnotatedImageCompareViewer from '$lib/ui/shared/compare/AnnotatedImageCompareViewer.svelte';
 
 	import { getDerivedUrl } from '$lib/image/derivationService';
 	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';
@@ -173,12 +174,49 @@
 			<div class="preview-shell">
 				{#if previewState === 'ready' && baseUrl}
 					{#key `${baseUrl}:${overlayUrl ?? baseUrl}:${panelRefreshKey}`}
-						<ImageCompareViewer
+						<!-- <ImageCompareViewer
 							imageUrl={baseUrl}
 							overlayUrl={overlayUrl ?? baseUrl}
 							bind:overlayOpacity={compareOpacity}
 							onReady={handleReady}
-						/>
+						/> -->
+
+						<!-- <div class="viewer-host">
+							<AnnotatedImageCompareViewer
+								imageUrl={baseUrl}
+								overlayUrl={overlayUrl ?? baseUrl}
+								{annotations}
+								initialViewState={{
+									overlayOpacity: 0.6,
+									annotationsVisible: true,
+									annotationMode: 'pan',
+									readingFocusEnabled: false,
+									readingFocusClearCenterPct: 30,
+									readingFocusOpacity: 0.35,
+									readingFocusBlurPx: 3
+								}}
+								refreshKey={warpedRefreshKey}
+								onAnnotationsChange={(next) => (annotations = next)}
+								onViewStateChange={(next) => (compareViewState = next)}
+							/>
+						</div> -->
+						<div class="viewer-shell">
+							<div class="viewer-host">
+								<AnnotatedImageCompareViewer
+									imageUrl={baseUrl}
+									overlayUrl={overlayUrl ?? baseUrl}
+									initialViewState={{
+										overlayOpacity: 0.6,
+										annotationsVisible: true,
+										annotationMode: 'pan',
+										readingFocusEnabled: false,
+										readingFocusClearCenterPct: 30,
+										readingFocusOpacity: 0.35,
+										readingFocusBlurPx: 3
+									}}
+								/>
+							</div>
+						</div>
 					{/key}
 				{:else if previewState === 'loading'}
 					<div class="preview-state">Loading preview…</div>
@@ -267,6 +305,36 @@
 </section>
 
 <style>
+	.viewer-shell {
+		position: relative;
+		flex: 1 1 auto;
+		min-height: clamp(320px, 46vh, 760px);
+		border-radius: 16px;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		background: #f8fafc;
+		padding: 0.5rem;
+		box-sizing: border-box;
+		overflow: hidden;
+	}
+
+	.viewer-host {
+		position: absolute;
+		inset: 0.5rem;
+		border-radius: 12px;
+		overflow: hidden;
+	}
+
+	.viewer-host :global(.wheel-capture) {
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.viewer-host :global(.osd) {
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+	}
 	.detail-card {
 		background: rgba(255, 255, 255, 0.92);
 		border: 1px solid rgba(15, 23, 42, 0.08);
