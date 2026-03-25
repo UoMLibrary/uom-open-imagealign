@@ -256,7 +256,7 @@
 
 	$effect(() => {
 		if (!annotationLayer) return;
-		annotationLayer.setMode(annotationMode);
+		applyAnnotationMode(annotationMode);
 	});
 
 	$effect(() => {

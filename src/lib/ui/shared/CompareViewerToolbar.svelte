@@ -101,230 +101,290 @@
 
 <div
 	class="toolbar"
-	class:vertical={isVertical}
-	class:horizontal={!isVertical}
 	class:left={position === 'left'}
 	class:right={position === 'right'}
 	class:top={position === 'top'}
 	class:bottom={position === 'bottom'}
-	class:collapsed
+	class:vertical={isVertical}
+	class:horizontal={!isVertical}
 >
-	<button
-		class="collapse-button icon-button"
-		type="button"
-		aria-label={collapsed ? 'Open toolbar' : 'Collapse toolbar'}
-		aria-expanded={!collapsed}
-		onclick={toggleCollapsed}
-	>
-		{#if position === 'left'}
-			<svg viewBox="0 0 24 24" aria-hidden="true"
-				><path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} /></svg
-			>
-		{:else if position === 'right'}
-			<svg viewBox="0 0 24 24" aria-hidden="true"
-				><path d={collapsed ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} /></svg
-			>
-		{:else if position === 'top'}
-			<svg viewBox="0 0 24 24" aria-hidden="true"
-				><path d={collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} /></svg
-			>
-		{:else}
-			<svg viewBox="0 0 24 24" aria-hidden="true"
-				><path d={collapsed ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} /></svg
-			>
-		{/if}
-	</button>
-
-	{#if !collapsed}
+	<div class="toolbar-shell" class:collapsed-shell={collapsed}>
 		<div class="toolbar-body">
-			<div class="group nav-group" aria-label="View controls">
-				<button class="icon-button" type="button" aria-label="Zoom in" onclick={zoomIn}>
+			<button
+				class="icon-button collapse-button"
+				type="button"
+				aria-label={collapsed ? 'Open toolbar' : 'Collapse toolbar'}
+				aria-expanded={!collapsed}
+				onclick={toggleCollapsed}
+			>
+				{#if position === 'left'}
 					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d="M12 5v14M5 12h14" />
+						<path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
 					</svg>
-				</button>
-
-				<button class="icon-button" type="button" aria-label="Zoom out" onclick={zoomOut}>
+				{:else if position === 'right'}
 					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d="M5 12h14" />
+						<path d={collapsed ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} />
 					</svg>
-				</button>
-
-				<button class="icon-button" type="button" aria-label="Home view" onclick={home}>
+				{:else if position === 'top'}
 					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d="M4 11.5L12 5l8 6.5" />
-						<path d="M7 10.5V19h10v-8.5" />
+						<path d={collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
 					</svg>
-				</button>
-			</div>
+				{:else}
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<path d={collapsed ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} />
+					</svg>
+				{/if}
+			</button>
 
-			<div class="group fade-group" aria-label="Overlay opacity">
-				<button
-					class="text-chip"
-					type="button"
-					aria-label="Show base only"
-					onclick={() => setOpacity(0)}
-				>
-					A
-				</button>
-
-				<CompareViewerOpacitySlider
-					bind:value={overlayOpacity}
-					orientation={isVertical ? 'vertical' : 'horizontal'}
-					onChange={setOpacity}
-				/>
-
-				<button
-					class="text-chip"
-					type="button"
-					aria-label="Show overlay only"
-					onclick={() => setOpacity(1)}
-				>
-					B
-				</button>
-			</div>
-
-			{#if showAnnotationControls}
-				<div class="group annotation-group" aria-label="Annotation controls">
+			{#if !collapsed}
+				<div class="group nav-group" aria-label="View controls">
 					<button
 						class="icon-button"
-						class:active={annotationsVisible}
 						type="button"
-						aria-label={annotationsVisible ? 'Hide annotations' : 'Show annotations'}
-						aria-pressed={annotationsVisible}
-						onclick={toggleAnnotationsVisible}
+						aria-label="Home view"
+						disabled={!viewer}
+						onclick={home}
 					>
-						{#if annotationsVisible}
-							<svg viewBox="0 0 24 24" aria-hidden="true">
-								<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
-								<circle cx="12" cy="12" r="3.2" />
-							</svg>
-						{:else}
-							<svg viewBox="0 0 24 24" aria-hidden="true">
-								<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
-								<circle cx="12" cy="12" r="3.2" />
-								<path d="M4 20L20 4" />
-							</svg>
-						{/if}
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M4 11.5L12 5l8 6.5" />
+							<path d="M7 10.5V19h10v-8.5" />
+						</svg>
 					</button>
 
 					<button
-						class="tool-button"
-						class:active={annotationMode === 'pan'}
+						class="icon-button"
 						type="button"
-						disabled={!annotationsVisible || !canUsePan}
-						onclick={() => setMode('pan')}
+						aria-label="Zoom in"
+						disabled={!viewer}
+						onclick={zoomIn}
 					>
-						Pan
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M12 5v14M5 12h14" />
+						</svg>
 					</button>
 
 					<button
-						class="tool-button"
-						class:active={annotationMode === 'rectangle'}
+						class="icon-button"
 						type="button"
-						disabled={!annotationsVisible || !canUseRectangle}
-						onclick={() => setMode('rectangle')}
+						aria-label="Zoom out"
+						disabled={!viewer}
+						onclick={zoomOut}
 					>
-						Rect
-					</button>
-
-					<button
-						class="tool-button"
-						class:active={annotationMode === 'polygon'}
-						type="button"
-						disabled={!annotationsVisible || !canUsePolygon}
-						onclick={() => setMode('polygon')}
-					>
-						Poly
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M5 12h14" />
+						</svg>
 					</button>
 				</div>
+
+				<div class="group fade-group" aria-label="Overlay opacity">
+					<button
+						class="text-chip"
+						type="button"
+						aria-label="Show base only"
+						onclick={() => setOpacity(0)}
+					>
+						A
+					</button>
+
+					<CompareViewerOpacitySlider
+						bind:value={overlayOpacity}
+						orientation={isVertical ? 'vertical' : 'horizontal'}
+						onChange={setOpacity}
+					/>
+
+					<button
+						class="text-chip"
+						type="button"
+						aria-label="Show overlay only"
+						onclick={() => setOpacity(1)}
+					>
+						B
+					</button>
+				</div>
+
+				{#if showAnnotationControls}
+					<div class="group annotation-group" aria-label="Annotation controls">
+						<button
+							class="icon-button"
+							class:active={annotationsVisible}
+							type="button"
+							aria-label={annotationsVisible ? 'Hide annotations' : 'Show annotations'}
+							aria-pressed={annotationsVisible}
+							onclick={toggleAnnotationsVisible}
+						>
+							{#if annotationsVisible}
+								<svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+									<circle cx="12" cy="12" r="3.2" />
+								</svg>
+							{:else}
+								<svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+									<circle cx="12" cy="12" r="3.2" />
+									<path d="M4 20L20 4" />
+								</svg>
+							{/if}
+						</button>
+
+						<button
+							class="icon-button tool-icon"
+							class:active={annotationMode === 'pan'}
+							type="button"
+							disabled={!annotationsVisible || !canUsePan}
+							aria-label="Pan mode"
+							aria-pressed={annotationMode === 'pan'}
+							onclick={() => setMode('pan')}
+						>
+							<svg viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M12 8v8" />
+								<path d="M8 12h8" />
+
+								<path d="M12 4l-2 2" />
+								<path d="M12 4l2 2" />
+
+								<path d="M12 20l-2-2" />
+								<path d="M12 20l2-2" />
+
+								<path d="M4 12l2-2" />
+								<path d="M4 12l2 2" />
+
+								<path d="M20 12l-2-2" />
+								<path d="M20 12l-2 2" />
+							</svg>
+						</button>
+
+						<button
+							class="icon-button tool-icon"
+							class:active={annotationMode === 'rectangle'}
+							type="button"
+							disabled={!annotationsVisible || !canUseRectangle}
+							aria-label="Rectangle mode"
+							aria-pressed={annotationMode === 'rectangle'}
+							onclick={() => setMode('rectangle')}
+						>
+							<svg viewBox="0 0 24 24" aria-hidden="true">
+								<rect x="5" y="7" width="14" height="10" rx="1.5" />
+							</svg>
+						</button>
+
+						<button
+							class="icon-button tool-icon"
+							class:active={annotationMode === 'polygon'}
+							type="button"
+							disabled={!annotationsVisible || !canUsePolygon}
+							aria-label="Polygon mode"
+							aria-pressed={annotationMode === 'polygon'}
+							onclick={() => setMode('polygon')}
+						>
+							<svg viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M7 17l3-9 8 3-2 7z" />
+								<circle cx="10" cy="8" r="1" fill="currentColor" stroke="none" />
+								<circle cx="18" cy="11" r="1" fill="currentColor" stroke="none" />
+								<circle cx="16" cy="18" r="1" fill="currentColor" stroke="none" />
+								<circle cx="7" cy="17" r="1" fill="currentColor" stroke="none" />
+							</svg>
+						</button>
+					</div>
+				{/if}
 			{/if}
 		</div>
-	{/if}
+	</div>
 </div>
 
 <style>
 	.toolbar {
 		position: absolute;
 		z-index: 30;
-		display: flex;
 		pointer-events: auto;
 		user-select: none;
 	}
 
 	.toolbar.left {
-		left: 0.75rem;
+		left: 0.15rem;
 		top: 50%;
 		transform: translateY(-50%);
-		flex-direction: row;
 	}
 
 	.toolbar.right {
-		right: 0.75rem;
+		right: 0.15rem;
 		top: 50%;
 		transform: translateY(-50%);
-		flex-direction: row-reverse;
 	}
 
 	.toolbar.top {
-		top: 0.75rem;
+		top: 0.15rem;
 		left: 50%;
 		transform: translateX(-50%);
-		flex-direction: column;
 	}
 
 	.toolbar.bottom {
-		bottom: 0.75rem;
+		bottom: 0.15rem;
 		left: 50%;
 		transform: translateX(-50%);
-		flex-direction: column-reverse;
+	}
+
+	.toolbar-shell {
+		padding: 0.3rem;
+		border-radius: 18px;
+		background: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(15, 23, 42, 0.06);
+		box-shadow:
+			0 8px 20px rgba(15, 23, 42, 0.11),
+			0 2px 5px rgba(15, 23, 42, 0.06);
+		backdrop-filter: blur(10px);
+	}
+
+	.toolbar-shell.collapsed-shell {
+		padding: 0;
+		border: none;
+		background: transparent;
+		box-shadow: none;
+		backdrop-filter: none;
 	}
 
 	.toolbar-body {
 		display: flex;
-		gap: 0.55rem;
-		padding: 0.55rem;
-		border-radius: 16px;
-		background: rgba(255, 255, 255, 0.96);
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		box-shadow:
-			0 10px 24px rgba(15, 23, 42, 0.12),
-			0 2px 6px rgba(15, 23, 42, 0.08);
-		backdrop-filter: blur(12px);
+		gap: 0.35rem;
 	}
 
-	.toolbar.vertical .toolbar-body {
+	.vertical .toolbar-body {
 		flex-direction: column;
+		width: 44px;
 	}
 
-	.toolbar.horizontal .toolbar-body {
+	.horizontal .toolbar-body {
 		flex-direction: row;
 		align-items: center;
 	}
 
 	.group {
 		display: flex;
-		gap: 0.45rem;
-		padding: 0.25rem;
+		gap: 0.3rem;
+		padding: 0.28rem;
 		border-radius: 12px;
-		background: rgba(248, 250, 252, 0.95);
-		border: 1px solid rgba(15, 23, 42, 0.06);
+		background: rgba(248, 250, 252, 0.96);
+		border: 1px solid rgba(15, 23, 42, 0.045);
 	}
 
-	.toolbar.vertical .group {
+	.vertical .group {
 		flex-direction: column;
 		align-items: center;
+		width: 100%;
 	}
 
-	.toolbar.horizontal .group {
+	.horizontal .group {
 		flex-direction: row;
 		align-items: center;
 	}
 
+	.fade-group {
+		gap: 0.4rem;
+		padding-top: 0.35rem;
+		padding-bottom: 0.35rem;
+	}
+
 	.icon-button,
-	.tool-button,
-	.text-chip,
-	.collapse-button {
+	.text-chip {
 		appearance: none;
 		border: none;
 		background: transparent;
@@ -333,61 +393,49 @@
 		cursor: pointer;
 	}
 
-	.icon-button,
-	.collapse-button {
-		width: 2.25rem;
-		height: 2.25rem;
+	.icon-button {
+		width: 32px;
+		height: 32px;
 		border-radius: 999px;
 		display: grid;
 		place-items: center;
 		background: #ffffff;
-		border: 1px solid rgba(15, 23, 42, 0.1);
-		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+		border: 1px solid rgba(15, 23, 42, 0.09);
+		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 		color: #0f172a;
 	}
 
-	.collapse-button {
-		background: rgba(255, 255, 255, 0.96);
-		box-shadow:
-			0 8px 18px rgba(15, 23, 42, 0.12),
-			0 2px 6px rgba(15, 23, 42, 0.06);
-	}
-
 	.icon-button:hover,
-	.tool-button:hover,
-	.text-chip:hover,
-	.collapse-button:hover {
+	.text-chip:hover {
 		background: rgba(241, 245, 249, 1);
 	}
 
-	.icon-button.active,
-	.tool-button.active {
+	.icon-button.active {
 		background: #0f172a;
 		color: #ffffff;
 	}
 
-	.tool-button {
-		height: 2.25rem;
-		padding: 0 0.8rem;
-		border-radius: 10px;
-		background: #ffffff;
-		border: 1px solid rgba(15, 23, 42, 0.1);
-		font-size: 0.83rem;
-		font-weight: 600;
-		color: #334155;
+	.collapse-button {
+		align-self: center;
 	}
 
 	.text-chip {
-		width: 2rem;
-		height: 2rem;
-		border-radius: 8px;
+		width: 24px;
+		height: 24px;
+		border-radius: 7px;
 		background: #ffffff;
 		border: 1px solid rgba(15, 23, 42, 0.1);
-		font-size: 0.78rem;
+		font-size: 0.68rem;
 		font-weight: 700;
 		color: #334155;
 		display: grid;
 		place-items: center;
+		line-height: 1;
+		flex: 0 0 auto;
+	}
+
+	.tool-icon {
+		border-radius: 9px;
 	}
 
 	button:disabled {
@@ -408,5 +456,10 @@
 		fill: none;
 		stroke-linecap: round;
 		stroke-linejoin: round;
+	}
+
+	.collapse-button svg {
+		width: 16px;
+		height: 16px;
 	}
 </style>

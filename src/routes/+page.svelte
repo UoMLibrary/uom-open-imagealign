@@ -299,6 +299,7 @@
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
 						<AnnotatedImageCompareViewer
+							bind:this={annotatedViewerRef}
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							{session}

@@ -23,91 +23,150 @@
 		onChange
 	}: Props = $props();
 
-	function clamp(n: number, min: number, max: number) {
+	let track: HTMLDivElement | null = null;
+
+	const percent = $derived(((value - min) / Math.max(max - min, 0.00001)) * 100);
+
+	function clamp(n: number) {
 		return Math.max(min, Math.min(max, n));
 	}
 
-	function handleInput(e: Event) {
-		const target = e.currentTarget as HTMLInputElement;
-		const next = clamp(Number(target.value), min, max);
+	function snap(n: number) {
+		const steps = Math.round((n - min) / step);
+		return clamp(min + steps * step);
+	}
+
+	function setFromPointerEvent(e: PointerEvent) {
+		if (!track || disabled) return;
+
+		const rect = track.getBoundingClientRect();
+
+		let ratio = 0;
+
+		if (orientation === 'vertical') {
+			const y = e.clientY - rect.top;
+			ratio = y / rect.height;
+		} else {
+			const x = e.clientX - rect.left;
+			ratio = x / rect.width;
+		}
+
+		ratio = Math.max(0, Math.min(1, ratio));
+
+		const next = snap(min + ratio * (max - min));
 		value = next;
 		onChange?.(next);
 	}
+
+	function onPointerDown(e: PointerEvent) {
+		if (!track || disabled) return;
+
+		track.setPointerCapture(e.pointerId);
+		setFromPointerEvent(e);
+
+		const move = (ev: PointerEvent) => setFromPointerEvent(ev);
+
+		const stop = (ev: PointerEvent) => {
+			track?.releasePointerCapture(ev.pointerId);
+			track?.removeEventListener('pointermove', move);
+			track?.removeEventListener('pointerup', stop);
+			track?.removeEventListener('pointercancel', stop);
+		};
+
+		track.addEventListener('pointermove', move);
+		track.addEventListener('pointerup', stop);
+		track.addEventListener('pointercancel', stop);
+	}
 </script>
 
-<div class="slider-wrap" class:vertical={orientation === 'vertical'} class:disabled>
+<div class="slider" class:vertical={orientation === 'vertical'} class:disabled>
 	<span class="sr-only">{label}</span>
 
-	<input
+	<div
+		class="track"
+		bind:this={track}
+		role="slider"
+		tabindex={disabled ? -1 : 0}
 		aria-label={label}
-		type="range"
-		{min}
-		{max}
-		{step}
-		{disabled}
-		{value}
-		oninput={handleInput}
-	/>
+		aria-valuemin={min}
+		aria-valuemax={max}
+		aria-valuenow={value}
+		onpointerdown={onPointerDown}
+	>
+		<div
+			class="fill"
+			style={orientation === 'vertical' ? `top:0;height:${percent}%;` : `width:${percent}%;`}
+		></div>
+
+		<div
+			class="thumb"
+			style={orientation === 'vertical' ? `top:${percent}%;` : `left:${percent}%;`}
+		></div>
+	</div>
 </div>
 
 <style>
-	.slider-wrap {
+	.slider {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 0;
-		min-height: 0;
 	}
 
-	.slider-wrap.disabled {
+	.slider.disabled {
 		opacity: 0.45;
 	}
 
-	input[type='range'] {
-		-webkit-appearance: none;
-		appearance: none;
-		width: 110px;
-		height: 4px;
-		background: rgba(15, 23, 42, 0.18);
+	.track {
+		position: relative;
+		background: rgba(15, 23, 42, 0.12);
 		border-radius: 999px;
-		outline: none;
-		margin: 0;
-	}
-
-	.slider-wrap.vertical input[type='range'] {
-		width: 110px;
-		transform: rotate(-90deg);
-		transform-origin: center;
-	}
-
-	input[type='range']::-webkit-slider-thumb {
-		-webkit-appearance: none;
-		appearance: none;
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		border: 1px solid rgba(15, 23, 42, 0.14);
-		background: #ffffff;
-		box-shadow:
-			0 1px 2px rgba(15, 23, 42, 0.18),
-			0 0 0 3px rgba(255, 255, 255, 0.9);
 		cursor: pointer;
 	}
 
-	input[type='range']::-moz-range-thumb {
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		border: 1px solid rgba(15, 23, 42, 0.14);
-		background: #ffffff;
-		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
-		cursor: pointer;
+	.slider:not(.vertical) .track {
+		width: 72px;
+		height: 4px;
 	}
 
-	input[type='range']::-moz-range-track {
-		height: 4px;
+	.slider.vertical .track {
+		width: 4px;
+		height: 52px;
+	}
+
+	.fill {
+		position: absolute;
+		left: 0;
+		background: rgba(15, 23, 42, 0.28);
 		border-radius: 999px;
-		background: rgba(15, 23, 42, 0.18);
+	}
+
+	.slider:not(.vertical) .fill {
+		top: 0;
+		bottom: 0;
+	}
+
+	.slider.vertical .fill {
+		width: 100%;
+	}
+
+	.thumb {
+		position: absolute;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: white;
+		border: 1px solid rgba(15, 23, 42, 0.12);
+		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+	}
+
+	.slider:not(.vertical) .thumb {
+		top: 50%;
+		transform: translate(-50%, -50%);
+	}
+
+	.slider.vertical .thumb {
+		left: 50%;
+		transform: translate(-50%, -50%);
 	}
 
 	.sr-only {
