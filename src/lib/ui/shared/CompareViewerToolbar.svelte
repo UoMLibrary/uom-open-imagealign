@@ -127,11 +127,11 @@
 					</svg>
 				{:else if position === 'top'}
 					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d={collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
+						<path d={collapsed ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} />
 					</svg>
 				{:else}
 					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<path d={collapsed ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} />
+						<path d={collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
 					</svg>
 				{/if}
 			</button>

@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import ImageCompareViewer, {
-		type ImageCompareViewerReadyPayload
-	} from '$lib/ui/shared/ImageCompareViewer.svelte';
+	import ImageCompareViewer from '$lib/ui/shared/ImageCompareViewer.svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 
@@ -32,7 +30,7 @@
 	const session = createAnnotationEditorSession();
 
 	let annotatedViewerRef: any = null;
-	let viewer = $state.raw<OpenSeadragon.Viewer | null>(null);
+	let viewer = $state<OpenSeadragon.Viewer | null>(null);
 
 	let annotationsVisible = $state(true);
 	let collapsed = $state(false);
@@ -41,14 +39,6 @@
 
 	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
 	let selectedAnnotationId = $state<string | null>(null);
-
-	$effect(() => {
-		viewer = annotatedViewerRef?.getViewer?.() ?? null;
-	});
-
-	function handleReady({ viewer, element }: ImageCompareViewerReadyPayload) {
-		console.log('viewer ready', viewer, element);
-	}
 
 	// End Annotation example
 	// ================================================================================================
@@ -285,6 +275,7 @@
 					<div class="viewer-host">
 						<AnnotatedImageCompareViewer
 							bind:this={annotatedViewerRef}
+							bind:viewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
 							{session}

@@ -73,6 +73,8 @@
 		annotationsVisible?: boolean;
 		selectedAnnotationId?: string | null;
 
+		viewer?: OpenSeadragon.Viewer | null;
+
 		onViewerReady?: (payload: ImageCompareViewerReadyPayload) => void;
 		onAnnotationReady?: (payload: { annotator: any; viewer: OpenSeadragon.Viewer }) => void;
 		onCreate?: (annotation: any) => void;
@@ -114,6 +116,8 @@
 		annotationsVisible = $bindable(true),
 		selectedAnnotationId = $bindable<string | null>(null),
 
+		viewer = $bindable<OpenSeadragon.Viewer | null>(null),
+
 		onViewerReady,
 		onAnnotationReady,
 		onCreate,
@@ -122,11 +126,14 @@
 		onSelect
 	}: Props = $props();
 
-	let viewer = $state.raw<OpenSeadragon.Viewer | null>(null);
 	let annotationLayer: AnnotationLayerHandle | null = null;
 
+	function focusViewerSurface() {
+		const node = viewer?.element as HTMLElement | undefined;
+		node?.focus({ preventScroll: true });
+	}
+
 	let unsubSelectedId: (() => void) | null = null;
-	// let unsubViewState: (() => void) | null = null;
 
 	function isEditableTarget(target: EventTarget | null) {
 		const node = target as HTMLElement | null;
@@ -138,9 +145,7 @@
 		return !!node.closest?.('[contenteditable="true"]');
 	}
 
-	function applyAnnotationMode(nextMode: AnnotationMode) {
-		annotationMode = nextMode;
-
+	function applyAnnotationModeToLayer(nextMode: AnnotationMode) {
 		if (!annotationLayer) return;
 
 		annotationLayer.clearSelection();
@@ -148,6 +153,15 @@
 		if (nextMode === 'pan') annotationLayer.pan();
 		if (nextMode === 'rectangle') annotationLayer.rectangle();
 		if (nextMode === 'polygon') annotationLayer.polygon();
+
+		if (annotationsVisible) {
+			focusViewerSurface();
+		}
+	}
+
+	function applyAnnotationMode(nextMode: AnnotationMode) {
+		annotationMode = nextMode;
+		applyAnnotationModeToLayer(nextMode);
 	}
 
 	function handleViewerReady(payload: ImageCompareViewerReadyPayload) {
@@ -205,6 +219,8 @@
 			if (!annotationsVisible) {
 				selectedAnnotationId = null;
 				session?.selectAnnotation?.(null);
+			} else {
+				focusViewerSurface();
 			}
 
 			return;
@@ -233,6 +249,7 @@
 	onDestroy(() => {
 		window.removeEventListener('keydown', onWindowKeyDown);
 		unsubSelectedId?.();
+		viewer = null;
 	});
 
 	$effect(() => {
@@ -256,7 +273,7 @@
 
 	$effect(() => {
 		if (!annotationLayer) return;
-		applyAnnotationMode(annotationMode);
+		applyAnnotationModeToLayer(annotationMode);
 	});
 
 	$effect(() => {
@@ -275,6 +292,8 @@
 
 		if (!annotationsVisible) {
 			annotationLayer.clearSelection();
+		} else {
+			focusViewerSurface();
 		}
 	});
 
@@ -318,6 +337,7 @@
 
 	export function showAnnotations() {
 		annotationsVisible = true;
+		focusViewerSurface();
 	}
 
 	export function hideAnnotations() {
@@ -326,6 +346,7 @@
 
 	export function toggleAnnotationsVisibility() {
 		annotationsVisible = !annotationsVisible;
+		if (annotationsVisible) focusViewerSurface();
 		return annotationsVisible;
 	}
 
@@ -382,8 +403,21 @@
 		width: 100%;
 		height: 100%;
 		min-height: 0;
+		border-radius: 12px;
 		outline: none;
 		cursor: grab;
+	}
+
+	.viewer-root:focus,
+	.viewer-root:focus-visible {
+		outline: none;
+		box-shadow: none;
+	}
+
+	.viewer-root :global(*:focus),
+	.viewer-root :global(*:focus-visible) {
+		outline: none !important;
+		box-shadow: none !important;
 	}
 
 	.viewer-root:active {

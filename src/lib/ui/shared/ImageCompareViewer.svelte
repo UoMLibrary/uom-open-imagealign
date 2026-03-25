@@ -11,6 +11,10 @@
 		element: HTMLDivElement;
 	};
 
+	export function focusSurface() {
+		el?.focus({ preventScroll: true });
+	}
+
 	type Props = {
 		imageUrl?: string | null;
 		overlayUrl?: string | null;
@@ -606,7 +610,7 @@
 </script>
 
 <div class="wheel-capture">
-	<div class="osd" bind:this={el}></div>
+	<div class="osd" bind:this={el} tabindex="-1"></div>
 </div>
 
 <style>
@@ -623,5 +627,11 @@
 		inset: 0;
 		min-height: 0;
 		background: rgba(255, 255, 255, 0.65);
+	}
+
+	.osd:focus,
+	.osd:focus-visible {
+		outline: none;
+		box-shadow: none;
 	}
 </style>
