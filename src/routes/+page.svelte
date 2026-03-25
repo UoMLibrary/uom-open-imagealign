@@ -317,8 +317,6 @@
 							{readingFocusClearCenterPct}
 							{readingFocusOpacity}
 							{readingFocusBlurPx}
-							enableHoldDifferencePreview={true}
-							enableHoldShowBasePreview={true}
 						/>
 
 						<CompareViewerToolbar

@@ -108,7 +108,7 @@
 
 		drawer = 'canvas',
 
-		enableHoldDifferencePreview = false,
+		enableHoldDifferencePreview = true,
 		holdDifferenceKey = 'q',
 
 		enableHoldShowBasePreview = true,

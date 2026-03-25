@@ -178,7 +178,6 @@
 							overlayUrl={overlayUrl ?? baseUrl}
 							bind:overlayOpacity={compareOpacity}
 							onReady={handleReady}
-							enableHoldDifferencePreview={true}
 						/>
 					{/key}
 				{:else if previewState === 'loading'}
