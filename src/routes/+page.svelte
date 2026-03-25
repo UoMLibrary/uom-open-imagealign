@@ -2,6 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
+	import AnnotatedImageCompareViewer from '$lib/ui/shared/compare/AnnotatedImageCompareViewer.svelte';
 
 	import {
 		ensureAlignmentEngine,
@@ -17,30 +18,12 @@
 		name: string;
 	};
 
-	import type OpenSeadragon from 'openseadragon';
-	import AnnotatedImageCompareViewer from '$lib/ui/shared/AnnotatedImageCompareViewer.svelte';
-	import CompareViewerToolbar from '$lib/ui/shared/CompareViewerToolbar.svelte';
-	import { createAnnotationEditorSession } from '$lib/ui/shared/annotationEditorSession';
-
-	const session = createAnnotationEditorSession();
-
-	let annotatedViewerRef: any = null;
-	let viewer = $state<OpenSeadragon.Viewer | null>(null);
-
-	let annotationsVisible = $state(true);
-	let collapsed = $state(false);
-
-	let overlayOpacity = $state(0.6);
-
-	let annotationMode = $state<'pan' | 'rectangle' | 'polygon'>('pan');
-	let selectedAnnotationId = $state<string | null>(null);
-
-	let readingFocusEnabled = $state(false);
-	let readingFocusClearCenterPct = $state(30);
-	let readingFocusOpacity = $state(0.35);
-	let readingFocusBlurPx = $state(3);
-
 	type SlotKind = 'base' | 'query';
+
+	type AnnotationRecord = any;
+
+	let annotations = $state<AnnotationRecord[]>([]);
+	let compareViewState = $state<Record<string, unknown>>({});
 
 	let baseFile = $state<File | null>(null);
 	let queryFile = $state<File | null>(null);
@@ -74,27 +57,12 @@
 		query: 0
 	};
 
-	const readingFocusPresets = [0, 30, 20, 10] as const;
-
-	function cycleReadingFocus() {
-		const current = readingFocusEnabled ? readingFocusClearCenterPct : 0;
-		const currentIndex = readingFocusPresets.findIndex((value) => value === current);
-		const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % readingFocusPresets.length : 1;
-		const nextValue = readingFocusPresets[nextIndex];
-
-		if (nextValue === 0) {
-			readingFocusEnabled = false;
-			readingFocusClearCenterPct = 30;
-			return;
-		}
-
-		readingFocusEnabled = true;
-		readingFocusClearCenterPct = nextValue;
-	}
+	const annotationDocument = $derived({
+		annotations,
+		viewState: compareViewState
+	});
 
 	onMount(() => {
-		window.addEventListener('keydown', onWindowKeyDown);
-
 		void ensureAlignmentEngine()
 			.then(() => {
 				engineReady = true;
@@ -107,12 +75,14 @@
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('keydown', onWindowKeyDown);
-
-		if (baseUrl) URL.revokeObjectURL(baseUrl);
-		if (queryUrl) URL.revokeObjectURL(queryUrl);
-		if (warpedUrl) URL.revokeObjectURL(warpedUrl);
+		releaseUrl(baseUrl);
+		releaseUrl(queryUrl);
+		releaseUrl(warpedUrl);
 	});
+
+	function releaseUrl(url: string | null) {
+		if (url) URL.revokeObjectURL(url);
+	}
 
 	async function readImageInfo(file: File): Promise<ImageInfo> {
 		const bitmap = await createImageBitmap(file);
@@ -131,33 +101,23 @@
 	}
 
 	function clearWarpedResult() {
-		if (warpedUrl) {
-			URL.revokeObjectURL(warpedUrl);
-			warpedUrl = null;
-			warpedRefreshKey++;
-		}
-	}
-
-	function revokeSlotUrl(kind: SlotKind) {
-		if (kind === 'base') {
-			if (baseUrl) URL.revokeObjectURL(baseUrl);
-			baseUrl = null;
-		} else {
-			if (queryUrl) URL.revokeObjectURL(queryUrl);
-			queryUrl = null;
-		}
+		releaseUrl(warpedUrl);
+		warpedUrl = null;
+		warpedRefreshKey++;
 	}
 
 	function resetSlot(kind: SlotKind) {
 		if (kind === 'base') {
 			baseFile = null;
 			baseInfo = null;
+			releaseUrl(baseUrl);
+			baseUrl = null;
 		} else {
 			queryFile = null;
 			queryInfo = null;
+			releaseUrl(queryUrl);
+			queryUrl = null;
 		}
-
-		revokeSlotUrl(kind);
 	}
 
 	async function setSelectedFile(kind: SlotKind, file: File | null) {
@@ -225,25 +185,6 @@
 			isRunning = false;
 		}
 	}
-
-	function isEditableTarget(target: EventTarget | null) {
-		const node = target as HTMLElement | null;
-		if (!node) return false;
-		if (node instanceof HTMLInputElement) return true;
-		if (node instanceof HTMLTextAreaElement) return true;
-		if (node instanceof HTMLSelectElement) return true;
-		if (node.isContentEditable) return true;
-		return !!node.closest?.('[contenteditable="true"]');
-	}
-
-	function onWindowKeyDown(e: KeyboardEvent) {
-		if (isEditableTarget(e.target)) return;
-
-		if (e.key === 't' || e.key === 'T') {
-			e.preventDefault();
-			collapsed = !collapsed;
-		}
-	}
 </script>
 
 <svelte:head>
@@ -304,45 +245,21 @@
 				{#key `${baseUrl}:${warpedUrl}:${warpedRefreshKey}`}
 					<div class="viewer-host">
 						<AnnotatedImageCompareViewer
-							bind:this={annotatedViewerRef}
-							bind:viewer
 							imageUrl={baseUrl}
 							overlayUrl={warpedUrl}
-							{session}
-							bind:overlayOpacity
-							bind:annotationMode
-							bind:annotationsVisible
-							bind:selectedAnnotationId
-							{readingFocusEnabled}
-							{readingFocusClearCenterPct}
-							{readingFocusOpacity}
-							{readingFocusBlurPx}
-						/>
-
-						<CompareViewerToolbar
-							{viewer}
-							bind:collapsed
-							bind:overlayOpacity
-							bind:annotationMode
-							bind:annotationsVisible
-							showAnnotationControls={true}
-							position="left"
-							onModeChange={(mode) => {
-								annotationMode = mode;
-								annotatedViewerRef?.setAnnotationMode?.(mode);
+							{annotations}
+							initialViewState={{
+								overlayOpacity: 0.6,
+								annotationsVisible: true,
+								annotationMode: 'pan',
+								readingFocusEnabled: false,
+								readingFocusClearCenterPct: 30,
+								readingFocusOpacity: 0.35,
+								readingFocusBlurPx: 3
 							}}
-							onAnnotationsVisibleChange={(visible) => {
-								annotationsVisible = visible;
-
-								if (visible) {
-									annotatedViewerRef?.showAnnotations?.();
-								} else {
-									annotatedViewerRef?.hideAnnotations?.();
-								}
-							}}
-							{readingFocusEnabled}
-							{readingFocusClearCenterPct}
-							onReadingFocusCycle={cycleReadingFocus}
+							refreshKey={warpedRefreshKey}
+							onAnnotationsChange={(next) => (annotations = next)}
+							onViewStateChange={(next) => (compareViewState = next)}
 						/>
 					</div>
 				{/key}
