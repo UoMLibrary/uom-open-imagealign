@@ -1,9 +1,9 @@
 <script lang="ts">
-	import ImportGroupingSection from '$lib/ui/app/settings/ImportGroupingSection.svelte';
-	import AnnotationSchemaSection from '$lib/ui/app/settings/AnnotationSchemaSection.svelte';
-	import ExportShapeSection from '$lib/ui/app/settings/ExportShapeSection.svelte';
-	import StorageUsage from '$lib/ui/app/settings/StorageUsage.svelte';
-	import AppConfigSection from '$lib/ui/app/settings/AppConfigSection.svelte';
+	import ImportGroupingSection from '$lib/ui/settings/sections/ImportGroupingSection.svelte';
+	import AnnotationSchemaSection from '$lib/ui/settings/sections/AnnotationSchemaSection.svelte';
+	import ExportShapeSection from '$lib/ui/settings/sections/ExportShapeSection.svelte';
+	import StorageUsage from '$lib/ui/settings/sections/StorageUsage.svelte';
+	import AppConfigSection from '$lib/ui/settings/sections/AppConfigSection.svelte';
 	import { settingsState } from '$lib/core/settingsStore.svelte';
 	import { appConfigState } from '$lib/core/appConfigStore.svelte';
 

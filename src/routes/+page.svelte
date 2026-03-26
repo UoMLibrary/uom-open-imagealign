@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import TransformControls from '$lib/imagealign/TransformControls.svelte';
-	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
-	import AnnotatedImageCompareViewer from '$lib/ui/shared/compare/AnnotatedImageCompareViewer.svelte';
-	import Logo from '$lib/ui/app/Logo.svelte';
+	import AlignmentTransformControls from '$lib/ui/alignment/AlignmentTransformControls.svelte';
+	import AlignmentImageDropSlot from '$lib/ui/alignment/AlignmentImageDropSlot.svelte';
+	import AnnotatedImageCompareViewer from '$lib/ui/compare/AnnotatedImageCompareViewer.svelte';
+	import AppLogo from '$lib/ui/shell/AppLogo.svelte';
 
 	import {
 		ensureAlignmentEngine,
@@ -196,7 +196,7 @@
 	<section class="setup-panel panel">
 		<div class="setup-row">
 			<div class="title-wrap">
-				<Logo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" /><span
+				<AppLogo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" /><span
 					style="fontfamily: monospace; color: #6b7280; font-weight: 300; font-size: small; margin-left: 0.5rem;"
 					>[DEMO]</span
 				>
@@ -212,7 +212,7 @@
 		</div>
 
 		<div class="setup-grid">
-			<ImageDropSlot
+			<AlignmentImageDropSlot
 				label="Base image"
 				imageUrl={baseUrl}
 				info={baseInfo}
@@ -220,7 +220,7 @@
 				onClear={clearBase}
 			/>
 
-			<ImageDropSlot
+			<AlignmentImageDropSlot
 				label="Moving image"
 				imageUrl={queryUrl}
 				info={queryInfo}
@@ -229,7 +229,7 @@
 			/>
 
 			<div class="transform-slot">
-				<TransformControls
+				<AlignmentTransformControls
 					{spec}
 					{engineStatus}
 					{isRunning}
@@ -352,19 +352,6 @@
 	.transform-slot {
 		min-width: 0;
 		display: flex;
-	}
-
-	.title-wrap h1 {
-		margin: 0;
-		font-size: 1.25rem;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-	}
-
-	.title-wrap p {
-		margin: 0.35rem 0 0;
-		color: #64748b;
-		font-size: 0.95rem;
 	}
 
 	.status-badge {

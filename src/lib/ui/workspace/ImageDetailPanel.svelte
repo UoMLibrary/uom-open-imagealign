@@ -3,8 +3,8 @@
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
 	import ImageCompareViewer, {
 		type ImageCompareViewerReadyPayload
-	} from '$lib/ui/shared/compare/ImageCompareViewer.svelte';
-	import AnnotatedImageCompareViewer from '$lib/ui/shared/compare/AnnotatedImageCompareViewer.svelte';
+	} from '$lib/ui/compare/ImageCompareViewer.svelte';
+	import AnnotatedImageCompareViewer from '$lib/ui/compare/AnnotatedImageCompareViewer.svelte';
 
 	import { getDerivedUrl } from '$lib/image/derivationService';
 	import { getDerivationCacheKey } from '$lib/image/derivationState.svelte';

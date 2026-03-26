@@ -1,14 +1,14 @@
 <script lang="ts">
-	import Header from '$lib/ui/app/Header.svelte';
+	import AppHeader from '$lib/ui/shell/AppHeader.svelte';
 	import Toast from '$lib/ui/shared/Toast.svelte';
-	import HelpModal from '$lib/ui/app/modals/HelpModal.svelte';
-	import AboutModal from '$lib/ui/app/modals/AboutModal.svelte';
-	import ProjectWorkspace from '$lib/ui/app/ProjectWorkspace.svelte';
-	import SettingsWorkspace from '$lib/ui/app/SettingsWorkspace.svelte';
-	import NewFromFolderModal, {
+	import HelpDialog from '$lib/ui/shell/dialogs/HelpDialog.svelte';
+	import AboutDialog from '$lib/ui/shell/dialogs/AboutDialog.svelte';
+	import WorkspaceView from '$lib/ui/workspace/WorkspaceView.svelte';
+	import SettingsView from '$lib/ui/settings/SettingsView.svelte';
+	import NewFromFolderDialog, {
 		type NewFromFolderSelection
-	} from '$lib/ui/app/modals/NewFromFolderModal.svelte';
-	import ExportModal, { type ExportSelection } from '$lib/ui/app/modals/ExportModal.svelte';
+	} from '$lib/ui/shell/dialogs/NewFromFolderDialog.svelte';
+	import ExportDialog, { type ExportSelection } from '$lib/ui/shell/dialogs/ExportDialog.svelte';
 
 	import {
 		projectState,
@@ -22,9 +22,9 @@
 
 	import { exportCurrentProject } from '$lib/core/projectExport';
 
-	type MainViewMode = 'workspace' | 'settings';
+	type AppViewMode = 'workspace' | 'settings';
 
-	let activeView = $state<MainViewMode>('workspace');
+	let activeView = $state<AppViewMode>('workspace');
 	let showHelp = $state(false);
 	let showAbout = $state(false);
 	let showNewFromFolder = $state(false);
@@ -71,7 +71,7 @@
 <div class="app">
 	<Toast />
 
-	<Header
+	<AppHeader
 		{activeView}
 		canSave={!!projectState.project}
 		canExport={!!projectState.project}
@@ -92,27 +92,27 @@
 
 	<div class="main-area">
 		{#if activeView === 'workspace'}
-			<ProjectWorkspace />
+			<WorkspaceView />
 		{:else}
-			<SettingsWorkspace />
+			<SettingsView />
 		{/if}
 	</div>
 
-	<NewFromFolderModal
+	<NewFromFolderDialog
 		open={showNewFromFolder}
 		onClose={() => (showNewFromFolder = false)}
 		onConfirm={handleConfirmNewFromFolder}
 	/>
 
-	<ExportModal
+	<ExportDialog
 		open={showExportModal}
 		defaultFilename={suggestedExportFilename()}
 		onClose={() => (showExportModal = false)}
 		onConfirm={handleConfirmExport}
 	/>
 
-	<HelpModal bind:open={showHelp} />
-	<AboutModal bind:open={showAbout} />
+	<HelpDialog bind:open={showHelp} />
+	<AboutDialog bind:open={showAbout} />
 </div>
 
 <style>

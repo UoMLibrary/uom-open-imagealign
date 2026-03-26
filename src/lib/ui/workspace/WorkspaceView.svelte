@@ -1,9 +1,9 @@
 <script lang="ts">
-	import SidePanel from '$lib/ui/shared/SidePanel.svelte';
-	import GroupCell from '$lib/ui/shared/GroupCell.svelte';
-	import ImageCard from '$lib/ui/shared/ImageCard.svelte';
-	import ImageDetailCard from '$lib/ui/shared/ImageDetailCard.svelte';
-	import GroupAnnotationsPanel from '$lib/ui/shared/GroupAnnotationsPanel.svelte';
+	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
+	import GroupListItem from '$lib/ui/workspace/GroupListItem.svelte';
+	import GroupImageCard from '$lib/ui/workspace/GroupImageCard.svelte';
+	import ImageDetailPanel from '$lib/ui/workspace/ImageDetailPanel.svelte';
+	import GroupAnnotationsPanel from '$lib/ui/workspace/GroupAnnotationsPanel.svelte';
 
 	import { projectState } from '$lib/core/projectStore.svelte';
 
@@ -225,7 +225,7 @@
 	</div>
 {:else}
 	<div class="workspace">
-		<SidePanel side="left" bind:open={leftPanelOpen}>
+		<WorkspaceSidebar side="left" bind:open={leftPanelOpen}>
 			<div class="sidebar-shell">
 				<div class="sidebar-header">
 					<div class="project-line">
@@ -243,7 +243,7 @@
 								{@const baseImage = imageById.get(group.baseImageId)}
 								{@const stats = groupStats.get(group.id)}
 
-								<GroupCell
+								<GroupListItem
 									{group}
 									selected={group.id === selectedGroupId}
 									baseImageContentHash={baseImage?.contentHash ?? null}
@@ -261,7 +261,7 @@
 					annotations
 				</div>
 			</div>
-		</SidePanel>
+		</WorkspaceSidebar>
 
 		<main class="main">
 			{#if selectedGroup}
@@ -286,7 +286,7 @@
 					{#each selectedGroupImages as image (image.id)}
 						{@const alignment = alignmentByComparedId.get(image.id)}
 
-						<ImageCard
+						<GroupImageCard
 							{image}
 							title={getImageTitle(image)}
 							sourceKind={getImageSourceKind(image)}
@@ -301,7 +301,7 @@
 
 				{#if selectedImage}
 					<div class="panel-wrap">
-						<ImageDetailCard
+						<ImageDetailPanel
 							image={selectedImage}
 							baseImage={selectedGroup ? (imageById.get(selectedGroup.baseImageId) ?? null) : null}
 							title={getImageTitle(selectedImage)}

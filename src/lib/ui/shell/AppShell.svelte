@@ -1,9 +1,9 @@
 <script>
-	import MainVIew from '$lib/ui/app/MainView.svelte';
+	import AppView from '$lib/ui/shell/AppView.svelte';
 </script>
 
 <main>
-	<MainVIew />
+	<AppView />
 </main>
 
 <svelte:head>

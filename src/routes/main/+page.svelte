@@ -1,5 +1,5 @@
 <script>
-	import AppShell from '$lib/ui/app/AppShell.svelte';
+	import AppShell from '$lib/ui/shell/AppShell.svelte';
 </script>
 
 <AppShell />

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PythonProfileSection from '$lib/ui/app/settings/PythonProfileSection.svelte';
+	import PythonProfileSection from '$lib/ui/settings/sections/PythonProfileSection.svelte';
 	import { settingsState } from '$lib/core/settingsStore.svelte';
 </script>
 

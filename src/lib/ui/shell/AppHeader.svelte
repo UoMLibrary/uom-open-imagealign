@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Logo from '$lib/ui/app/Logo.svelte';
+	import AppLogo from '$lib/ui/shell/AppLogo.svelte';
 
 	type ViewMode = 'workspace' | 'settings';
 
@@ -195,13 +195,13 @@
 		</div>
 
 		<div class="title">
-			<!-- <a
+			<a
 				href="https://github.com/UoMLibrary/uom-open-imagealign/"
 				target="_blank"
 				rel="noopener noreferrer"
-			> -->
-			<Logo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" />
-			<!-- </a> -->
+			>
+				<AppLogo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" />
+			</a>
 		</div>
 	</header>
 </div>
