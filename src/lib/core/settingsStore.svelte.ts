@@ -22,6 +22,12 @@ export type AnnotationSchemaProfile = {
     updatedAt: string;
 };
 
+export type ProjectProfileSelection = {
+    importGroupingProfileId: string | null;
+    annotationSchemaProfileId: string | null;
+    exportProfileId: string | null;
+};
+
 type SettingsSnapshot = {
     importGroupingProfiles: PythonProfile[];
     exportProfiles: PythonProfile[];
@@ -219,17 +225,21 @@ function createSettingsState() {
     function hydrate(snapshot: Partial<SettingsSnapshot> | null | undefined) {
         const defaults = buildDefaultSnapshot();
 
-        state.importGroupingProfiles = clone(snapshot?.importGroupingProfiles?.length
-            ? snapshot.importGroupingProfiles
-            : defaults.importGroupingProfiles);
+        state.importGroupingProfiles = clone(
+            snapshot?.importGroupingProfiles?.length
+                ? snapshot.importGroupingProfiles
+                : defaults.importGroupingProfiles
+        );
 
-        state.exportProfiles = clone(snapshot?.exportProfiles?.length
-            ? snapshot.exportProfiles
-            : defaults.exportProfiles);
+        state.exportProfiles = clone(
+            snapshot?.exportProfiles?.length ? snapshot.exportProfiles : defaults.exportProfiles
+        );
 
-        state.annotationSchemaProfiles = clone(snapshot?.annotationSchemaProfiles?.length
-            ? snapshot.annotationSchemaProfiles
-            : defaults.annotationSchemaProfiles);
+        state.annotationSchemaProfiles = clone(
+            snapshot?.annotationSchemaProfiles?.length
+                ? snapshot.annotationSchemaProfiles
+                : defaults.annotationSchemaProfiles
+        );
     }
 
     function load() {
@@ -237,6 +247,7 @@ function createSettingsState() {
 
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
+
             if (!raw) {
                 persist();
                 return;
@@ -269,25 +280,27 @@ function createSettingsState() {
 
     function createImportGroupingProfile() {
         const profile = createPythonProfile('importGrouping');
-        state.importGroupingProfiles = [profile, ...state.importGroupingProfiles];
+        state.importGroupingProfiles = [profile, ...(state.importGroupingProfiles ?? [])];
         persist();
         return profile.id;
     }
 
     function updateImportGroupingProfile(id: string, patch: Partial<PythonProfile>) {
-        state.importGroupingProfiles = state.importGroupingProfiles.map((profile) =>
+        state.importGroupingProfiles = (state.importGroupingProfiles ?? []).map((profile) =>
             profile.id === id ? { ...profile, ...clone(patch), updatedAt: nowIso() } : profile
         );
         persist();
     }
 
     function deleteImportGroupingProfile(id: string) {
-        state.importGroupingProfiles = state.importGroupingProfiles.filter((profile) => profile.id !== id);
+        state.importGroupingProfiles = (state.importGroupingProfiles ?? []).filter(
+            (profile) => profile.id !== id
+        );
         persist();
     }
 
     function duplicateImportGroupingProfile(id: string) {
-        const existing = state.importGroupingProfiles.find((profile) => profile.id === id);
+        const existing = (state.importGroupingProfiles ?? []).find((profile) => profile.id === id);
         if (!existing) return null;
 
         const copy: PythonProfile = {
@@ -297,32 +310,32 @@ function createSettingsState() {
             updatedAt: nowIso()
         };
 
-        state.importGroupingProfiles = [copy, ...state.importGroupingProfiles];
+        state.importGroupingProfiles = [copy, ...(state.importGroupingProfiles ?? [])];
         persist();
         return copy.id;
     }
 
     function createExportProfile() {
         const profile = createPythonProfile('exportShape');
-        state.exportProfiles = [profile, ...state.exportProfiles];
+        state.exportProfiles = [profile, ...(state.exportProfiles ?? [])];
         persist();
         return profile.id;
     }
 
     function updateExportProfile(id: string, patch: Partial<PythonProfile>) {
-        state.exportProfiles = state.exportProfiles.map((profile) =>
+        state.exportProfiles = (state.exportProfiles ?? []).map((profile) =>
             profile.id === id ? { ...profile, ...clone(patch), updatedAt: nowIso() } : profile
         );
         persist();
     }
 
     function deleteExportProfile(id: string) {
-        state.exportProfiles = state.exportProfiles.filter((profile) => profile.id !== id);
+        state.exportProfiles = (state.exportProfiles ?? []).filter((profile) => profile.id !== id);
         persist();
     }
 
     function duplicateExportProfile(id: string) {
-        const existing = state.exportProfiles.find((profile) => profile.id === id);
+        const existing = (state.exportProfiles ?? []).find((profile) => profile.id === id);
         if (!existing) return null;
 
         const copy: PythonProfile = {
@@ -332,7 +345,7 @@ function createSettingsState() {
             updatedAt: nowIso()
         };
 
-        state.exportProfiles = [copy, ...state.exportProfiles];
+        state.exportProfiles = [copy, ...(state.exportProfiles ?? [])];
         persist();
         return copy.id;
     }
@@ -347,25 +360,27 @@ function createSettingsState() {
             updatedAt: nowIso()
         };
 
-        state.annotationSchemaProfiles = [profile, ...state.annotationSchemaProfiles];
+        state.annotationSchemaProfiles = [profile, ...(state.annotationSchemaProfiles ?? [])];
         persist();
         return profile.id;
     }
 
     function updateAnnotationSchemaProfile(id: string, patch: Partial<AnnotationSchemaProfile>) {
-        state.annotationSchemaProfiles = state.annotationSchemaProfiles.map((profile) =>
+        state.annotationSchemaProfiles = (state.annotationSchemaProfiles ?? []).map((profile) =>
             profile.id === id ? { ...profile, ...clone(patch), updatedAt: nowIso() } : profile
         );
         persist();
     }
 
     function deleteAnnotationSchemaProfile(id: string) {
-        state.annotationSchemaProfiles = state.annotationSchemaProfiles.filter((profile) => profile.id !== id);
+        state.annotationSchemaProfiles = (state.annotationSchemaProfiles ?? []).filter(
+            (profile) => profile.id !== id
+        );
         persist();
     }
 
     function duplicateAnnotationSchemaProfile(id: string) {
-        const existing = state.annotationSchemaProfiles.find((profile) => profile.id === id);
+        const existing = (state.annotationSchemaProfiles ?? []).find((profile) => profile.id === id);
         if (!existing) return null;
 
         const copy: AnnotationSchemaProfile = {
@@ -375,7 +390,7 @@ function createSettingsState() {
             updatedAt: nowIso()
         };
 
-        state.annotationSchemaProfiles = [copy, ...state.annotationSchemaProfiles];
+        state.annotationSchemaProfiles = [copy, ...(state.annotationSchemaProfiles ?? [])];
         persist();
         return copy.id;
     }
@@ -384,14 +399,46 @@ function createSettingsState() {
 
     return {
         get importGroupingProfiles() {
-            return state.importGroupingProfiles;
+            return state.importGroupingProfiles ?? [];
         },
+
         get exportProfiles() {
-            return state.exportProfiles;
+            return state.exportProfiles ?? [];
         },
+
         get annotationSchemaProfiles() {
-            return state.annotationSchemaProfiles;
+            return state.annotationSchemaProfiles ?? [];
         },
+
+        get defaultProfileSelection(): ProjectProfileSelection {
+            const importGroupingProfiles = state.importGroupingProfiles ?? [];
+            const annotationSchemaProfiles = state.annotationSchemaProfiles ?? [];
+            const exportProfiles = state.exportProfiles ?? [];
+
+            return {
+                importGroupingProfileId: importGroupingProfiles[0]?.id ?? null,
+                annotationSchemaProfileId: annotationSchemaProfiles[0]?.id ?? null,
+                exportProfileId: exportProfiles[0]?.id ?? null
+            };
+        },
+
+        getImportGroupingProfile(id: string | null | undefined) {
+            if (!id) return null;
+            return (state.importGroupingProfiles ?? []).find((profile) => profile.id === id) ?? null;
+        },
+
+        getAnnotationSchemaProfile(id: string | null | undefined) {
+            if (!id) return null;
+            return (
+                (state.annotationSchemaProfiles ?? []).find((profile) => profile.id === id) ?? null
+            );
+        },
+
+        getExportProfile(id: string | null | undefined) {
+            if (!id) return null;
+            return (state.exportProfiles ?? []).find((profile) => profile.id === id) ?? null;
+        },
+
         resetAll,
 
         createImportGroupingProfile,

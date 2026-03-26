@@ -1,10 +1,6 @@
 import { bumpDerivationCacheGlobal } from '$lib/image/derivationState.svelte';
 import type { ImageAlignmentProject as Project } from '$lib/core/types';
-import {
-    buildProjectFromFolderHandle,
-    buildProjectFromSpreadsheetHandle,
-    type GroupingStrategy
-} from '$lib/core/projectImport';
+import { buildProjectFromFolderHandle, buildProjectFromSpreadsheetHandle } from '$lib/core/projectImport';
 import { getDerivedBlob } from '$lib/image/derivationService';
 import {
     pickDirectoryHandle,
@@ -15,6 +11,7 @@ import {
     supportsFileSystemAccess,
     writeJsonFile
 } from '$lib/core/projectFileActions';
+import { settingsState } from '$lib/core/settingsStore.svelte';
 
 type BusyAction =
     | null
@@ -25,6 +22,37 @@ type BusyAction =
     | 'save-as'
     | 'relink-asset-folder';
 
+type AnnotationConfigSnapshot = {
+    sourceProfileId?: string | null;
+    sourceProfileName?: string | null;
+    schema: Record<string, unknown>;
+    defaultData: Record<string, unknown>;
+    uiSchema?: Record<string, unknown> | null;
+};
+
+type ImportInfoSnapshot = {
+    groupingProfileId?: string | null;
+    groupingProfileName?: string | null;
+    groupingScriptHash?: string | null;
+    importedAt?: string;
+};
+
+type ProjectWithConfig = Project & {
+    config?: {
+        importInfo?: ImportInfoSnapshot;
+        annotationConfig?: AnnotationConfigSnapshot;
+    };
+};
+
+export type NewProjectFromFolderOptions = {
+    importGroupingProfileId?: string | null;
+    annotationSchemaProfileId?: string | null;
+};
+
+export type NewProjectFromSpreadsheetOptions = {
+    annotationSchemaProfileId?: string | null;
+};
+
 type ProjectRuntimeState = {
     project: Project | null;
     projectHandle: FileSystemFileHandle | null;
@@ -33,7 +61,6 @@ type ProjectRuntimeState = {
     busyAction: BusyAction;
     lastError: string | null;
     lastInfo: string | null;
-    defaultGroupingStrategy: GroupingStrategy;
     supportsFsAccess: boolean;
 };
 
@@ -55,6 +82,105 @@ function withUpdatedAt(project: Project): Project {
     };
 }
 
+function clone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function getDefaultAnnotationProfile() {
+    const profile = settingsState.annotationSchemaProfiles[0] ?? null;
+
+    if (!profile) {
+        throw new Error('No annotation schema profiles are available in Settings.');
+    }
+
+    return profile;
+}
+
+function buildAnnotationConfigSnapshot(
+    profileId?: string | null
+): AnnotationConfigSnapshot {
+    const profile =
+        settingsState.getAnnotationSchemaProfile(profileId) ?? getDefaultAnnotationProfile();
+
+    return {
+        sourceProfileId: profile.id,
+        sourceProfileName: profile.name,
+        schema: clone(profile.schema),
+        defaultData: clone(profile.defaultData),
+        uiSchema: null
+    };
+}
+
+async function hashText(value: string): Promise<string | null> {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+
+    const bytes = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+async function buildImportInfoSnapshot(
+    groupingProfileId?: string | null
+): Promise<ImportInfoSnapshot | undefined> {
+    const profile = settingsState.getImportGroupingProfile(groupingProfileId);
+    if (!profile) return undefined;
+
+    return {
+        groupingProfileId: profile.id,
+        groupingProfileName: profile.name,
+        groupingScriptHash: await hashText(profile.script),
+        importedAt: nowIso()
+    };
+}
+
+function normaliseProject(project: Project): Project {
+    const typed = project as ProjectWithConfig;
+
+    if (typed.config?.annotationConfig) {
+        return typed;
+    }
+
+    const withConfig: ProjectWithConfig = {
+        ...typed,
+        config: {
+            ...(typed.config ?? {}),
+            annotationConfig: buildAnnotationConfigSnapshot(null)
+        }
+    };
+
+    return withConfig as Project;
+}
+
+export function getProjectAnnotationConfig(
+    project: Project | null | undefined
+): AnnotationConfigSnapshot | null {
+    if (!project) return null;
+
+    const typed = project as ProjectWithConfig;
+
+    return typed.config?.annotationConfig ?? buildAnnotationConfigSnapshot(null);
+}
+
+export function replaceProjectAnnotationSchemaFromProfile(profileId?: string | null) {
+    if (!projectState.project) return;
+
+    const nextConfig = buildAnnotationConfigSnapshot(profileId);
+
+    projectState.project = {
+        ...(projectState.project as ProjectWithConfig),
+        config: {
+            ...((projectState.project as ProjectWithConfig).config ?? {}),
+            annotationConfig: nextConfig
+        },
+        updatedAt: nowIso()
+    } as Project;
+
+    projectState.dirty = true;
+    projectState.lastInfo = `Updated project annotation schema to "${nextConfig.sourceProfileName ?? 'Unnamed schema'}".`;
+}
+
 export const projectState = $state<ProjectRuntimeState>({
     project: null,
     projectHandle: null,
@@ -63,7 +189,6 @@ export const projectState = $state<ProjectRuntimeState>({
     busyAction: null,
     lastError: null,
     lastInfo: null,
-    defaultGroupingStrategy: 'leaf-folder',
     supportsFsAccess: supportsFileSystemAccess()
 });
 
@@ -130,7 +255,7 @@ async function rebuildLocalAssetCacheForRoot(
 }
 
 export function replaceProject(project: Project, handle: FileSystemFileHandle | null = null) {
-    projectState.project = project;
+    projectState.project = normaliseProject(project);
     projectState.projectHandle = handle;
     projectState.dirty = false;
     projectState.lastError = null;
@@ -154,13 +279,7 @@ export function mutateProject(mutator: (project: Project) => void) {
     projectState.dirty = true;
 }
 
-export function setDefaultGroupingStrategy(strategy: GroupingStrategy) {
-    projectState.defaultGroupingStrategy = strategy;
-}
-
-export async function newProjectFromFolder(
-    strategy: GroupingStrategy = projectState.defaultGroupingStrategy
-) {
+export async function newProjectFromFolder(options: NewProjectFromFolderOptions = {}) {
     try {
         begin('new-from-folder');
 
@@ -171,22 +290,57 @@ export async function newProjectFromFolder(
             return;
         }
 
-        const project = await buildProjectFromFolderHandle(rootHandle, strategy);
+        const groupingProfile =
+            settingsState.getImportGroupingProfile(options.importGroupingProfileId) ??
+            settingsState.importGroupingProfiles[0] ??
+            null;
 
-        projectState.project = project;
+        if (!groupingProfile) {
+            throw new Error('No import grouping profiles are available in Settings.');
+        }
+
+        const annotationConfig = buildAnnotationConfigSnapshot(
+            options.annotationSchemaProfileId
+        );
+
+        const importInfo = await buildImportInfoSnapshot(groupingProfile.id);
+
+        // IMPORTANT:
+        // This assumes buildProjectFromFolderHandle is updated next so it can accept
+        // a Python grouping profile or grouping definition rather than a simple legacy strategy.
+        const project = await buildProjectFromFolderHandle(rootHandle, {
+            id: groupingProfile.id,
+            name: groupingProfile.name,
+            script: groupingProfile.script
+        } as any);
+
+        const nextProject = normaliseProject({
+            ...(project as ProjectWithConfig),
+            config: {
+                ...((project as ProjectWithConfig).config ?? {}),
+                importInfo,
+                annotationConfig
+            }
+        } as Project);
+
+        projectState.project = nextProject;
         projectState.projectHandle = null;
         projectState.assetRootHandles = {
             main: rootHandle
         };
         projectState.dirty = true;
 
-        finish(`Created new project from folder "${rootHandle.name}".`);
+        finish(
+            `Created new project from folder "${rootHandle.name}" using grouping profile "${groupingProfile.name}".`
+        );
     } catch (error) {
         fail(error);
     }
 }
 
-export async function newProjectFromSpreadsheet() {
+export async function newProjectFromSpreadsheet(
+    options: NewProjectFromSpreadsheetOptions = {}
+) {
     try {
         begin('new-from-spreadsheet');
 
@@ -199,7 +353,19 @@ export async function newProjectFromSpreadsheet() {
 
         const project = await buildProjectFromSpreadsheetHandle(handle);
 
-        projectState.project = project;
+        const annotationConfig = buildAnnotationConfigSnapshot(
+            options.annotationSchemaProfileId
+        );
+
+        const nextProject = normaliseProject({
+            ...(project as ProjectWithConfig),
+            config: {
+                ...((project as ProjectWithConfig).config ?? {}),
+                annotationConfig
+            }
+        } as Project);
+
+        projectState.project = nextProject;
         projectState.projectHandle = null;
         projectState.assetRootHandles = {};
         projectState.dirty = true;
@@ -223,7 +389,7 @@ export async function openProject() {
 
         const project = await readJsonFile<Project>(handle);
 
-        projectState.project = project;
+        projectState.project = normaliseProject(project);
         projectState.projectHandle = handle;
         projectState.assetRootHandles = {};
         projectState.dirty = false;

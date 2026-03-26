@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { runPython } from './pyEngine';
+	import { runPython } from '../../lib/pyEngine';
 
 	export let script: string;
 	export let data: any;

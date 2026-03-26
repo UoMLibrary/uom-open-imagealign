@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { settingsState, type AnnotationSchemaProfile } from '$lib/core/settingsStore.svelte';
 
-	let selectedId = $state<string | null>(settingsState.annotationSchemaProfiles[0]?.id ?? null);
+	let selectedId = $state<string | null>(null);
 
 	let draftName = $state('');
 	let draftDescription = $state('');
@@ -10,11 +10,10 @@
 
 	let validationError = $state('');
 
+	let profiles = $derived(settingsState.annotationSchemaProfiles ?? []);
+
 	let selectedProfile = $derived(
-		selectedId
-			? (settingsState.annotationSchemaProfiles.find((profile) => profile.id === selectedId) ??
-					null)
-			: null
+		selectedId ? (profiles.find((profile) => profile.id === selectedId) ?? null) : null
 	);
 
 	function prettyJson(value: unknown): string {
@@ -30,8 +29,6 @@
 	}
 
 	$effect(() => {
-		const profiles = settingsState.annotationSchemaProfiles;
-
 		if (!profiles.length) {
 			selectedId = null;
 			loadProfile(null);
@@ -146,14 +143,14 @@
 		<aside class="profile-list-card">
 			<div class="profile-list-header">
 				<div class="profile-list-title">Saved schemas</div>
-				<div class="profile-list-count">{settingsState.annotationSchemaProfiles.length}</div>
+				<div class="profile-list-count">{profiles.length}</div>
 			</div>
 
-			{#if settingsState.annotationSchemaProfiles.length === 0}
+			{#if profiles.length === 0}
 				<div class="empty-list">No annotation schema profiles yet.</div>
 			{:else}
 				<div class="profile-list">
-					{#each settingsState.annotationSchemaProfiles as profile (profile.id)}
+					{#each profiles as profile (profile.id)}
 						<button
 							type="button"
 							class="profile-item"

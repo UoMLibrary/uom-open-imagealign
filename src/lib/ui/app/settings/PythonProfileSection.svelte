@@ -5,7 +5,7 @@
 	type Props = {
 		title: string;
 		intro: string;
-		profiles: PythonProfile[];
+		profiles?: PythonProfile[];
 		createLabel: string;
 		inputLabel: string;
 		outputLabel: string;
@@ -18,7 +18,7 @@
 	let {
 		title,
 		intro,
-		profiles,
+		profiles = [],
 		createLabel,
 		inputLabel,
 		outputLabel,
@@ -28,7 +28,7 @@
 		onDuplicate
 	}: Props = $props();
 
-	let selectedId = $state<string | null>(profiles[0]?.id ?? null);
+	let selectedId = $state<string | null>(null);
 	let draftName = $state('');
 	let draftDescription = $state('');
 	let draftScript = $state('');

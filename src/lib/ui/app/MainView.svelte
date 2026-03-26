@@ -5,6 +5,7 @@
 	import AboutModal from '$lib/ui/app/modals/AboutModal.svelte';
 	import ProjectWorkspace from '$lib/ui/app/ProjectWorkspace.svelte';
 	import SettingsWorkspace from '$lib/ui/app/SettingsWorkspace.svelte';
+	import NewFromFolderModal from '$lib/ui/app/modals/NewFromFolderModal.svelte';
 
 	import {
 		projectState,
@@ -16,51 +17,28 @@
 		saveProjectAs
 	} from '$lib/core/projectStore.svelte';
 
+	import type { ProjectProfileSelection } from '$lib/core/settingsStore.svelte';
+
 	type MainViewMode = 'workspace' | 'settings';
 
 	let activeView = $state<MainViewMode>('workspace');
 	let showHelp = $state(false);
 	let showAbout = $state(false);
+	let showNewFromFolder = $state(false);
 
-	async function handleNewFromFolder() {
+	function handleOpenNewFromFolder() {
 		activeView = 'workspace';
-		await newProjectFromFolder();
+		showNewFromFolder = true;
 	}
 
-	async function handleNewFromSpreadsheet() {
-		activeView = 'workspace';
-		await newProjectFromSpreadsheet();
-	}
+	async function handleConfirmNewFromFolder(selection: ProjectProfileSelection) {
+		showNewFromFolder = false;
 
-	async function handleOpenProject() {
-		activeView = 'workspace';
-		await openProject();
-	}
-
-	async function handleRelinkAssetFolder() {
-		activeView = 'workspace';
-		await relinkAssetFolder();
-	}
-
-	async function handleSave() {
-		await saveProject();
-	}
-
-	async function handleSaveAs() {
-		await saveProjectAs();
-	}
-
-	function handleExport() {
-		activeView = 'workspace';
-		console.log('Export not wired yet');
-	}
-
-	function showWorkspace() {
-		activeView = 'workspace';
-	}
-
-	function showSettings() {
-		activeView = 'settings';
+		await newProjectFromFolder({
+			importGroupingProfileId: selection.importGroupingProfileId,
+			annotationSchemaProfileId: selection.annotationSchemaProfileId,
+			exportProfileId: selection.exportProfileId
+		});
 	}
 </script>
 
@@ -73,15 +51,15 @@
 		canExport={!!projectState.project}
 		canRelinkAssetFolder={!!projectState.project && projectState.project.assetRoots.length > 0}
 		busy={projectState.busyAction !== null}
-		onShowWorkspace={showWorkspace}
-		onShowSettings={showSettings}
-		onNewFromFolder={handleNewFromFolder}
-		onNewFromSpreadsheet={handleNewFromSpreadsheet}
-		onOpenProject={handleOpenProject}
-		onRelinkAssetFolder={handleRelinkAssetFolder}
-		onSave={handleSave}
-		onSaveAs={handleSaveAs}
-		onExport={handleExport}
+		onShowWorkspace={() => (activeView = 'workspace')}
+		onShowSettings={() => (activeView = 'settings')}
+		onNewFromFolder={handleOpenNewFromFolder}
+		onNewFromSpreadsheet={newProjectFromSpreadsheet}
+		onOpenProject={openProject}
+		onRelinkAssetFolder={relinkAssetFolder}
+		onSave={saveProject}
+		onSaveAs={saveProjectAs}
+		onExport={() => console.log('Export not wired yet')}
 		onHelp={() => (showHelp = true)}
 		onAbout={() => (showAbout = true)}
 	/>
@@ -93,6 +71,12 @@
 			<SettingsWorkspace />
 		{/if}
 	</div>
+
+	<NewFromFolderModal
+		open={showNewFromFolder}
+		onClose={() => (showNewFromFolder = false)}
+		onConfirm={handleConfirmNewFromFolder}
+	/>
 
 	<HelpModal bind:open={showHelp} />
 	<AboutModal bind:open={showAbout} />

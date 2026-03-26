@@ -24,6 +24,9 @@
             "type": "string",
             "format": "date-time"
         },
+        "config": {
+            "$ref": "#/$defs/projectConfig"
+        },
         "derivations": {
             "type": "object",
             "description": "Config describing the expected cached artefacts (IndexedDB keys include these sizes/versions).",
@@ -382,6 +385,68 @@
                     "type": "object",
                     "additionalProperties": true,
                     "description": "Opaque, organisation-configurable annotation payload."
+                }
+            }
+        },
+        "importInfoSnapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "groupingProfileId": {
+                    "type": "string"
+                },
+                "groupingProfileName": {
+                    "type": "string"
+                },
+                "groupingScriptHash": {
+                    "type": "string"
+                },
+                "importedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "annotationConfigSnapshot": {
+            "type": "object",
+            "required": [
+                "schema",
+                "defaultData"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "sourceProfileId": {
+                    "type": "string"
+                },
+                "sourceProfileName": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Embedded JSON schema used to build the annotation form for this project."
+                },
+                "defaultData": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Default annotation payload values for newly created annotations."
+                },
+                "uiSchema": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Optional UI-specific schema or hints for rendering the annotation form."
+                }
+            }
+        },
+        "projectConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "importInfo": {
+                    "$ref": "#/$defs/importInfoSnapshot"
+                },
+                "annotationConfig": {
+                    "$ref": "#/$defs/annotationConfigSnapshot"
                 }
             }
         },
