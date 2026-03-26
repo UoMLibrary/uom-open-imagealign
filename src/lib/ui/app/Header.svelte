@@ -1,5 +1,5 @@
 <script lang="ts">
-	import CompareAnnotateWordmark from '$lib/ui/app/Logo.svelte';
+	import Logo from '$lib/ui/app/Logo.svelte';
 
 	type ViewMode = 'workspace' | 'settings';
 
@@ -200,7 +200,7 @@
 				target="_blank"
 				rel="noopener noreferrer"
 			> -->
-			<CompareAnnotateWordmark tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" />
+			<Logo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" />
 			<!-- </a> -->
 		</div>
 	</header>

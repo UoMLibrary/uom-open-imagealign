@@ -3,6 +3,7 @@
 	import TransformControls from '$lib/imagealign/TransformControls.svelte';
 	import ImageDropSlot from '$lib/ui/shared/ImageDropSlot.svelte';
 	import AnnotatedImageCompareViewer from '$lib/ui/shared/compare/AnnotatedImageCompareViewer.svelte';
+	import Logo from '$lib/ui/app/Logo.svelte';
 
 	import {
 		ensureAlignmentEngine,
@@ -195,8 +196,10 @@
 	<section class="setup-panel panel">
 		<div class="setup-row">
 			<div class="title-wrap">
-				<h1>CompareAnnotate</h1>
-				<p>Load two images, generate a transform, then inspect the result below.</p>
+				<Logo tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" /><span
+					style="fontfamily: monospace; color: #6b7280; font-weight: 300; font-size: small; margin-left: 0.5rem;"
+					>[DEMO]</span
+				>
 			</div>
 
 			<div
