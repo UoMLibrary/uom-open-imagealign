@@ -5,6 +5,7 @@
 		id: string;
 		label?: string;
 		imageIds: string[];
+		baseImageId?: string | null;
 	};
 
 	type Props = {
@@ -29,6 +30,9 @@
 		return group.label?.trim?.() || group.id;
 	}
 
+	const imageCount = $derived(group.imageIds.length);
+	const hasBaseImage = $derived(Boolean(group.baseImageId));
+
 	function select() {
 		onSelect?.(group.id);
 	}
@@ -37,37 +41,46 @@
 <button type="button" class:selected class="group-card" onclick={select}>
 	<div class="group-thumb">
 		{#if baseImageContentHash}
-			<CachedThumb contentHash={baseImageContentHash} alt={getGroupLabel(group)} />
+			<CachedThumb contentHash={baseImageContentHash} alt={getGroupLabel(group)} fit="cover" />
 		{:else}
-			<div class="thumb-fallback">No base</div>
+			<div class="thumb-fallback">No preview</div>
 		{/if}
+
+		<div class="thumb-overlay top-right">
+			<span class="overlay-pill">
+				{imageCount}
+			</span>
+		</div>
 	</div>
 
 	<div class="group-copy">
-		<div class="group-title-row">
-			<div class="group-title">{getGroupLabel(group)}</div>
-			<div class="group-count">{group.imageIds.length} images</div>
+		<div class="group-title">{getGroupLabel(group)}</div>
+
+		<div class="group-meta">
+			<div>{alignmentCount} {alignmentCount === 1 ? 'alignment' : 'alignments'}</div>
+			<div>{annotationCount} {annotationCount === 1 ? 'annotation' : 'annotations'}</div>
 		</div>
 
-		<div class="group-subline">
-			<span>{alignmentCount} alignments</span>
-			<span>{annotationCount} annotations</span>
+		<div class:muted={!hasBaseImage} class="group-status">
+			{#if hasBaseImage}
+				Base image set
+			{:else}
+				No base image
+			{/if}
 		</div>
-
-		<div class="group-id">{group.id}</div>
 	</div>
 </button>
 
 <style>
 	.group-card {
 		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: linear-gradient(180deg, #ffffff, #f8fafc);
-		border-radius: 14px;
-		padding: 0.65rem;
+		border: 1px solid rgba(15, 23, 42, 0.06);
+		background: rgba(255, 255, 255, 0.96);
+		border-radius: 18px;
+		padding: 0.35rem;
 		display: grid;
-		grid-template-columns: 54px minmax(0, 1fr);
-		gap: 0.65rem;
+		grid-template-columns: 88px minmax(0, 1fr);
+		gap: 0.7rem;
 		text-align: left;
 		cursor: pointer;
 		color: inherit;
@@ -79,15 +92,14 @@
 	}
 
 	.group-card:hover {
-		transform: translateY(-1px);
-		border-color: rgba(59, 130, 246, 0.34);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+		border-color: rgba(59, 130, 246, 0.22);
+		box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 	}
 
 	.group-card.selected {
-		border-color: rgba(37, 99, 235, 0.48);
-		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
-		background: linear-gradient(180deg, #ffffff, #eff6ff);
+		border-color: rgba(37, 99, 235, 0.32);
+		box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+		background: linear-gradient(180deg, #ffffff, #f5f9ff);
 	}
 
 	.group-card:focus-visible {
@@ -96,51 +108,77 @@
 	}
 
 	.group-thumb {
-		width: 54px;
-		height: 54px;
-		border-radius: 10px;
+		position: relative;
+		width: 88px;
+		height: 88px;
+		border-radius: 14px;
 		overflow: hidden;
 		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #f8fafc;
+		background: #e5e7eb;
+		align-self: stretch;
 	}
 
 	.group-copy {
 		min-width: 0;
-	}
-
-	.group-title-row {
 		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 0.75rem;
+		flex-direction: column;
+		justify-content: center;
+		gap: 0.22rem;
+		padding: 0.12rem 0.35rem 0.12rem 0;
 	}
 
 	.group-title {
 		font-weight: 700;
-		font-size: 0.88rem;
+		font-size: 1rem;
+		line-height: 1.15;
+		letter-spacing: -0.01em;
 		color: #111827;
 		min-width: 0;
 	}
 
-	.group-count,
-	.group-subline,
-	.group-id {
-		font-size: 0.73rem;
+	.group-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.08rem;
+		font-size: 0.76rem;
+		line-height: 1.35;
 		color: #64748b;
 	}
 
-	.group-subline {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.55rem;
-		margin-top: 0.22rem;
+	.group-status {
+		font-size: 0.76rem;
+		line-height: 1.35;
+		color: #111827;
+		font-weight: 600;
 	}
 
-	.group-id {
-		word-break: break-word;
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
+	.group-status.muted {
+		color: #475569;
+	}
+
+	.thumb-overlay {
+		position: absolute;
+		display: flex;
+		pointer-events: none;
+	}
+
+	.top-right {
+		top: 0.4rem;
+		right: 0.4rem;
+	}
+
+	.overlay-pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.28rem 0.48rem;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.94);
+		backdrop-filter: blur(6px);
+		color: #1f2937;
+		font-size: 0.66rem;
+		font-weight: 700;
+		line-height: 1;
+		box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
 	}
 
 	.thumb-fallback {
@@ -150,9 +188,24 @@
 		place-items: center;
 		text-align: center;
 		color: #64748b;
-		border-radius: 10px;
+		border-radius: 14px;
 		background: rgba(248, 250, 252, 0.9);
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		padding: 0.4rem;
+	}
+
+	@media (max-width: 720px) {
+		.group-card {
+			grid-template-columns: 76px minmax(0, 1fr);
+		}
+
+		.group-thumb {
+			width: 76px;
+			height: 76px;
+		}
+
+		.group-title {
+			font-size: 0.92rem;
+		}
 	}
 </style>

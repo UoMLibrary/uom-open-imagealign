@@ -225,7 +225,7 @@
 	</div>
 {:else}
 	<div class="workspace">
-		<WorkspaceSidebar side="left" bind:open={leftPanelOpen}>
+		<WorkspaceSidebar side="left" width={308} bind:open={leftPanelOpen}>
 			<div class="sidebar-shell">
 				<div class="sidebar-header">
 					<div class="project-line">
@@ -326,7 +326,9 @@
 <style>
 	.workspace {
 		display: flex;
-		min-height: calc(100vh - 96px);
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
 		background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(243, 244, 246, 0.98));
 	}
 
@@ -335,12 +337,13 @@
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
+		min-height: 0;
 		background: rgba(255, 255, 255, 0.92);
 	}
 
 	.sidebar-header {
 		flex: 0 0 auto;
-		padding: 0.9rem 0.9rem 0.75rem;
+		padding: 0.7rem 0.75rem 0.6rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 		background: rgba(255, 255, 255, 0.96);
 	}
@@ -373,12 +376,12 @@
 		flex: 1 1 auto;
 		min-height: 0;
 		overflow: auto;
-		padding: 0.8rem;
+		padding: 0.3rem;
 	}
 
 	.sidebar-footer {
 		flex: 0 0 auto;
-		padding: 0.7rem 0.9rem;
+		padding: 0.55rem 0.75rem;
 		border-top: 1px solid rgba(15, 23, 42, 0.08);
 		background: rgba(255, 255, 255, 0.96);
 		font-size: 0.72rem;
@@ -388,7 +391,7 @@
 	.group-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.7rem;
+		gap: 0.35rem;
 	}
 
 	.group-header-sub {
@@ -406,6 +409,7 @@
 	.main {
 		flex: 1 1 auto;
 		min-width: 0;
+		min-height: 0;
 		padding: 0;
 		display: flex;
 		flex-direction: column;

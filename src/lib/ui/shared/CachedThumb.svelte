@@ -6,10 +6,11 @@
 	interface Props {
 		contentHash: string;
 		alt?: string;
+		fit?: 'cover' | 'contain';
 		onMissing?: ((contentHash: string) => void) | undefined;
 	}
 
-	let { contentHash, alt = 'Thumbnail', onMissing }: Props = $props();
+	let { contentHash, alt = 'Thumbnail', fit = 'cover', onMissing }: Props = $props();
 
 	let src: string | null = $state(null);
 	let loadState: 'loading' | 'ready' | 'missing' = $state('loading');
@@ -79,7 +80,15 @@
 </script>
 
 {#if loadState === 'ready' && src}
-	<img {src} {alt} class="img" draggable="false" loading="lazy" decoding="async" />
+	<img
+		{src}
+		{alt}
+		class="img"
+		style={`object-fit: ${fit};`}
+		draggable="false"
+		loading="lazy"
+		decoding="async"
+	/>
 {:else if loadState === 'loading'}
 	<div class="ph ph-loading">
 		<div class="spinner"></div>

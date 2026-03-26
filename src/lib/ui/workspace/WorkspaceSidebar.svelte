@@ -70,8 +70,11 @@
 
 	.side-panel {
 		position: relative;
+		display: flex;
 		height: 100%;
-		min-height: 0; /* allows proper flex scrolling */
+		min-height: 0;
+		min-width: 0;
+		flex: 0 0 auto;
 	}
 
 	/* =========================================================
@@ -81,6 +84,8 @@
 	aside {
 		width: var(--panel-width);
 		height: 100%;
+		min-height: 0;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		background: #f9f9f9;
@@ -101,9 +106,11 @@
 	========================================================= */
 
 	.panel-content {
-		flex: 1;
-		overflow-y: auto;
-		scrollbar-color: rgba(0, 0, 0, 0.25) transparent; /* Firefox */
+		flex: 1 1 auto;
+		min-height: 0;
+		min-width: 0;
+		height: 100%;
+		overflow: hidden;
 	}
 
 	/* =========================================================
@@ -112,15 +119,17 @@
 
 	.toggle {
 		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
+		top: 0.8rem;
+		transform: none;
 		z-index: 10;
 
-		background: #eee;
-		border: 1px solid #ccc;
-		padding: 0.4rem 0.5rem;
+		background: rgba(255, 255, 255, 0.96);
+		border: 1px solid rgba(15, 23, 42, 0.12);
+		padding: 0.35rem 0.45rem;
+		line-height: 1;
 		cursor: pointer;
-		opacity: 0.6;
+		opacity: 0.82;
+		box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
 	}
 
 	.toggle:hover {
