@@ -129,7 +129,7 @@
 
 	.group-title {
 		font-weight: 700;
-		font-size: 1rem;
+		font-size: 0.92rem;
 		line-height: 1.15;
 		letter-spacing: -0.01em;
 		color: #111827;
@@ -172,13 +172,13 @@
 		align-items: center;
 		padding: 0.28rem 0.48rem;
 		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.94);
+		background: rgba(37, 99, 235, 0.94);
 		backdrop-filter: blur(6px);
-		color: #1f2937;
+		color: #ffffff;
 		font-size: 0.66rem;
 		font-weight: 700;
 		line-height: 1;
-		box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+		box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
 	}
 
 	.thumb-fallback {

@@ -119,8 +119,8 @@
 
 	.toggle {
 		position: absolute;
-		top: 0.8rem;
-		transform: none;
+		top: 50%;
+		transform: translateY(-50%);
 		z-index: 10;
 
 		background: rgba(255, 255, 255, 0.96);
