@@ -678,28 +678,6 @@
 							<section class="toolbar-card">
 								<div class="toolbar-grid">
 									<div class="mini-panel">
-										<div class="mini-kicker">Base image</div>
-										<div class="mini-title">
-											{baseImage ? getImageTitle(baseImage) : 'No base image'}
-										</div>
-										<div class="mini-copy">
-											The base image anchors all alignment work for this group.
-										</div>
-
-										<div class="mini-actions">
-											{#if alignmentTargetImage && alignmentTargetImage.id !== selectedGroup.baseImageId}
-												<button type="button" class="action-button" onclick={setSelectedAsBaseImage}>
-													Set selected image as base
-												</button>
-											{/if}
-
-											<button type="button" class="ghost-button danger" onclick={resetGroupWorkflow}>
-												Reset group workflow
-											</button>
-										</div>
-									</div>
-
-									<div class="mini-panel">
 										<div class="mini-kicker">Alignment</div>
 										<div class="mini-title">
 											{alignmentTargetImage

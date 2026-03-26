@@ -178,9 +178,9 @@
 	}
 
 	.count-pill.danger {
-		background: #ffb54c;
+		background: #b91c1c;
 		color: #ffffff;
-		border-color: #ffb54c;
+		border-color: #b91c1c;
 	}
 
 	.count-pill.neutral {
