@@ -95,6 +95,8 @@
 		return annotations.filter((annotation) => annotation.groupId === selectedGroup.id);
 	});
 
+	let isBaseSelectionPhase = $derived(!hasBaseImage);
+
 	let alignmentByComparedId = $derived.by(() => {
 		const map = new Map<string, (typeof alignments)[number]>();
 		for (const alignment of selectedGroupAlignments) map.set(alignment.comparedImageId, alignment);
@@ -117,10 +119,35 @@
 		alignmentTargetImage ? (alignmentByComparedId.get(alignmentTargetImage.id) ?? null) : null
 	);
 
+	let selectedImage = $derived(
+		selectedImageId
+			? (selectedGroupImages.find((image) => image.id === selectedImageId) ?? null)
+			: null
+	);
+
+	let orderedStripImages = $derived.by(() => {
+		if (!selectedGroup) return selectedGroupImages;
+		if (!selectedGroup.baseImageId) return selectedGroupImages;
+
+		return [...selectedGroupImages].sort((a, b) => {
+			if (a.id === selectedGroup.baseImageId) return -1;
+			if (b.id === selectedGroup.baseImageId) return 1;
+			return 0;
+		});
+	});
+
+	let confirmedAlignmentIds = $derived.by(() => {
+		const ids = new Set<string>();
+		for (const alignment of confirmedAlignments) {
+			ids.add(alignment.comparedImageId);
+		}
+		return ids;
+	});
+
 	let referenceImage = $derived.by(() => {
 		if (!selectedGroup) return null;
 		const pool = canAnnotate ? alignedImages : selectedGroupImages;
-		const fallbackId = selectedGroup.baseImageId ?? pool[0]?.id ?? null;
+		const fallbackId = selectedGroup.baseImageId || pool[0]?.id || null;
 		const targetId = referenceImageId ?? fallbackId;
 		return (
 			pool.find((image) => image.id === targetId) ??
@@ -230,7 +257,7 @@
 			return;
 		}
 
-		const fallbackId = selectedGroup.baseImageId ?? referencePool[0]?.id ?? null;
+		const fallbackId = selectedGroup.baseImageId || referencePool[0]?.id || null;
 		const valid = referenceImageId && referencePool.some((image) => image.id === referenceImageId);
 		if (!valid) {
 			referenceImageId = fallbackId;
@@ -280,11 +307,13 @@
 		rightPanelOpen = true;
 	}
 
-	function setSelectedAsBaseImage() {
-		if (!selectedGroup || !alignmentTargetImage) return;
+	function setImageAsBase(imageId: string) {
+		if (!selectedGroup) return;
+		const nextBaseImage = selectedGroupImages.find((image) => image.id === imageId) ?? null;
+		if (!nextBaseImage) return;
 		if (
 			!window.confirm(
-				`Set "${getImageTitle(alignmentTargetImage)}" as the base image for this group?`
+				`Set "${getImageTitle(nextBaseImage)}" as the base image for this group?`
 			)
 		) {
 			return;
@@ -293,14 +322,17 @@
 		mutateProject((nextProject) => {
 			const targetGroup = nextProject.groups.find((group) => group.id === selectedGroup.id);
 			if (!targetGroup) return;
-			targetGroup.baseImageId = alignmentTargetImage.id;
+			targetGroup.baseImageId = nextBaseImage.id;
 		});
 
-		referenceImageId = alignmentTargetImage.id;
-		selectedImageId =
-			selectedGroup.imageIds.find((imageId) => imageId !== alignmentTargetImage.id) ??
-			alignmentTargetImage.id;
+		referenceImageId = nextBaseImage.id;
+		selectedImageId = nextBaseImage.id;
 		selectedAnnotationId = null;
+	}
+
+	function setSelectedAsBaseImage() {
+		if (!alignmentTargetImage) return;
+		setImageAsBase(alignmentTargetImage.id);
 	}
 
 	function confirmAlignment() {
@@ -339,6 +371,33 @@
 		selectedAnnotationId = null;
 		referenceImageId = selectedGroup.imageIds[0] ?? null;
 		selectedImageId = selectedGroup.imageIds[1] ?? selectedGroup.imageIds[0] ?? null;
+	}
+
+	function resetBaseSelection() {
+		if (!selectedGroup) return;
+
+		const confirmed = window.confirm(
+			`Reset the base image for "${getGroupLabel(selectedGroup)}"? This clears the group's alignments and annotations and leaves the group with no base image set.`
+		);
+
+		if (!confirmed) return;
+
+		mutateProject((nextProject) => {
+			nextProject.alignments = nextProject.alignments.filter(
+				(alignment) => alignment.groupId !== selectedGroup.id
+			);
+			nextProject.annotations = nextProject.annotations.filter(
+				(annotation) => annotation.groupId !== selectedGroup.id
+			);
+
+			const targetGroup = nextProject.groups.find((group) => group.id === selectedGroup.id);
+			if (!targetGroup) return;
+			targetGroup.baseImageId = '';
+		});
+
+		selectedImageId = selectedGroup.imageIds[0] ?? null;
+		referenceImageId = null;
+		selectedAnnotationId = null;
 	}
 
 	function resetSelectedImageWorkflow() {
@@ -439,6 +498,7 @@
 	}
 
 	let viewerMode = $derived.by(() => {
+		if (isBaseSelectionPhase) return 'base-selection';
 		if (!hasBaseImage) return 'base';
 		if (canAnnotate && referenceImage && comparedImage) return 'annotate';
 		if (baseImage && alignmentTargetImage) return 'align';
@@ -446,6 +506,8 @@
 	});
 
 	let previewBaseImage = $derived.by(() => {
+		if (viewerMode === 'base-selection')
+			return selectedImage ?? baseImage ?? selectedGroupImages[0] ?? null;
 		if (viewerMode === 'annotate') return referenceImage;
 		if (viewerMode === 'align') return baseImage;
 		return alignmentTargetImage ?? baseImage ?? selectedGroupImages[0] ?? null;
@@ -611,36 +673,32 @@
 				</section>
 
 				<div class="main-body">
-					<section class="stage-column">
-						<section class="toolbar-card">
-							<div class="toolbar-grid">
-								<div class="mini-panel">
-									<div class="mini-kicker">Base image</div>
-									<div class="mini-title">
-										{baseImage ? getImageTitle(baseImage) : 'No base image'}
-									</div>
-									<div class="mini-copy">
-										{#if hasBaseImage}
+					<section class="stage-column" class:base-selection-layout={isBaseSelectionPhase}>
+						{#if !isBaseSelectionPhase}
+							<section class="toolbar-card">
+								<div class="toolbar-grid">
+									<div class="mini-panel">
+										<div class="mini-kicker">Base image</div>
+										<div class="mini-title">
+											{baseImage ? getImageTitle(baseImage) : 'No base image'}
+										</div>
+										<div class="mini-copy">
 											The base image anchors all alignment work for this group.
-										{:else}
-											Pick an image in the filmstrip and make it the base before continuing.
-										{/if}
-									</div>
+										</div>
 
-									<div class="mini-actions">
-										{#if alignmentTargetImage && alignmentTargetImage.id !== selectedGroup.baseImageId}
-											<button type="button" class="action-button" onclick={setSelectedAsBaseImage}>
-												Set selected image as base
+										<div class="mini-actions">
+											{#if alignmentTargetImage && alignmentTargetImage.id !== selectedGroup.baseImageId}
+												<button type="button" class="action-button" onclick={setSelectedAsBaseImage}>
+													Set selected image as base
+												</button>
+											{/if}
+
+											<button type="button" class="ghost-button danger" onclick={resetGroupWorkflow}>
+												Reset group workflow
 											</button>
-										{/if}
-
-										<button type="button" class="ghost-button danger" onclick={resetGroupWorkflow}>
-											Reset group workflow
-										</button>
+										</div>
 									</div>
-								</div>
 
-								{#if hasBaseImage}
 									<div class="mini-panel">
 										<div class="mini-kicker">Alignment</div>
 										<div class="mini-title">
@@ -652,8 +710,7 @@
 											{#if activeAlignment}
 												{activeAlignment.status === 'confirmed' ? 'Confirmed' : 'Draft'} · {activeAlignment.schemaId}
 											{:else}
-												Select an image from the filmstrip to work on its alignment against the
-												base.
+												Select an image from the filmstrip to work on its alignment against the base.
 											{/if}
 										</div>
 
@@ -663,8 +720,7 @@
 												<select
 													value={alignmentApproach}
 													onchange={(event) =>
-														(alignmentApproach = (event.currentTarget as HTMLSelectElement)
-															.value as typeof alignmentApproach)}
+														(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
 												>
 													<option value="auto">Automatic</option>
 													<option value="feature">Feature match</option>
@@ -695,97 +751,97 @@
 										</div>
 
 										<div class="mini-note">
-											Changing this image's alignment clears annotations that involve it so we do
-											not leave stale cross-image comparisons behind.
+											Changing this image's alignment clears annotations that involve it so we do not leave stale cross-image comparisons behind.
 										</div>
 									</div>
-								{/if}
 
-								{#if canAnnotate}
-									<div class="mini-panel">
-										<div class="mini-kicker">Compare and annotate</div>
-										<div class="mini-title">
-											{referenceImage ? getImageTitle(referenceImage) : 'Reference'} -> {comparedImage
-												? getImageTitle(comparedImage)
-												: 'Compared'}
+									{#if canAnnotate}
+										<div class="mini-panel">
+											<div class="mini-kicker">Compare and annotate</div>
+											<div class="mini-title">
+												{referenceImage ? getImageTitle(referenceImage) : 'Reference'} -> {comparedImage
+													? getImageTitle(comparedImage)
+													: 'Compared'}
+											</div>
+											<div class="mini-copy">
+												Only confirmed alignments are offered here, so pairwise comparison stays on stable geometry.
+											</div>
+
+											<div class="field-row double">
+												<label class="field">
+													<span>Reference</span>
+													<select
+														value={referenceImage?.id ?? ''}
+														onchange={(event) =>
+															selectReferenceImage((event.currentTarget as HTMLSelectElement).value)}
+													>
+														{#each alignedImages as image (image.id)}
+															<option value={image.id}>{getImageTitle(image)}</option>
+														{/each}
+													</select>
+												</label>
+
+												<label class="field">
+													<span>Compared</span>
+													<select
+														value={comparedImage?.id ?? ''}
+														onchange={(event) =>
+															selectImage((event.currentTarget as HTMLSelectElement).value)}
+													>
+														{#each alignedImages as image (image.id)}
+															<option value={image.id} disabled={image.id === referenceImage?.id}>
+																{getImageTitle(image)}
+															</option>
+														{/each}
+													</select>
+												</label>
+											</div>
+
+											<div class="mini-note">
+												Selecting an annotation in the right sidebar restores the same pair.
+											</div>
 										</div>
-										<div class="mini-copy">
-											Only confirmed alignments are offered here, so pairwise comparison stays on
-											stable geometry.
-										</div>
-
-										<div class="field-row double">
-											<label class="field">
-												<span>Reference</span>
-												<select
-													value={referenceImage?.id ?? ''}
-													onchange={(event) =>
-														selectReferenceImage((event.currentTarget as HTMLSelectElement).value)}
-												>
-													{#each alignedImages as image (image.id)}
-														<option value={image.id}>{getImageTitle(image)}</option>
-													{/each}
-												</select>
-											</label>
-
-											<label class="field">
-												<span>Compared</span>
-												<select
-													value={comparedImage?.id ?? ''}
-													onchange={(event) =>
-														selectImage((event.currentTarget as HTMLSelectElement).value)}
-												>
-													{#each alignedImages as image (image.id)}
-														<option value={image.id} disabled={image.id === referenceImage?.id}>
-															{getImageTitle(image)}
-														</option>
-													{/each}
-												</select>
-											</label>
-										</div>
-
-										<div class="mini-note">
-											Selecting an annotation in the right sidebar restores the same pair.
-										</div>
-									</div>
-								{/if}
-							</div>
-						</section>
-
-						<section class="viewer-card">
-							<div class="viewer-card-head">
-								<div>
-									<div class="viewer-title">
-										{#if viewerMode === 'annotate' && referenceImage && comparedImage}
-											{getImageTitle(referenceImage)} -> {getImageTitle(comparedImage)}
-										{:else if viewerMode === 'align' && baseImage && alignmentTargetImage}
-											{getImageTitle(baseImage)} -> {getImageTitle(alignmentTargetImage)}
-										{:else if previewBaseImage}
-											{getImageTitle(previewBaseImage)}
-										{:else}
-											Viewer
-										{/if}
-									</div>
-									<div class="viewer-subtitle">
-										{#if viewerMode === 'annotate'}
-											Annotated comparison viewer
-										{:else if viewerMode === 'align'}
-											Simple compare viewer for alignment review
-										{:else}
-											Base-image preview
-										{/if}
-									</div>
-								</div>
-
-								<div class="viewer-meta">
-									{#if viewerMode === 'annotate'}
-										<span>{activePairAnnotations.length} pair annotations</span>
-									{:else if viewerMode === 'align' && activeAlignment}
-										<span>{activeAlignment.status}</span>
-										<span>{activeAlignment.result.transformModel}</span>
 									{/if}
 								</div>
-							</div>
+							</section>
+						{/if}
+
+						<section class="viewer-card" class:viewer-stage-only={isBaseSelectionPhase}>
+							{#if !isBaseSelectionPhase}
+								<div class="viewer-card-head">
+									<div>
+										<div class="viewer-title">
+											{#if viewerMode === 'annotate' && referenceImage && comparedImage}
+												{getImageTitle(referenceImage)} -> {getImageTitle(comparedImage)}
+											{:else if viewerMode === 'align' && baseImage && alignmentTargetImage}
+												{getImageTitle(baseImage)} -> {getImageTitle(alignmentTargetImage)}
+											{:else if previewBaseImage}
+												{getImageTitle(previewBaseImage)}
+											{:else}
+												Viewer
+											{/if}
+										</div>
+										<div class="viewer-subtitle">
+											{#if viewerMode === 'annotate'}
+												Annotated comparison viewer
+											{:else if viewerMode === 'align'}
+												Simple compare viewer for alignment review
+											{:else}
+												Base-image preview
+											{/if}
+										</div>
+									</div>
+
+									<div class="viewer-meta">
+										{#if viewerMode === 'annotate'}
+											<span>{activePairAnnotations.length} pair annotations</span>
+										{:else if viewerMode === 'align' && activeAlignment}
+											<span>{activeAlignment.status}</span>
+											<span>{activeAlignment.result.transformModel}</span>
+										{/if}
+									</div>
+								</div>
+							{/if}
 
 							<div class="viewer-shell">
 								{#if previewState === 'ready' && baseUrl}
@@ -812,8 +868,8 @@
 												{overlayUrl}
 												showHomeControl={true}
 												showZoomControl={true}
-												wheelAdjustOpacity={viewerMode !== 'base'}
-												enableHoldShowBasePreview={viewerMode !== 'base'}
+												wheelAdjustOpacity={viewerMode !== 'base-selection'}
+												enableHoldShowBasePreview={viewerMode !== 'base-selection'}
 												refreshKey={viewerRefreshKey}
 											/>
 										{/if}
@@ -836,66 +892,95 @@
 							</div>
 						</section>
 
-						<section class="filmstrip-card">
-							<div class="filmstrip-head">
+						<section class="filmstrip-card filmstrip-footer">
+							<div class="filmstrip-head" class:filmstrip-head-flat={isBaseSelectionPhase}>
 								<div>
-									<div class="mini-kicker">Group images</div>
-									<div class="mini-title">Filmstrip</div>
+									<div class="filmstrip-title-bar">Group Images</div>
 								</div>
-								<div class="mini-copy">
-									{#if canAnnotate}
-										Choose the compared image here. Use the compare selector above for the reference
-										image.
-									{:else}
-										Choose the image you want to preview or align against the base.
-									{/if}
-								</div>
+								<button type="button" class="ghost-button danger compact" onclick={resetBaseSelection}>
+									Reset base image
+								</button>
 							</div>
 
-							<div class="filmstrip" aria-label="Images in selected group">
-								{#each selectedGroupImages as image (image.id)}
+							<div class="filmstrip" class:filmstrip-flat={isBaseSelectionPhase} aria-label="Images in selected group">
+								{#each orderedStripImages as image (image.id)}
 									{@const alignment = alignmentByComparedId.get(image.id)}
-									<button
-										type="button"
-										class="filmstrip-item"
-										class:selected={image.id === selectedImageId}
-										class:reference={image.id === referenceImage?.id}
-										class:base={image.id === selectedGroup.baseImageId}
-										class:annotatable={alignedImageIds.has(image.id)}
-										onclick={() => selectImage(image.id)}
-									>
-										<div class="filmstrip-thumb">
-											<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
-										</div>
+									{#if isBaseSelectionPhase}
+										<div
+											class="filmstrip-item filmstrip-item-flat"
+											class:selected={image.id === selectedImageId}
+											class:base={image.id === selectedGroup.baseImageId}
+										>
+											<button type="button" class="filmstrip-select" onclick={() => selectImage(image.id)}>
+												<div class="filmstrip-thumb">
+													<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
+												</div>
 
-										<div class="filmstrip-copy">
-											<div class="filmstrip-title">{getImageTitle(image)}</div>
-											<div class="filmstrip-subline">
-												{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions
-													.height}
-											</div>
-											<div class="filmstrip-tags">
-												{#if image.id === selectedGroup.baseImageId}
-													<span class="mini-tag base">Base</span>
-												{/if}
-												{#if image.id === referenceImage?.id && canAnnotate}
-													<span class="mini-tag ref">Reference</span>
-												{/if}
-												{#if image.id === selectedImageId}
-													<span class="mini-tag current"
-														>{canAnnotate ? 'Compared' : 'Selected'}</span
-													>
-												{/if}
-												{#if alignment}
-													<span
-														class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}
-													>
-														{alignment.status}
-													</span>
-												{/if}
+												<div class="filmstrip-copy">
+													<div class="filmstrip-title">{getImageTitle(image)}</div>
+													<div class="filmstrip-subline">
+														{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
+													</div>
+												</div>
+											</button>
+
+											<div class="filmstrip-actions">
+												<button
+													type="button"
+													class="inline-action"
+													disabled={image.id === selectedGroup.baseImageId}
+													onclick={() => {
+														selectImage(image.id);
+														setImageAsBase(image.id);
+													}}
+												>
+													{image.id === selectedGroup.baseImageId ? 'Base image' : 'Set as base image'}
+												</button>
 											</div>
 										</div>
-									</button>
+									{:else}
+										<button
+											type="button"
+											class="filmstrip-item"
+											class:selected={image.id === selectedImageId}
+											class:reference={image.id === referenceImage?.id}
+											class:annotatable={alignedImageIds.has(image.id)}
+											onclick={() => selectImage(image.id)}
+										>
+											<div class="filmstrip-thumb">
+												<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
+											</div>
+
+											<div class="filmstrip-copy">
+												<div class="filmstrip-title">{getImageTitle(image)}</div>
+												<div class="filmstrip-subline">
+													{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
+												</div>
+												<div class="filmstrip-tags">
+													{#if image.id === selectedGroup.baseImageId}
+														<span class="mini-tag base">Base</span>
+													{/if}
+													{#if image.id === referenceImage?.id && canAnnotate}
+														<span class="mini-tag ref">Reference</span>
+													{/if}
+													{#if image.id === selectedImageId}
+														<span class="mini-tag current">{canAnnotate ? 'Compared' : 'Selected'}</span>
+													{/if}
+													{#if image.id !== selectedGroup.baseImageId}
+														{#if confirmedAlignmentIds.has(image.id)}
+															<span class="mini-tag ok">Aligned</span>
+														{:else}
+															<span class="mini-tag action">Align image</span>
+														{/if}
+													{:else if alignment}
+														<span class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}>
+															{alignment.status}
+														</span>
+													{/if}
+												</div>
+											</div>
+										</button>
+									{/if}
 								{/each}
 							</div>
 						</section>
@@ -1090,6 +1175,12 @@
 		padding: 0.9rem;
 	}
 
+	.stage-column.base-selection-layout {
+		gap: 0;
+		padding: 0;
+		grid-template-rows: minmax(0, 1fr) auto;
+	}
+
 	.toolbar-card,
 	.viewer-card,
 	.filmstrip-card {
@@ -1216,6 +1307,13 @@
 		overflow: hidden;
 	}
 
+	.viewer-card.viewer-stage-only {
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		background: transparent;
+	}
+
 	.viewer-card-head,
 	.filmstrip-head,
 	.right-sidebar-header {
@@ -1242,6 +1340,13 @@
 			radial-gradient(circle at top, rgba(14, 116, 144, 0.08), transparent 24%),
 			linear-gradient(180deg, #eef2ff, #f8fafc);
 		overflow: hidden;
+	}
+
+	.viewer-stage-only .viewer-shell {
+		min-height: 0;
+		height: 100%;
+		border-top: none;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 	}
 
 	.viewer-empty {
@@ -1277,6 +1382,30 @@
 		padding: 0 0 0.8rem;
 	}
 
+	.filmstrip-card.filmstrip-footer {
+		margin-left: -0.9rem;
+		margin-right: -0.9rem;
+		margin-bottom: -0.9rem;
+		padding: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		background: rgba(255, 255, 255, 0.96);
+		border-top: 1px solid rgba(15, 23, 42, 0.08);
+	}
+
+	.filmstrip-head.filmstrip-head-flat {
+		padding: 0.6rem 1rem 0.55rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		align-items: center;
+	}
+
+	.filmstrip-title-bar {
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: #0f172a;
+	}
+
 	.filmstrip {
 		display: grid;
 		grid-auto-flow: column;
@@ -1284,6 +1413,12 @@
 		gap: 0.75rem;
 		overflow-x: auto;
 		padding: 0 0.9rem;
+	}
+
+	.filmstrip.filmstrip-flat {
+		padding: 0;
+		gap: 0;
+		grid-auto-columns: minmax(220px, 260px);
 	}
 
 	.filmstrip-item {
@@ -1299,6 +1434,25 @@
 		color: inherit;
 	}
 
+	.filmstrip-item-flat {
+		border: none;
+		border-right: 1px solid rgba(15, 23, 42, 0.08);
+		border-radius: 0;
+		background: transparent;
+		padding: 0;
+		grid-template-columns: 1fr;
+		gap: 0;
+		min-height: 100%;
+	}
+
+	.filmstrip-item-flat.selected {
+		background: rgba(239, 246, 255, 0.72);
+	}
+
+	.filmstrip-item-flat.base {
+		box-shadow: inset 0 1px 0 rgba(59, 130, 246, 0.14);
+	}
+
 	.filmstrip-item.selected {
 		border-color: rgba(37, 99, 235, 0.34);
 		background: linear-gradient(180deg, #ffffff, #eff6ff);
@@ -1306,10 +1460,6 @@
 
 	.filmstrip-item.reference {
 		box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.3);
-	}
-
-	.filmstrip-item.base {
-		border-left: 4px solid #2563eb;
 	}
 
 	.filmstrip-item.annotatable:not(.base) {
@@ -1323,6 +1473,20 @@
 		overflow: hidden;
 		border: 1px solid rgba(15, 23, 42, 0.08);
 		background: #f8fafc;
+	}
+
+	.filmstrip-select {
+		appearance: none;
+		border: none;
+		background: transparent;
+		padding: 0.85rem 0.95rem 0.7rem;
+		display: grid;
+		grid-template-columns: 68px minmax(0, 1fr);
+		gap: 0.75rem;
+		text-align: left;
+		cursor: pointer;
+		color: inherit;
+		width: 100%;
 	}
 
 	.filmstrip-copy {
@@ -1348,6 +1512,10 @@
 		gap: 0.28rem;
 	}
 
+	.filmstrip-actions {
+		padding: 0 0.95rem 0.85rem;
+	}
+
 	.mini-tag {
 		padding: 0.18rem 0.42rem;
 		font-size: 0.66rem;
@@ -1361,9 +1529,37 @@
 		color: #1d4ed8;
 	}
 
+	.mini-tag.action {
+		background: rgba(226, 232, 240, 0.72);
+		color: #334155;
+	}
+
 	.mini-tag.ref {
 		background: rgba(245, 158, 11, 0.12);
 		color: #b45309;
+	}
+
+	.inline-action {
+		width: 100%;
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		background: #fff;
+		color: #334155;
+		border-radius: 10px;
+		padding: 0.62rem 0.75rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.inline-action:disabled {
+		cursor: default;
+		color: #1d4ed8;
+		background: rgba(219, 234, 254, 0.72);
+		border-color: rgba(59, 130, 246, 0.18);
+	}
+
+	.ghost-button.compact {
+		padding: 0.46rem 0.68rem;
+		font-size: 0.74rem;
 	}
 
 	.mini-tag.current {
