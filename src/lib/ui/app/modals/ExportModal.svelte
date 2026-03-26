@@ -46,13 +46,14 @@
 </script>
 
 {#if open}
-	<div class="backdrop" role="presentation" onclick={onClose}>
+	<div class="backdrop" role="presentation">
+		<button class="backdrop-dismiss" type="button" aria-label="Close export dialog" onclick={onClose}></button>
 		<div
 			class="modal"
 			role="dialog"
 			aria-modal="true"
 			aria-label="Export project"
-			onclick={(event) => event.stopPropagation()}
+			tabindex="-1"
 		>
 			<div class="header">
 				<h2>Export</h2>
@@ -106,10 +107,20 @@
 		display: grid;
 		place-items: center;
 		padding: 1rem;
+	}
+
+	.backdrop-dismiss {
+		position: absolute;
+		inset: 0;
+		border: 0;
+		padding: 0;
 		background: rgba(15, 23, 42, 0.38);
+		cursor: pointer;
 	}
 
 	.modal {
+		position: relative;
+		z-index: 1;
 		width: min(42rem, 100%);
 		border-radius: 18px;
 		background: #fff;

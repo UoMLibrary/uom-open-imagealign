@@ -25,8 +25,9 @@
 </script>
 
 {#if open}
-	<div class="backdrop" onclick={close}>
-		<div class="modal" onclick={(event) => event.stopPropagation()}>
+	<div class="backdrop" role="presentation">
+		<button class="backdrop-dismiss" type="button" aria-label="Close dialog" onclick={close}></button>
+		<div class="modal" role="dialog" aria-modal="true" aria-label={title || 'Dialog'} tabindex="-1">
 			<header class="modal-header">
 				<div class="modal-title">
 					{#if title}
@@ -51,18 +52,28 @@
 		position: fixed;
 		inset: 0;
 
-		background: rgba(0, 0, 0, 0.45);
-		backdrop-filter: blur(2px);
-
 		display: grid;
 		place-items: center;
+		padding: 1rem;
 
 		z-index: 1000;
+	}
+
+	.backdrop-dismiss {
+		position: absolute;
+		inset: 0;
+		border: 0;
+		padding: 0;
+		background: rgba(0, 0, 0, 0.45);
+		backdrop-filter: blur(2px);
+		cursor: pointer;
 	}
 
 	/* ---------- Modal shell ---------- */
 
 	.modal {
+		position: relative;
+		z-index: 1;
 		display: flex;
 		flex-direction: column;
 
