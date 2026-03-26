@@ -1,8 +1,7 @@
 /**
  * Grouping Strategies
  * 
- * Consolidates all image grouping algorithms.
- * Used by groupService to generate proposals.
+ * Consolidates the active image grouping algorithms.
  */
 
 import type { ImageSource } from '$lib/core/types';

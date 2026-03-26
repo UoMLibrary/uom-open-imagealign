@@ -188,14 +188,14 @@
 </script>
 
 <svelte:head>
-	<title>VGG Align</title>
+	<title>CompareAnnotate</title>
 </svelte:head>
 
 <div class="page-shell">
 	<section class="setup-panel panel">
 		<div class="setup-row">
 			<div class="title-wrap">
-				<h1>VGG Align</h1>
+				<h1>CompareAnnotate</h1>
 				<p>Load two images, generate a transform, then inspect the result below.</p>
 			</div>
 

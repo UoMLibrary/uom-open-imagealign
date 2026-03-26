@@ -1,4 +1,6 @@
 <script lang="ts">
+	import CompareAnnotateWordmark from '$lib/ui/app/Logo.svelte';
+
 	type ViewMode = 'workspace' | 'settings';
 
 	type Props = {
@@ -26,7 +28,7 @@
 	};
 
 	let {
-		appTitle = 'Image Alignment Tool',
+		appTitle = 'CompareAnnotate',
 
 		activeView = 'workspace',
 
@@ -193,13 +195,13 @@
 		</div>
 
 		<div class="title">
-			<a
+			<!-- <a
 				href="https://github.com/UoMLibrary/uom-open-imagealign/"
 				target="_blank"
 				rel="noopener noreferrer"
-			>
-				{appTitle}
-			</a>
+			> -->
+			<CompareAnnotateWordmark tag="div" size="clamp(1rem, 2vw, 1.35rem)" align="center" />
+			<!-- </a> -->
 		</div>
 	</header>
 </div>
