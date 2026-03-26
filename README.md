@@ -333,3 +333,37 @@ Deterministic. Clean.
 - [ ] Allow import of Tiff images (convert to another cached form)
 - [ ] Rethink Result panel from Base + other to any images
 - [ ] Handle Tiffs
+
+TODO: Refactored but now the control from the button is not working again
+
+Import grouping function
+Export function
+Shape of data for annotation
+
+annotationConfig: {
+sourceProfileId: 'schema-456',
+sourceProfileName: 'Basic annotation',
+schema: {
+title: 'Annotation',
+type: 'object',
+required: ['label'],
+properties: {
+label: { type: 'string', title: 'Label' },
+category: {
+type: 'string',
+title: 'Category',
+enum: ['damage', 'marginalia', 'print', 'hand', 'other']
+},
+notes: { type: 'string', title: 'Notes' },
+needsReview: { type: 'boolean', title: 'Needs review' }
+}
+},
+defaultData: {
+label: '',
+category: 'other',
+notes: '',
+needsReview: false
+}
+}
+
+Need to add a log in to demonstrate that the user name is saved along with the dataGet annotations showing upGet Form shaped by JSON and using default valuesGet Speech to text hooked back inGet data export workingGet open from spreadsheet working
