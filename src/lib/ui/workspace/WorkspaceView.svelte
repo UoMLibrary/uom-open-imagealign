@@ -257,8 +257,12 @@
 				</div>
 
 				<div class="sidebar-footer">
-					{images.length} images {groups.length} groups {alignments.length} alignments {annotations.length}
-					annotations
+					<div class="footer-stats">
+						<span>{images.length} images</span>
+						<span>{groups.length} groups</span>
+						<span>{alignments.length} alignments</span>
+						<span>{annotations.length} annotations</span>
+					</div>
 				</div>
 			</div>
 		</WorkspaceSidebar>
@@ -339,6 +343,12 @@
 		min-width: 0;
 		min-height: 0;
 		background: rgba(255, 255, 255, 0.92);
+		font-family:
+			system-ui,
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			sans-serif;
 	}
 
 	.sidebar-header {
@@ -386,6 +396,13 @@
 		background: rgba(255, 255, 255, 0.96);
 		font-size: 0.72rem;
 		color: #64748b;
+		line-height: 1.4;
+	}
+
+	.footer-stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.45rem;
 	}
 
 	.group-list {
