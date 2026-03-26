@@ -104,7 +104,9 @@
 	let alignmentTargetImage = $derived.by(() => {
 		if (!selectedGroup || selectedGroupImages.length === 0) return null;
 
-		const validImages = selectedGroupImages.filter((image) => image.id !== selectedGroup.baseImageId);
+		const validImages = selectedGroupImages.filter(
+			(image) => image.id !== selectedGroup.baseImageId
+		);
 		if (validImages.length === 0) return null;
 
 		const selected = validImages.find((image) => image.id === selectedImageId);
@@ -120,7 +122,10 @@
 		const pool = canAnnotate ? alignedImages : selectedGroupImages;
 		const fallbackId = selectedGroup.baseImageId ?? pool[0]?.id ?? null;
 		const targetId = referenceImageId ?? fallbackId;
-		return pool.find((image) => image.id === targetId) ?? (fallbackId ? imageById.get(fallbackId) ?? null : null);
+		return (
+			pool.find((image) => image.id === targetId) ??
+			(fallbackId ? (imageById.get(fallbackId) ?? null) : null)
+		);
 	});
 
 	let comparedImage = $derived.by(() => {
@@ -139,7 +144,8 @@
 		comparedId: string | null
 	): boolean {
 		if (!anchorId || !comparedId) return false;
-		if (annotation.anchorImageId === anchorId && annotation.targetImageIds.includes(comparedId)) return true;
+		if (annotation.anchorImageId === anchorId && annotation.targetImageIds.includes(comparedId))
+			return true;
 
 		const allIds = new Set([annotation.anchorImageId, ...annotation.targetImageIds]);
 		return allIds.has(anchorId) && allIds.has(comparedId);
@@ -233,7 +239,8 @@
 
 	$effect(() => {
 		if (!selectedAnnotationId) return;
-		if (selectedGroupAnnotations.some((annotation) => annotation.id === selectedAnnotationId)) return;
+		if (selectedGroupAnnotations.some((annotation) => annotation.id === selectedAnnotationId))
+			return;
 		selectedAnnotationId = null;
 	});
 
@@ -275,7 +282,11 @@
 
 	function setSelectedAsBaseImage() {
 		if (!selectedGroup || !alignmentTargetImage) return;
-		if (!window.confirm(`Set "${getImageTitle(alignmentTargetImage)}" as the base image for this group?`)) {
+		if (
+			!window.confirm(
+				`Set "${getImageTitle(alignmentTargetImage)}" as the base image for this group?`
+			)
+		) {
 			return;
 		}
 
@@ -287,7 +298,8 @@
 
 		referenceImageId = alignmentTargetImage.id;
 		selectedImageId =
-			selectedGroup.imageIds.find((imageId) => imageId !== alignmentTargetImage.id) ?? alignmentTargetImage.id;
+			selectedGroup.imageIds.find((imageId) => imageId !== alignmentTargetImage.id) ??
+			alignmentTargetImage.id;
 		selectedAnnotationId = null;
 	}
 
@@ -312,8 +324,12 @@
 		if (!confirmed) return;
 
 		mutateProject((nextProject) => {
-			nextProject.alignments = nextProject.alignments.filter((alignment) => alignment.groupId !== selectedGroup.id);
-			nextProject.annotations = nextProject.annotations.filter((annotation) => annotation.groupId !== selectedGroup.id);
+			nextProject.alignments = nextProject.alignments.filter(
+				(alignment) => alignment.groupId !== selectedGroup.id
+			);
+			nextProject.annotations = nextProject.annotations.filter(
+				(annotation) => annotation.groupId !== selectedGroup.id
+			);
 
 			const targetGroup = nextProject.groups.find((group) => group.id === selectedGroup.id);
 			if (!targetGroup) return;
@@ -576,18 +592,21 @@
 			{#if selectedGroup}
 				<section class="group-header-card">
 					<div class="group-line">
-						<div>
-							<div class="group-name">
-								Group: {getGroupLabel(selectedGroup)}
-								<span class="group-header-sub"><code>({selectedGroup.id})</code></span>
-							</div>
+						<div class="group-heading">
+							<div class="group-name">Group: {getGroupLabel(selectedGroup)}</div>
 							<div class="group-summary">
 								{selectedGroup.imageIds.length} images · {selectedGroupAlignments.length} alignments ·
 								{selectedGroupAnnotations.length} annotations
 							</div>
 						</div>
 
-						<div class="phase-pill">{viewerMode === 'annotate' ? 'Annotate' : viewerMode === 'align' ? 'Align' : 'Choose base'}</div>
+						<div class="phase-pill">
+							{viewerMode === 'annotate'
+								? 'Annotate'
+								: viewerMode === 'align'
+									? 'Align'
+									: 'Choose base'}
+						</div>
 					</div>
 				</section>
 
@@ -597,7 +616,9 @@
 							<div class="toolbar-grid">
 								<div class="mini-panel">
 									<div class="mini-kicker">Base image</div>
-									<div class="mini-title">{baseImage ? getImageTitle(baseImage) : 'No base image'}</div>
+									<div class="mini-title">
+										{baseImage ? getImageTitle(baseImage) : 'No base image'}
+									</div>
 									<div class="mini-copy">
 										{#if hasBaseImage}
 											The base image anchors all alignment work for this group.
@@ -623,13 +644,16 @@
 									<div class="mini-panel">
 										<div class="mini-kicker">Alignment</div>
 										<div class="mini-title">
-											{alignmentTargetImage ? getImageTitle(alignmentTargetImage) : 'No target image'}
+											{alignmentTargetImage
+												? getImageTitle(alignmentTargetImage)
+												: 'No target image'}
 										</div>
 										<div class="mini-copy">
 											{#if activeAlignment}
 												{activeAlignment.status === 'confirmed' ? 'Confirmed' : 'Draft'} · {activeAlignment.schemaId}
 											{:else}
-												Select an image from the filmstrip to work on its alignment against the base.
+												Select an image from the filmstrip to work on its alignment against the
+												base.
 											{/if}
 										</div>
 
@@ -639,7 +663,8 @@
 												<select
 													value={alignmentApproach}
 													onchange={(event) =>
-														(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
+														(alignmentApproach = (event.currentTarget as HTMLSelectElement)
+															.value as typeof alignmentApproach)}
 												>
 													<option value="auto">Automatic</option>
 													<option value="feature">Feature match</option>
@@ -659,14 +684,19 @@
 											</button>
 
 											{#if alignmentTargetImage}
-												<button type="button" class="ghost-button" onclick={resetSelectedImageWorkflow}>
+												<button
+													type="button"
+													class="ghost-button"
+													onclick={resetSelectedImageWorkflow}
+												>
 													Reset this image's workflow
 												</button>
 											{/if}
 										</div>
 
 										<div class="mini-note">
-											Changing this image's alignment clears annotations that involve it so we do not leave stale cross-image comparisons behind.
+											Changing this image's alignment clears annotations that involve it so we do
+											not leave stale cross-image comparisons behind.
 										</div>
 									</div>
 								{/if}
@@ -675,10 +705,13 @@
 									<div class="mini-panel">
 										<div class="mini-kicker">Compare and annotate</div>
 										<div class="mini-title">
-											{referenceImage ? getImageTitle(referenceImage) : 'Reference'} -> {comparedImage ? getImageTitle(comparedImage) : 'Compared'}
+											{referenceImage ? getImageTitle(referenceImage) : 'Reference'} -> {comparedImage
+												? getImageTitle(comparedImage)
+												: 'Compared'}
 										</div>
 										<div class="mini-copy">
-											Only confirmed alignments are offered here, so pairwise comparison stays on stable geometry.
+											Only confirmed alignments are offered here, so pairwise comparison stays on
+											stable geometry.
 										</div>
 
 										<div class="field-row double">
@@ -686,7 +719,8 @@
 												<span>Reference</span>
 												<select
 													value={referenceImage?.id ?? ''}
-													onchange={(event) => selectReferenceImage((event.currentTarget as HTMLSelectElement).value)}
+													onchange={(event) =>
+														selectReferenceImage((event.currentTarget as HTMLSelectElement).value)}
 												>
 													{#each alignedImages as image (image.id)}
 														<option value={image.id}>{getImageTitle(image)}</option>
@@ -698,7 +732,8 @@
 												<span>Compared</span>
 												<select
 													value={comparedImage?.id ?? ''}
-													onchange={(event) => selectImage((event.currentTarget as HTMLSelectElement).value)}
+													onchange={(event) =>
+														selectImage((event.currentTarget as HTMLSelectElement).value)}
 												>
 													{#each alignedImages as image (image.id)}
 														<option value={image.id} disabled={image.id === referenceImage?.id}>
@@ -758,7 +793,7 @@
 										{#if viewerMode === 'annotate' && overlayUrl}
 											<AnnotatedImageCompareViewer
 												imageUrl={baseUrl}
-												overlayUrl={overlayUrl}
+												{overlayUrl}
 												session={compareSession}
 												initialViewState={{
 													overlayOpacity: 0.6,
@@ -774,7 +809,7 @@
 										{:else}
 											<ImageCompareViewer
 												imageUrl={baseUrl}
-												overlayUrl={overlayUrl}
+												{overlayUrl}
 												showHomeControl={true}
 												showZoomControl={true}
 												wheelAdjustOpacity={viewerMode !== 'base'}
@@ -809,7 +844,8 @@
 								</div>
 								<div class="mini-copy">
 									{#if canAnnotate}
-										Choose the compared image here. Use the compare selector above for the reference image.
+										Choose the compared image here. Use the compare selector above for the reference
+										image.
 									{:else}
 										Choose the image you want to preview or align against the base.
 									{/if}
@@ -835,7 +871,8 @@
 										<div class="filmstrip-copy">
 											<div class="filmstrip-title">{getImageTitle(image)}</div>
 											<div class="filmstrip-subline">
-												{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
+												{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions
+													.height}
 											</div>
 											<div class="filmstrip-tags">
 												{#if image.id === selectedGroup.baseImageId}
@@ -845,10 +882,14 @@
 													<span class="mini-tag ref">Reference</span>
 												{/if}
 												{#if image.id === selectedImageId}
-													<span class="mini-tag current">{canAnnotate ? 'Compared' : 'Selected'}</span>
+													<span class="mini-tag current"
+														>{canAnnotate ? 'Compared' : 'Selected'}</span
+													>
 												{/if}
 												{#if alignment}
-													<span class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}>
+													<span
+														class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}
+													>
 														{alignment.status}
 													</span>
 												{/if}
@@ -875,8 +916,8 @@
 
 							<GroupAnnotationsPanel
 								annotations={orderedGroupAnnotations}
-								selectedAnnotationId={selectedAnnotationId}
-								activePairImageIds={activePairImageIds}
+								{selectedAnnotationId}
+								{activePairImageIds}
 								imageTitleById={Object.fromEntries(imageTitleById)}
 								{geometrySummary}
 								onSelect={selectAnnotation}
@@ -895,6 +936,7 @@
 
 <style>
 	.workspace {
+		--workspace-header-height: 36px;
 		display: flex;
 		height: 100%;
 		min-height: 0;
@@ -915,9 +957,12 @@
 
 	.sidebar-header {
 		flex: 0 0 auto;
-		padding: 0.7rem 0.75rem 0.6rem;
+		min-height: var(--workspace-header-height);
+		padding: 0.45rem 0.75rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 		background: rgba(255, 255, 255, 0.96);
+		display: flex;
+		align-items: center;
 	}
 
 	.project-line,
@@ -939,7 +984,6 @@
 
 	.project-created,
 	.group-summary,
-	.group-header-sub,
 	.mini-copy,
 	.mini-note,
 	.viewer-subtitle,
@@ -984,15 +1028,31 @@
 
 	.group-header-card {
 		flex: 0 0 auto;
-		padding: 0.85rem 1rem 0.75rem;
+		min-height: var(--workspace-header-height);
+		padding: 0.45rem 1rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 		background: rgba(255, 255, 255, 0.96);
+		border-left: 1px solid rgba(15, 23, 42, 0.08);
+		display: flex;
+		align-items: center;
 	}
 
 	.group-name {
 		font-weight: 700;
-		font-size: 1rem;
+		font-size: 0.95rem;
 		color: #111827;
+	}
+
+	.group-heading {
+		display: flex;
+		align-items: baseline;
+		gap: 0.65rem;
+		min-width: 0;
+		flex-wrap: wrap;
+	}
+
+	.group-line {
+		width: 100%;
 	}
 
 	.phase-pill,
@@ -1006,10 +1066,12 @@
 	}
 
 	.phase-pill {
-		padding: 0.45rem 0.7rem;
-		font-size: 0.74rem;
+		padding: 0.34rem 0.62rem;
+		font-size: 0.72rem;
+		line-height: 1;
 		background: rgba(245, 158, 11, 0.12);
 		color: #92400e;
+		flex: 0 0 auto;
 	}
 
 	.main-body {
@@ -1338,13 +1400,6 @@
 	.empty-state {
 		min-height: calc(100vh - 96px);
 		padding: 2rem;
-	}
-
-	code {
-		word-break: break-word;
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
 	}
 
 	@media (max-width: 980px) {
