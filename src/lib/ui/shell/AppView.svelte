@@ -11,6 +11,7 @@
 	import ExportDialog, { type ExportSelection } from '$lib/ui/shell/dialogs/ExportDialog.svelte';
 
 	import {
+		closeProject,
 		projectState,
 		newProjectFromFolder,
 		newProjectFromSpreadsheet,
@@ -73,6 +74,7 @@
 
 	<AppHeader
 		{activeView}
+		canCloseProject={!!projectState.project}
 		canSave={!!projectState.project}
 		canExport={!!projectState.project}
 		canRelinkAssetFolder={!!projectState.project && projectState.project.assetRoots.length > 0}
@@ -82,6 +84,7 @@
 		onNewFromFolder={handleOpenNewFromFolder}
 		onNewFromSpreadsheet={newProjectFromSpreadsheet}
 		onOpenProject={openProject}
+		onCloseProject={closeProject}
 		onRelinkAssetFolder={relinkAssetFolder}
 		onSave={saveProject}
 		onSaveAs={saveProjectAs}

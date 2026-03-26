@@ -8,6 +8,7 @@
 
 		activeView?: ViewMode;
 
+		canCloseProject?: boolean;
 		canSave?: boolean;
 		canExport?: boolean;
 		canRelinkAssetFolder?: boolean;
@@ -19,6 +20,7 @@
 		onNewFromFolder?: () => void;
 		onNewFromSpreadsheet?: () => void;
 		onOpenProject?: () => void;
+		onCloseProject?: () => void;
 		onRelinkAssetFolder?: () => void;
 		onSave?: () => void;
 		onSaveAs?: () => void;
@@ -32,6 +34,7 @@
 
 		activeView = 'workspace',
 
+		canCloseProject = false,
 		canSave = false,
 		canExport = false,
 		canRelinkAssetFolder = false,
@@ -43,6 +46,7 @@
 		onNewFromFolder,
 		onNewFromSpreadsheet,
 		onOpenProject,
+		onCloseProject,
 		onRelinkAssetFolder,
 		onSave,
 		onSaveAs,
@@ -119,6 +123,15 @@
 
 							<button type="button" role="menuitem" onclick={() => runAndClose(onOpenProject)}>
 								Open Project…
+							</button>
+
+							<button
+								type="button"
+								role="menuitem"
+								disabled={!canCloseProject}
+								onclick={() => runAndClose(onCloseProject)}
+							>
+								Close Project
 							</button>
 
 							<hr />
