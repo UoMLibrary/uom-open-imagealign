@@ -327,11 +327,6 @@
 		margin-bottom: 0.9rem;
 	}
 
-	.detail-head h3 {
-		margin: 0;
-		color: #111827;
-	}
-
 	.detail-subtitle {
 		margin-top: 0.2rem;
 		font-size: 1rem;

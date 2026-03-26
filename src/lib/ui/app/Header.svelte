@@ -244,23 +244,6 @@
 		justify-content: flex-end;
 	}
 
-	.title a {
-		color: #111827;
-		text-decoration: none;
-		font-weight: 600;
-		white-space: nowrap;
-	}
-
-	.title a:hover {
-		text-decoration: underline;
-	}
-
-	.title a:focus-visible {
-		outline: 2px solid #4c9ffe;
-		outline-offset: 2px;
-		border-radius: 4px;
-	}
-
 	.actions {
 		display: flex;
 		align-items: center;
