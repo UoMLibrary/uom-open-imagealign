@@ -32,6 +32,15 @@
 
 	const imageCount = $derived(group.imageIds.length);
 	const hasBaseImage = $derived(Boolean(group.baseImageId));
+	const expectedAlignmentCount = $derived(Math.max(imageCount - (hasBaseImage ? 1 : 0), 0));
+	const countTone = $derived.by(() => {
+		if (!hasBaseImage && alignmentCount === 0) return 'danger';
+		if (hasBaseImage && expectedAlignmentCount > 0 && alignmentCount >= expectedAlignmentCount) {
+			return 'success';
+		}
+		if (hasBaseImage && alignmentCount === 0) return 'warning';
+		return 'neutral';
+	});
 
 	function select() {
 		onSelect?.(group.id);
@@ -45,16 +54,13 @@
 		{:else}
 			<div class="thumb-fallback">No preview</div>
 		{/if}
-
-		<div class="thumb-overlay top-right">
-			<span class="overlay-pill">
-				{imageCount}
-			</span>
-		</div>
 	</div>
 
 	<div class="group-copy">
-		<div class="group-title">{getGroupLabel(group)}</div>
+		<div class="group-title-row">
+			<div class="group-title" title={getGroupLabel(group)}>{getGroupLabel(group)}</div>
+			<span class={`count-pill ${countTone}`}>{imageCount}</span>
+		</div>
 
 		<div class="group-meta">
 			<div>{alignmentCount} {alignmentCount === 1 ? 'alignment' : 'alignments'}</div>
@@ -74,32 +80,29 @@
 <style>
 	.group-card {
 		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.06);
-		background: rgba(255, 255, 255, 0.96);
-		border-radius: 18px;
-		padding: 0.35rem;
+		border: none;
+		border-radius: 0;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: transparent;
+		padding: 0.45rem 0.1rem;
 		display: grid;
-		grid-template-columns: 88px minmax(0, 1fr);
-		gap: 0.7rem;
+		grid-template-columns: 78px minmax(0, 1fr);
+		gap: 0.8rem;
 		text-align: left;
 		cursor: pointer;
 		color: inherit;
 		width: 100%;
 		transition:
-			border-color 140ms ease,
-			box-shadow 140ms ease,
-			transform 140ms ease;
+			background-color 140ms ease,
+			color 140ms ease;
 	}
 
 	.group-card:hover {
-		border-color: rgba(59, 130, 246, 0.22);
-		box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+		background: rgba(248, 250, 252, 0.72);
 	}
 
 	.group-card.selected {
-		border-color: rgba(37, 99, 235, 0.32);
-		box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
-		background: linear-gradient(180deg, #ffffff, #f5f9ff);
+		background: rgba(239, 246, 255, 0.72);
 	}
 
 	.group-card:focus-visible {
@@ -109,12 +112,13 @@
 
 	.group-thumb {
 		position: relative;
-		width: 88px;
-		height: 88px;
-		border-radius: 14px;
+		width: 78px;
+		height: 78px;
+		border-radius: 2px;
 		overflow: hidden;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #e5e7eb;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		background:
+			linear-gradient(180deg, rgba(229, 231, 235, 0.95), rgba(241, 245, 249, 0.98));
 		align-self: stretch;
 	}
 
@@ -123,62 +127,87 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		gap: 0.22rem;
-		padding: 0.12rem 0.35rem 0.12rem 0;
+		gap: 0.14rem;
+		padding: 0.05rem 0.2rem 0.05rem 0;
+	}
+
+	.group-title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-width: 0;
 	}
 
 	.group-title {
 		font-weight: 700;
 		font-size: 0.92rem;
-		line-height: 1.15;
+		line-height: 1.12;
 		letter-spacing: -0.01em;
 		color: #111827;
 		min-width: 0;
+		flex: 1 1 auto;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.count-pill {
+		flex: 0 0 auto;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 1.75rem;
+		padding: 0.18rem 0.42rem;
+		border-radius: 999px;
+		font-size: 0.68rem;
+		font-weight: 700;
+		line-height: 1;
+		border: 1px solid transparent;
+	}
+
+	.count-pill.success {
+		background: #8cd47e;
+		color: #ffffff;
+		border-color: #8cd47e;
+	}
+
+	.count-pill.warning {
+		background: #ffb54c;
+		color: #ffffff;
+		border-color: #ffb54c;
+	}
+
+	.count-pill.danger {
+		background: #ffb54c;
+		color: #ffffff;
+		border-color: #ffb54c;
+	}
+
+	.count-pill.neutral {
+		background: #e8edf3;
+		color: #556274;
+		border-color: #d5dde7;
 	}
 
 	.group-meta {
 		display: flex;
 		flex-direction: column;
-		gap: 0.08rem;
-		font-size: 0.76rem;
-		line-height: 1.35;
-		color: #64748b;
+		gap: 0.02rem;
+		font-size: 0.74rem;
+		line-height: 1.28;
+		color: #5b677a;
 	}
 
 	.group-status {
-		font-size: 0.76rem;
-		line-height: 1.35;
+		font-size: 0.75rem;
+		line-height: 1.25;
 		color: #111827;
 		font-weight: 600;
+		margin-top: 0.05rem;
 	}
 
 	.group-status.muted {
-		color: #475569;
-	}
-
-	.thumb-overlay {
-		position: absolute;
-		display: flex;
-		pointer-events: none;
-	}
-
-	.top-right {
-		top: 0.4rem;
-		right: 0.4rem;
-	}
-
-	.overlay-pill {
-		display: inline-flex;
-		align-items: center;
-		padding: 0.28rem 0.48rem;
-		border-radius: 999px;
-		background: rgba(37, 99, 235, 0.94);
-		backdrop-filter: blur(6px);
-		color: #ffffff;
-		font-size: 0.66rem;
-		font-weight: 700;
-		line-height: 1;
-		box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+		color: #6b7280;
 	}
 
 	.thumb-fallback {
@@ -188,20 +217,20 @@
 		place-items: center;
 		text-align: center;
 		color: #64748b;
-		border-radius: 14px;
-		background: rgba(248, 250, 252, 0.9);
+		border-radius: 2px;
+		background: linear-gradient(180deg, rgba(229, 231, 235, 0.95), rgba(241, 245, 249, 0.98));
 		font-size: 0.72rem;
 		padding: 0.4rem;
 	}
 
 	@media (max-width: 720px) {
 		.group-card {
-			grid-template-columns: 76px minmax(0, 1fr);
+			grid-template-columns: 68px minmax(0, 1fr);
 		}
 
 		.group-thumb {
-			width: 76px;
-			height: 76px;
+			width: 68px;
+			height: 68px;
 		}
 
 		.group-title {
