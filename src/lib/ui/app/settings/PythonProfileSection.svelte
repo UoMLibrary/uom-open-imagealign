@@ -28,6 +28,8 @@
 		onDuplicate
 	}: Props = $props();
 
+	let safeProfiles = $derived(profiles ?? []);
+
 	let selectedId = $state<string | null>(null);
 	let draftName = $state('');
 	let draftDescription = $state('');
@@ -52,18 +54,18 @@
 	}
 
 	let selectedProfile = $derived(
-		selectedId ? (profiles.find((profile) => profile.id === selectedId) ?? null) : null
+		selectedId ? (safeProfiles.find((profile) => profile.id === selectedId) ?? null) : null
 	);
 
 	$effect(() => {
-		if (!profiles.length) {
+		if (!safeProfiles.length) {
 			selectedId = null;
 			loadProfile(null);
 			return;
 		}
 
-		if (!selectedId || !profiles.some((profile) => profile.id === selectedId)) {
-			selectedId = profiles[0].id;
+		if (!selectedId || !safeProfiles.some((profile) => profile.id === selectedId)) {
+			selectedId = safeProfiles[0].id;
 			return;
 		}
 	});
@@ -155,14 +157,14 @@
 		<aside class="profile-list-card">
 			<div class="profile-list-header">
 				<div class="profile-list-title">Saved profiles</div>
-				<div class="profile-list-count">{profiles.length}</div>
+				<div class="profile-list-count">{safeProfiles.length}</div>
 			</div>
 
-			{#if profiles.length === 0}
+			{#if safeProfiles.length === 0}
 				<div class="empty-list">No profiles yet.</div>
 			{:else}
 				<div class="profile-list">
-					{#each profiles as profile (profile.id)}
+					{#each safeProfiles as profile (profile.id)}
 						<button
 							type="button"
 							class="profile-item"
