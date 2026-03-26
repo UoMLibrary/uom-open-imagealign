@@ -314,11 +314,6 @@
 						/>
 					</div>
 				{/if}
-
-				<!-- Show annotations panel for the selected group -->
-				<div class="panel-wrap">
-					<GroupAnnotationsPanel annotations={selectedGroupAnnotations} {geometrySummary} />
-				</div>
 			{:else}
 				<div class="empty-state main-empty">
 					<h2>No group selected</h2>

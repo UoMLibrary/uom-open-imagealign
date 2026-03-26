@@ -174,32 +174,6 @@
 			<div class="preview-shell">
 				{#if previewState === 'ready' && baseUrl}
 					{#key `${baseUrl}:${overlayUrl ?? baseUrl}:${panelRefreshKey}`}
-						<!-- <ImageCompareViewer
-							imageUrl={baseUrl}
-							overlayUrl={overlayUrl ?? baseUrl}
-							bind:overlayOpacity={compareOpacity}
-							onReady={handleReady}
-						/> -->
-
-						<!-- <div class="viewer-host">
-							<AnnotatedImageCompareViewer
-								imageUrl={baseUrl}
-								overlayUrl={overlayUrl ?? baseUrl}
-								{annotations}
-								initialViewState={{
-									overlayOpacity: 0.6,
-									annotationsVisible: true,
-									annotationMode: 'pan',
-									readingFocusEnabled: false,
-									readingFocusClearCenterPct: 30,
-									readingFocusOpacity: 0.35,
-									readingFocusBlurPx: 3
-								}}
-								refreshKey={warpedRefreshKey}
-								onAnnotationsChange={(next) => (annotations = next)}
-								onViewStateChange={(next) => (compareViewState = next)}
-							/>
-						</div> -->
 						<div class="viewer-shell">
 							<div class="viewer-host">
 								<AnnotatedImageCompareViewer
@@ -377,7 +351,7 @@
 	}
 
 	.preview-shell {
-		height: clamp(360px, 52vh, 620px);
+		height: 100%;
 		border-radius: 14px;
 		overflow: hidden;
 		border: 1px solid rgba(15, 23, 42, 0.08);
