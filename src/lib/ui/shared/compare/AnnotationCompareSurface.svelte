@@ -41,6 +41,13 @@
 		getAnnotator: () => any;
 	};
 
+	type ReadingFocusState = {
+		enabled: boolean;
+		clearCenterPct: number;
+		opacity: number;
+		blurPx: number;
+	};
+
 	type Props = {
 		imageUrl?: string | null;
 		overlayUrl?: string | null;
@@ -124,10 +131,10 @@
 
 		viewer = $bindable<OpenSeadragon.Viewer | null>(null),
 
-		readingFocusEnabled = false,
-		readingFocusClearCenterPct = 30,
-		readingFocusOpacity = 0.35,
-		readingFocusBlurPx = 0,
+		readingFocusEnabled = $bindable(false),
+		readingFocusClearCenterPct = $bindable(30),
+		readingFocusOpacity = $bindable(0.35),
+		readingFocusBlurPx = $bindable(0),
 
 		onViewerReady,
 		onAnnotationReady,
@@ -138,6 +145,13 @@
 	}: Props = $props();
 
 	let annotationLayer: AnnotationLayerHandle | null = null;
+
+	const readingFocusStates: ReadingFocusState[] = [
+		{ enabled: false, clearCenterPct: 30, opacity: 0.45, blurPx: 3 },
+		{ enabled: true, clearCenterPct: 55, opacity: 0.45, blurPx: 3 },
+		{ enabled: true, clearCenterPct: 35, opacity: 0.45, blurPx: 3 },
+		{ enabled: true, clearCenterPct: 22, opacity: 0.45, blurPx: 3 }
+	];
 
 	function focusViewerSurface() {
 		const node = viewer?.element as HTMLElement | undefined;
@@ -154,6 +168,29 @@
 		if (node instanceof HTMLSelectElement) return true;
 		if (node.isContentEditable) return true;
 		return !!node.closest?.('[contenteditable="true"]');
+	}
+
+	function applyReadingFocusState(state: ReadingFocusState) {
+		readingFocusEnabled = state.enabled;
+		readingFocusClearCenterPct = state.clearCenterPct;
+		readingFocusOpacity = state.opacity;
+		readingFocusBlurPx = state.blurPx;
+	}
+
+	function getCurrentReadingFocusStateIndex() {
+		return readingFocusStates.findIndex(
+			(state) =>
+				state.enabled === readingFocusEnabled &&
+				state.clearCenterPct === readingFocusClearCenterPct &&
+				state.opacity === readingFocusOpacity &&
+				state.blurPx === readingFocusBlurPx
+		);
+	}
+
+	function cycleReadingFocusState() {
+		const currentIndex = getCurrentReadingFocusStateIndex();
+		const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % readingFocusStates.length;
+		applyReadingFocusState(readingFocusStates[nextIndex]);
 	}
 
 	function applyAnnotationModeToLayer(nextMode: AnnotationMode) {
@@ -223,6 +260,11 @@
 		if (isEditableTarget(e.target)) return;
 
 		const key = e.key.toLowerCase();
+
+		if (key === 'g') {
+			cycleReadingFocusState();
+			return;
+		}
 
 		if (key === '4') {
 			annotationsVisible = !annotationsVisible;
@@ -332,6 +374,10 @@
 
 	export function setAnnotationMode(nextMode: AnnotationMode) {
 		applyAnnotationMode(nextMode);
+	}
+
+	export function cycleReadingFocus() {
+		cycleReadingFocusState();
 	}
 
 	export function selectAnnotation(id: string | null) {

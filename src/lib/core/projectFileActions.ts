@@ -122,3 +122,35 @@ export async function writeJsonFile(handle: FileSystemFileHandle, data: Project)
         await writable.close();
     }
 }
+
+export async function pickSaveTextFileHandle(
+    suggestedName: string,
+    accept: Record<string, string[]> = {
+        'text/plain': ['.txt']
+    }
+): Promise<FileSystemFileHandle | null> {
+    if (!supportsFileSystemAccess()) return null;
+
+    try {
+        return await window.showSaveFilePicker({
+            suggestedName,
+            types: [
+                {
+                    description: 'Export file',
+                    accept
+                }
+            ]
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            return null;
+        }
+        throw error;
+    }
+}
+
+export async function writeTextFile(handle: FileSystemFileHandle, text: string) {
+    const writable = await handle.createWritable();
+    await writable.write(text);
+    await writable.close();
+}

@@ -105,22 +105,10 @@
 	let readingFocusOpacity = $state(initialViewState.readingFocusOpacity ?? 0.35);
 	let readingFocusBlurPx = $state(initialViewState.readingFocusBlurPx ?? 0);
 
-	const readingFocusPresets = [0, 30, 20, 10] as const;
+	let surface: InstanceType<typeof AnnotationCompareSurface> | null = null;
 
 	function cycleReadingFocus() {
-		const current = readingFocusEnabled ? readingFocusClearCenterPct : 0;
-		const currentIndex = readingFocusPresets.findIndex((value) => value === current);
-		const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % readingFocusPresets.length : 1;
-		const nextValue = readingFocusPresets[nextIndex];
-
-		if (nextValue === 0) {
-			readingFocusEnabled = false;
-			readingFocusClearCenterPct = 30;
-			return;
-		}
-
-		readingFocusEnabled = true;
-		readingFocusClearCenterPct = nextValue;
+		surface?.cycleReadingFocus();
 	}
 
 	function isEditableTarget(target: EventTarget | null) {
@@ -188,6 +176,7 @@
 
 <div class="viewer-shell">
 	<AnnotationCompareSurface
+		bind:this={surface}
 		bind:viewer
 		{imageUrl}
 		{overlayUrl}
@@ -196,6 +185,10 @@
 		bind:annotationMode
 		bind:annotationsVisible
 		bind:selectedAnnotationId
+		bind:readingFocusEnabled
+		bind:readingFocusClearCenterPct
+		bind:readingFocusOpacity
+		bind:readingFocusBlurPx
 		{refreshKey}
 		{mode}
 		{focus}
@@ -211,10 +204,6 @@
 		{holdShowBaseKey}
 		{holdDifferenceOpacity}
 		{enableAnnotationShortcuts}
-		{readingFocusEnabled}
-		{readingFocusClearCenterPct}
-		{readingFocusOpacity}
-		{readingFocusBlurPx}
 	/>
 
 	{#if showToolbar}

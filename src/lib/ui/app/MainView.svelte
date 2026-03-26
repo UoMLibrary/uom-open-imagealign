@@ -5,7 +5,10 @@
 	import AboutModal from '$lib/ui/app/modals/AboutModal.svelte';
 	import ProjectWorkspace from '$lib/ui/app/ProjectWorkspace.svelte';
 	import SettingsWorkspace from '$lib/ui/app/SettingsWorkspace.svelte';
-	import NewFromFolderModal from '$lib/ui/app/modals/NewFromFolderModal.svelte';
+	import NewFromFolderModal, {
+		type NewFromFolderSelection
+	} from '$lib/ui/app/modals/NewFromFolderModal.svelte';
+	import ExportModal, { type ExportSelection } from '$lib/ui/app/modals/ExportModal.svelte';
 
 	import {
 		projectState,
@@ -17,7 +20,7 @@
 		saveProjectAs
 	} from '$lib/core/projectStore.svelte';
 
-	import type { ProjectProfileSelection } from '$lib/core/settingsStore.svelte';
+	import { exportCurrentProject } from '$lib/core/projectExport';
 
 	type MainViewMode = 'workspace' | 'settings';
 
@@ -25,20 +28,43 @@
 	let showHelp = $state(false);
 	let showAbout = $state(false);
 	let showNewFromFolder = $state(false);
+	let showExportModal = $state(false);
 
 	function handleOpenNewFromFolder() {
 		activeView = 'workspace';
 		showNewFromFolder = true;
 	}
 
-	async function handleConfirmNewFromFolder(selection: ProjectProfileSelection) {
+	async function handleConfirmNewFromFolder(selection: NewFromFolderSelection) {
 		showNewFromFolder = false;
 
 		await newProjectFromFolder({
 			importGroupingProfileId: selection.importGroupingProfileId,
-			annotationSchemaProfileId: selection.annotationSchemaProfileId,
-			exportProfileId: selection.exportProfileId
+			annotationSchemaProfileId: selection.annotationSchemaProfileId
 		});
+	}
+
+	function handleOpenExport() {
+		if (!projectState.project) return;
+		showExportModal = true;
+	}
+
+	function suggestedExportFilename() {
+		const title =
+			projectState.project?.title
+				?.trim()
+				.replace(/[^\w.-]+/g, '-')
+				.replace(/-+/g, '-') || 'export';
+
+		return title.toLowerCase().endsWith('.json') ? title : `${title}.json`;
+	}
+
+	async function handleConfirmExport(selection: ExportSelection) {
+		showExportModal = false;
+
+		if (!selection.exportProfileId) return;
+
+		await exportCurrentProject(selection.exportProfileId, selection.filename);
 	}
 </script>
 
@@ -59,7 +85,7 @@
 		onRelinkAssetFolder={relinkAssetFolder}
 		onSave={saveProject}
 		onSaveAs={saveProjectAs}
-		onExport={() => console.log('Export not wired yet')}
+		onExport={handleOpenExport}
 		onHelp={() => (showHelp = true)}
 		onAbout={() => (showAbout = true)}
 	/>
@@ -76,6 +102,13 @@
 		open={showNewFromFolder}
 		onClose={() => (showNewFromFolder = false)}
 		onConfirm={handleConfirmNewFromFolder}
+	/>
+
+	<ExportModal
+		open={showExportModal}
+		defaultFilename={suggestedExportFilename()}
+		onClose={() => (showExportModal = false)}
+		onConfirm={handleConfirmExport}
 	/>
 
 	<HelpModal bind:open={showHelp} />

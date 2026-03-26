@@ -1,23 +1,49 @@
 <script lang="ts">
-	import { settingsState, type ProjectProfileSelection } from '$lib/core/settingsStore.svelte';
+	import { settingsState } from '$lib/core/settingsStore.svelte';
+
+	export type NewFromFolderSelection = {
+		importGroupingProfileId: string | null;
+		annotationSchemaProfileId: string | null;
+	};
 
 	type Props = {
 		open?: boolean;
 		onClose?: () => void;
-		onConfirm?: (selection: ProjectProfileSelection) => void | Promise<void>;
+		onConfirm?: (selection: NewFromFolderSelection) => void | Promise<void>;
 	};
 
 	let { open = false, onClose, onConfirm }: Props = $props();
 
-	let selection = $state<ProjectProfileSelection>({
-		...settingsState.defaultProfileSelection
+	let groupingProfiles = $derived(settingsState.importGroupingProfiles ?? []);
+	let annotationProfiles = $derived(settingsState.annotationSchemaProfiles ?? []);
+
+	let selection = $state<NewFromFolderSelection>({
+		importGroupingProfileId: null,
+		annotationSchemaProfileId: null
 	});
 
 	$effect(() => {
-		if (open) {
-			selection = { ...settingsState.defaultProfileSelection };
-		}
+		if (!open) return;
+
+		selection = {
+			importGroupingProfileId: groupingProfiles[0]?.id ?? null,
+			annotationSchemaProfileId: annotationProfiles[0]?.id ?? null
+		};
 	});
+
+	let selectedGroupingProfile = $derived(
+		selection.importGroupingProfileId
+			? (groupingProfiles.find((profile) => profile.id === selection.importGroupingProfileId) ??
+					null)
+			: null
+	);
+
+	let selectedAnnotationProfile = $derived(
+		selection.annotationSchemaProfileId
+			? (annotationProfiles.find((profile) => profile.id === selection.annotationSchemaProfileId) ??
+					null)
+			: null
+	);
 
 	async function confirm() {
 		await onConfirm?.(selection);
@@ -35,41 +61,61 @@
 		>
 			<div class="header">
 				<h2>New from Folder</h2>
-				<p>Choose which saved profiles this project should use.</p>
+				<p>
+					Choose how the folder should be grouped and which annotation data shape should be embedded
+					into the new project.
+				</p>
 			</div>
 
 			<div class="body">
 				<label class="field">
 					<span>Import grouping</span>
 					<select bind:value={selection.importGroupingProfileId}>
-						{#each settingsState.importGroupingProfiles as profile (profile.id)}
-							<option value={profile.id}>{profile.name}</option>
-						{/each}
+						{#if groupingProfiles.length === 0}
+							<option value="" disabled selected>No grouping profiles available</option>
+						{:else}
+							{#each groupingProfiles as profile (profile.id)}
+								<option value={profile.id}>{profile.name}</option>
+							{/each}
+						{/if}
 					</select>
+					{#if selectedGroupingProfile?.description}
+						<small>{selectedGroupingProfile.description}</small>
+					{/if}
 				</label>
 
 				<label class="field">
 					<span>Annotation data shape</span>
 					<select bind:value={selection.annotationSchemaProfileId}>
-						{#each settingsState.annotationSchemaProfiles as profile (profile.id)}
-							<option value={profile.id}>{profile.name}</option>
-						{/each}
+						{#if annotationProfiles.length === 0}
+							<option value="" disabled selected>No annotation schema profiles available</option>
+						{:else}
+							{#each annotationProfiles as profile (profile.id)}
+								<option value={profile.id}>{profile.name}</option>
+							{/each}
+						{/if}
 					</select>
+					{#if selectedAnnotationProfile?.description}
+						<small>{selectedAnnotationProfile.description}</small>
+					{/if}
 				</label>
 
-				<label class="field">
-					<span>Export shape</span>
-					<select bind:value={selection.exportProfileId}>
-						{#each settingsState.exportProfiles as profile (profile.id)}
-							<option value={profile.id}>{profile.name}</option>
-						{/each}
-					</select>
-				</label>
+				<div class="note">
+					The grouping profile is only used during import. The annotation data shape is copied into
+					the project so the annotation UI remains portable.
+				</div>
 			</div>
 
 			<div class="footer">
 				<button type="button" class="secondary" onclick={onClose}>Cancel</button>
-				<button type="button" class="primary" onclick={confirm}>Choose Folder…</button>
+				<button
+					type="button"
+					class="primary"
+					disabled={!selection.importGroupingProfileId || !selection.annotationSchemaProfileId}
+					onclick={confirm}
+				>
+					Choose Folder…
+				</button>
 			</div>
 		</div>
 	</div>
@@ -113,11 +159,12 @@
 		margin: 0;
 		color: #64748b;
 		font-size: 0.88rem;
+		line-height: 1.45;
 	}
 
 	.body {
 		display: grid;
-		gap: 0.9rem;
+		gap: 0.95rem;
 	}
 
 	.field {
@@ -138,6 +185,22 @@
 		border: 1px solid rgba(15, 23, 42, 0.12);
 		background: #fff;
 		font: inherit;
+	}
+
+	.field small {
+		font-size: 0.76rem;
+		line-height: 1.4;
+		color: #64748b;
+	}
+
+	.note {
+		border-radius: 12px;
+		padding: 0.85rem 0.95rem;
+		background: rgba(248, 250, 252, 0.9);
+		border: 1px solid rgba(15, 23, 42, 0.08);
+		color: #475569;
+		font-size: 0.8rem;
+		line-height: 1.45;
 	}
 
 	.footer {
@@ -162,6 +225,11 @@
 		border: 0;
 		background: #2563eb;
 		color: #fff;
+	}
+
+	.primary:disabled {
+		opacity: 0.6;
+		cursor: default;
 	}
 
 	.secondary {

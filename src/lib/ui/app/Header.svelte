@@ -186,10 +186,9 @@
 					</button>
 				</nav>
 
-				<button type="button" class="toolbar-button" disabled={busy} onclick={onHelp}>Help</button>
+				<!-- <button type="button" class="toolbar-button" disabled={busy} onclick={onHelp}>Help</button> -->
 
-				<button type="button" class="toolbar-button" disabled={busy} onclick={onAbout}>About</button
-				>
+				<!-- <button type="button" class="toolbar-button" disabled={busy} onclick={onAbout}>About</button> -->
 			</div>
 		</div>
 
