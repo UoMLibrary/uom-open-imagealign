@@ -312,9 +312,7 @@
 		const nextBaseImage = selectedGroupImages.find((image) => image.id === imageId) ?? null;
 		if (!nextBaseImage) return;
 		if (
-			!window.confirm(
-				`Set "${getImageTitle(nextBaseImage)}" as the base image for this group?`
-			)
+			!window.confirm(`Set "${getImageTitle(nextBaseImage)}" as the base image for this group?`)
 		) {
 			return;
 		}
@@ -690,7 +688,8 @@
 											{#if activeAlignment}
 												{activeAlignment.status === 'confirmed' ? 'Confirmed' : 'Draft'} · {activeAlignment.schemaId}
 											{:else}
-												Select an image from the filmstrip to work on its alignment against the base.
+												Select an image from the filmstrip to work on its alignment against the
+												base.
 											{/if}
 										</div>
 
@@ -700,7 +699,8 @@
 												<select
 													value={alignmentApproach}
 													onchange={(event) =>
-														(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
+														(alignmentApproach = (event.currentTarget as HTMLSelectElement)
+															.value as typeof alignmentApproach)}
 												>
 													<option value="auto">Automatic</option>
 													<option value="feature">Feature match</option>
@@ -731,7 +731,8 @@
 										</div>
 
 										<div class="mini-note">
-											Changing this image's alignment clears annotations that involve it so we do not leave stale cross-image comparisons behind.
+											Changing this image's alignment clears annotations that involve it so we do
+											not leave stale cross-image comparisons behind.
 										</div>
 									</div>
 
@@ -744,7 +745,8 @@
 													: 'Compared'}
 											</div>
 											<div class="mini-copy">
-												Only confirmed alignments are offered here, so pairwise comparison stays on stable geometry.
+												Only confirmed alignments are offered here, so pairwise comparison stays on
+												stable geometry.
 											</div>
 
 											<div class="field-row double">
@@ -753,7 +755,9 @@
 													<select
 														value={referenceImage?.id ?? ''}
 														onchange={(event) =>
-															selectReferenceImage((event.currentTarget as HTMLSelectElement).value)}
+															selectReferenceImage(
+																(event.currentTarget as HTMLSelectElement).value
+															)}
 													>
 														{#each alignedImages as image (image.id)}
 															<option value={image.id}>{getImageTitle(image)}</option>
@@ -877,12 +881,20 @@
 								<div>
 									<div class="filmstrip-title-bar">Group Images</div>
 								</div>
-								<button type="button" class="ghost-button danger compact" onclick={resetBaseSelection}>
+								<button
+									type="button"
+									class="ghost-button danger compact"
+									onclick={resetBaseSelection}
+								>
 									Reset base image
 								</button>
 							</div>
 
-							<div class="filmstrip" class:filmstrip-flat={isBaseSelectionPhase} aria-label="Images in selected group">
+							<div
+								class="filmstrip"
+								class:filmstrip-flat={isBaseSelectionPhase}
+								aria-label="Images in selected group"
+							>
 								{#each orderedStripImages as image (image.id)}
 									{@const alignment = alignmentByComparedId.get(image.id)}
 									{#if isBaseSelectionPhase}
@@ -891,7 +903,11 @@
 											class:selected={image.id === selectedImageId}
 											class:base={image.id === selectedGroup.baseImageId}
 										>
-											<button type="button" class="filmstrip-select" onclick={() => selectImage(image.id)}>
+											<button
+												type="button"
+												class="filmstrip-select"
+												onclick={() => selectImage(image.id)}
+											>
 												<div class="filmstrip-thumb">
 													<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
 												</div>
@@ -899,7 +915,8 @@
 												<div class="filmstrip-copy">
 													<div class="filmstrip-title">{getImageTitle(image)}</div>
 													<div class="filmstrip-subline">
-														{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
+														{getImageSourceKind(image)} · {image.dimensions.width} × {image
+															.dimensions.height}
 													</div>
 												</div>
 											</button>
@@ -914,7 +931,9 @@
 														setImageAsBase(image.id);
 													}}
 												>
-													{image.id === selectedGroup.baseImageId ? 'Base image' : 'Set as base image'}
+													{image.id === selectedGroup.baseImageId
+														? 'Base image'
+														: 'Set as base image'}
 												</button>
 											</div>
 										</div>
@@ -934,7 +953,8 @@
 											<div class="filmstrip-copy">
 												<div class="filmstrip-title">{getImageTitle(image)}</div>
 												<div class="filmstrip-subline">
-													{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions.height}
+													{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions
+														.height}
 												</div>
 												<div class="filmstrip-tags">
 													{#if image.id === selectedGroup.baseImageId}
@@ -944,7 +964,9 @@
 														<span class="mini-tag ref">Reference</span>
 													{/if}
 													{#if image.id === selectedImageId}
-														<span class="mini-tag current">{canAnnotate ? 'Compared' : 'Selected'}</span>
+														<span class="mini-tag current"
+															>{canAnnotate ? 'Compared' : 'Selected'}</span
+														>
 													{/if}
 													{#if image.id !== selectedGroup.baseImageId}
 														{#if confirmedAlignmentIds.has(image.id)}
@@ -953,7 +975,9 @@
 															<span class="mini-tag action">Align image</span>
 														{/if}
 													{:else if alignment}
-														<span class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}>
+														<span
+															class={`mini-tag ${alignment.status === 'confirmed' ? 'ok' : 'draft'}`}
+														>
 															{alignment.status}
 														</span>
 													{/if}
