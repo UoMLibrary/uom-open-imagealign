@@ -21,4 +21,4 @@
 	}
 </script>
 
-<button on:click={load}> Load Project </button>
+<button onclick={load}> Load Project </button>

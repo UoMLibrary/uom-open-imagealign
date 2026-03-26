@@ -4,7 +4,7 @@
 	export let onPress: (() => void) | undefined = undefined;
 </script>
 
-<button on:click={() => onPress?.()} {disabled}>
+<button onclick={() => onPress?.()} {disabled}>
 	{busy ? 'Processing…' : 'Import Images'}
 </button>
 

@@ -21,8 +21,8 @@
 </script>
 
 {#if open}
-	<div class="backdrop" on:click={close}>
-		<div class="modal" on:click|stopPropagation>
+	<div class="backdrop" onclick={close}>
+		<div class="modal" onclick={(event) => event.stopPropagation()}>
 			<header class="modal-header">
 				<div class="modal-title">
 					{#if title}
@@ -30,7 +30,7 @@
 					{/if}
 				</div>
 
-				<button class="close-button" aria-label="Close" on:click={close}> × </button>
+				<button class="close-button" aria-label="Close" onclick={close}> × </button>
 			</header>
 
 			<div class="modal-body">

@@ -52,7 +52,7 @@
 		{/if}
 	</aside>
 
-	<button class="toggle" on:click={toggle} aria-label="Toggle {side} panel">
+	<button class="toggle" onclick={toggle} aria-label="Toggle {side} panel">
 		{#if side === 'left'}
 			{open ? '⟨' : '⟩'}
 		{:else}

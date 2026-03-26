@@ -17,7 +17,7 @@
 
 <div class="segment">
 	{#each options as option}
-		<button class:selected={value === option.value} on:click={() => select(option.value)}>
+		<button class:selected={value === option.value} onclick={() => select(option.value)}>
 			{option.label}
 		</button>
 	{/each}

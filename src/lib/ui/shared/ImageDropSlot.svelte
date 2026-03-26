@@ -193,7 +193,7 @@
 </script>
 
 <div class="source-card">
-	<input class="sr-only" bind:this={inputEl} type="file" {accept} on:change={handleInputChange} />
+	<input class="sr-only" bind:this={inputEl} type="file" {accept} onchange={handleInputChange} />
 
 	<div class="slot-wrap">
 		<button
@@ -203,10 +203,10 @@
 			class:active={active || isDragging}
 			{disabled}
 			aria-label={imageUrl ? `Replace ${label}` : `Load ${label}`}
-			on:click={openPicker}
-			on:dragover={handleDragOver}
-			on:dragleave={handleDragLeave}
-			on:drop={handleDrop}
+			onclick={openPicker}
+			ondragover={handleDragOver}
+			ondragleave={handleDragLeave}
+			ondrop={handleDrop}
 		>
 			{#if imageUrl}
 				<img src={displayUrl ?? imageUrl} alt={`${label} preview`} class="slot-image" />
@@ -252,7 +252,7 @@
 			<button
 				type="button"
 				class="clear-button"
-				on:click={clear}
+				onclick={clear}
 				aria-label={`Clear ${label.toLowerCase()}`}
 				title="Clear image"
 			>

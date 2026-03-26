@@ -18,4 +18,4 @@
 	}
 </script>
 
-<button on:click={handleSave} disabled={$project === null}> Save </button>
+<button onclick={handleSave} disabled={$project === null}> Save </button>

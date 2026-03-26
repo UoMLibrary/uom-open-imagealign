@@ -40,7 +40,7 @@
 		<button
 			class="primary run-button"
 			type="button"
-			on:click={() => onRun?.()}
+			onclick={() => onRun?.()}
 			disabled={!canAlign}
 		>
 			{isRunning ? 'Running…' : 'Generate'}
@@ -50,7 +50,7 @@
 	<div class="transform-controls">
 		<label class="field model-field">
 			<span class="label">Model</span>
-			<select value={spec.type} on:change={handleTypeChange} disabled={isRunning}>
+			<select value={spec.type} onchange={handleTypeChange} disabled={isRunning}>
 				<option value="similarity">similarity</option>
 				<option value="affine">affine</option>
 				<option value="perspective">perspective</option>
@@ -62,7 +62,7 @@
 			<input
 				type="checkbox"
 				checked={spec.photometric}
-				on:change={handlePhotometricChange}
+				onchange={handlePhotometricChange}
 				disabled={isRunning}
 			/>
 			<span>Photometric match</span>

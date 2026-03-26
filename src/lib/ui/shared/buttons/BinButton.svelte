@@ -12,7 +12,7 @@
 	}
 </script>
 
-<button class="bin" on:click={handleClick} aria-label={title} {title}>
+<button class="bin" onclick={handleClick} aria-label={title} {title}>
 	<svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
 		<!-- Lid -->
 		<path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
