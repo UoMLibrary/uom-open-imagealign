@@ -9,7 +9,7 @@
 		ensureAlignmentEngine,
 		runAlignmentWorkflow,
 		type AlignmentSpec
-	} from '$lib/imagealign/alignmentWorkflow';
+	} from '$lib/alignment/alignmentWorkflow';
 
 	type ImageInfo = {
 		width: number;

@@ -1,13 +1,13 @@
-// $lib/core/projectImport.ts
+// $lib/project/projectImport.ts
 
-import { getDerivedBlob } from '$lib/image/derivationService';
+import { getDerivedBlob } from '$lib/images/derivationService';
 
 import type {
     ImageAlignmentProject as Project,
     AssetRoot,
     ImageGroup,
     ImageRecord
-} from '$lib/core/types';
+} from '$lib/project/types';
 
 export type GroupingStrategy = 'leaf-folder' | 'single-image' | 'filename-group';
 

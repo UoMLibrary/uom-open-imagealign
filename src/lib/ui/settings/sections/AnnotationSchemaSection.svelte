@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { settingsState, type AnnotationSchemaProfile } from '$lib/core/settingsStore.svelte';
+	import { settingsState, type AnnotationSchemaProfile } from '$lib/config/settingsStore.svelte';
 
 	let selectedId = $state<string | null>(null);
 

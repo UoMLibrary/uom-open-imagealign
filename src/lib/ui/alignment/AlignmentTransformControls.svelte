@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AlignmentSpec } from '$lib/imagealign/alignmentWorkflow';
+	import type { AlignmentSpec } from '$lib/alignment/alignmentWorkflow';
 
 	type Props = {
 		spec: AlignmentSpec;

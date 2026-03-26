@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { runPython } from '$lib/pyEngine';
-	import type { PythonProfile } from '$lib/core/settingsStore.svelte';
+	import { runPython } from '$lib/python/runPython';
+	import type { PythonProfile } from '$lib/config/settingsStore.svelte';
 
 	type Props = {
 		title: string;

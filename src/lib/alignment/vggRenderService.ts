@@ -1,5 +1,5 @@
 import { base } from '$app/paths';
-import type { TransformData } from '$lib/imagealign/vggAlignService';
+import type { TransformData } from '$lib/alignment/vggAlignService';
 
 type SupportedTransform = Pick<TransformData, 'H' | 'targetSize' | 'type'>;
 

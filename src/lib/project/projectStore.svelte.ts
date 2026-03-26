@@ -1,7 +1,7 @@
-import { bumpDerivationCacheGlobal } from '$lib/image/derivationState.svelte';
-import type { ImageAlignmentProject as Project } from '$lib/core/types';
-import { buildProjectFromFolderHandle, buildProjectFromSpreadsheetHandle } from '$lib/core/projectImport';
-import { getDerivedBlob } from '$lib/image/derivationService';
+import { bumpDerivationCacheGlobal } from '$lib/images/derivationState.svelte';
+import type { ImageAlignmentProject as Project } from '$lib/project/types';
+import { buildProjectFromFolderHandle, buildProjectFromSpreadsheetHandle } from '$lib/project/projectImport';
+import { getDerivedBlob } from '$lib/images/derivationService';
 import {
     pickDirectoryHandle,
     pickProjectFileHandle,
@@ -10,9 +10,9 @@ import {
     readJsonFile,
     supportsFileSystemAccess,
     writeJsonFile
-} from '$lib/core/projectFileActions';
-import { settingsState } from '$lib/core/settingsStore.svelte';
-import type { LocalImageSource } from '$lib/core/types';
+} from '$lib/project/projectFileActions';
+import { settingsState } from '$lib/config/settingsStore.svelte';
+import type { LocalImageSource } from '$lib/project/types';
 
 type BusyAction =
     | null

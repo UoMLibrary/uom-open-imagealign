@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
-	import { appConfigState } from '$lib/core/appConfigStore.svelte';
+	import { appConfigState } from '$lib/config/appConfigStore.svelte';
 
 	type Props = {
 		side?: 'left' | 'right';

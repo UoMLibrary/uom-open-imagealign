@@ -1,5 +1,5 @@
 import { get, set, del, keys } from 'idb-keyval';
-import { THUMB_VERSION, WORKING_VERSION } from '$lib/image/versions';
+import { THUMB_VERSION, WORKING_VERSION } from '$lib/images/versions';
 
 export type DerivationKind = 'work' | 'thumb';
 

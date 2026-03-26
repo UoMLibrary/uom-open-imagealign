@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { appConfigState } from '$lib/core/appConfigStore.svelte';
+	import { appConfigState } from '$lib/config/appConfigStore.svelte';
 
 	let config = $derived(appConfigState.snapshot);
 

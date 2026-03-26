@@ -4,8 +4,8 @@
 	import ExportShapeSection from '$lib/ui/settings/sections/ExportShapeSection.svelte';
 	import StorageUsage from '$lib/ui/settings/sections/StorageUsage.svelte';
 	import AppConfigSection from '$lib/ui/settings/sections/AppConfigSection.svelte';
-	import { settingsState } from '$lib/core/settingsStore.svelte';
-	import { appConfigState } from '$lib/core/appConfigStore.svelte';
+	import { settingsState } from '$lib/config/settingsStore.svelte';
+	import { appConfigState } from '$lib/config/appConfigStore.svelte';
 
 	type SettingsTab = 'grouping' | 'annotation' | 'export' | 'storage' | 'config';
 

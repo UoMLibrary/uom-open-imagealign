@@ -1,6 +1,6 @@
-import { projectState } from '$lib/core/projectStore.svelte';
-import { runExportProfileById } from '$lib/core/profileRunner';
-import { pickSaveTextFileHandle, writeTextFile } from '$lib/core/projectFileActions';
+import { projectState } from '$lib/project/projectStore.svelte';
+import { runExportProfileById } from '$lib/config/profileRunner';
+import { pickSaveTextFileHandle, writeTextFile } from '$lib/project/projectFileActions';
 
 function normaliseFilename(filename: string, fallback = 'export.json') {
     const trimmed = filename.trim();

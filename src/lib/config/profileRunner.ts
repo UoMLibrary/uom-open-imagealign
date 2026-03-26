@@ -1,5 +1,5 @@
-import { runPython } from '$lib/pyEngine';
-import { settingsState, type PythonProfile } from '$lib/core/settingsStore.svelte';
+import { runPython } from '$lib/python/runPython';
+import { settingsState, type PythonProfile } from '$lib/config/settingsStore.svelte';
 
 export type GroupingResult = Array<{
     label?: string;

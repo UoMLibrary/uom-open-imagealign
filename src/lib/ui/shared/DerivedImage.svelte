@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { getDerivedUrl, type DerivationKind } from '$lib/image/derivationService';
+	import { getDerivedUrl, type DerivationKind } from '$lib/images/derivationService';
 
 	interface Props {
 		contentHash: string;

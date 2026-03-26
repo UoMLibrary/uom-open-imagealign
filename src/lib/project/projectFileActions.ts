@@ -1,6 +1,6 @@
-// $lib/core/projectFileActions.ts
+// $lib/project/projectFileActions.ts
 
-import type { ImageAlignmentProject as Project } from '$lib/core/types';
+import type { ImageAlignmentProject as Project } from '$lib/project/types';
 
 type PickerWindow = Window &
     typeof globalThis & {

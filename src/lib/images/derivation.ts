@@ -16,7 +16,7 @@
  */
 
 import { get, set, del } from 'idb-keyval';
-import type { RuntimeImageSource } from '$lib/core/runtimeTypes';
+import type { RuntimeImageSource } from '$lib/project/runtimeTypes';
 
 type ImagePreparation = {
     rotation: number;
@@ -32,7 +32,7 @@ type ImagePreparation = {
    VERSIONING & POLICY
 ============================================================ */
 
-import { NORMALISE_VERSION, WORKING_VERSION, THUMB_VERSION } from '$lib/image/versions';
+import { NORMALISE_VERSION, WORKING_VERSION, THUMB_VERSION } from '$lib/images/versions';
 
 const MAX_WORKING_DIMENSION = 2048;
 

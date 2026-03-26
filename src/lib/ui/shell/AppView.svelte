@@ -18,9 +18,9 @@
 		relinkAssetFolder,
 		saveProject,
 		saveProjectAs
-	} from '$lib/core/projectStore.svelte';
+	} from '$lib/project/projectStore.svelte';
 
-	import { exportCurrentProject } from '$lib/core/projectExport';
+	import { exportCurrentProject } from '$lib/project/projectExport';
 
 	type AppViewMode = 'workspace' | 'settings';
 

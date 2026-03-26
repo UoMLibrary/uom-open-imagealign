@@ -1,4 +1,4 @@
-// $lib/image/derivationState.svelte.ts
+// $lib/images/derivationState.svelte.ts
 
 type CacheEpochState = {
     global: number;

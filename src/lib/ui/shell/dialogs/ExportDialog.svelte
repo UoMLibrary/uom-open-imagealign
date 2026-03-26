@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { settingsState } from '$lib/core/settingsStore.svelte';
+	import { settingsState } from '$lib/config/settingsStore.svelte';
 
 	export type ExportSelection = {
 		exportProfileId: string | null;

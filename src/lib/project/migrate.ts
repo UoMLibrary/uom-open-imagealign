@@ -1,4 +1,4 @@
-import type { ImageAlignmentProject as Project } from '$lib/core/types';
+import type { ImageAlignmentProject as Project } from '$lib/project/types';
 
 type AnyProject = Record<string, any>;
 type Migrator = (input: AnyProject) => AnyProject;

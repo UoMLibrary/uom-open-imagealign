@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { clear, del, entries, keys } from 'idb-keyval';
-	import { appConfigState } from '$lib/core/appConfigStore.svelte';
-	import { settingsState } from '$lib/core/settingsStore.svelte';
+	import { appConfigState } from '$lib/config/appConfigStore.svelte';
+	import { settingsState } from '$lib/config/settingsStore.svelte';
 
 	const APP_CONFIG_KEY = 'uom-imagealign:app-config:v1';
 	const SETTINGS_KEY = 'uom-imagealign:settings:v1';

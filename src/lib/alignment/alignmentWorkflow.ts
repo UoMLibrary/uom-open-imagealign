@@ -1,10 +1,10 @@
-import { renderWarpedImageUrl } from '$lib/imagealign/vggRenderService';
+import { renderWarpedImageUrl } from '$lib/alignment/vggRenderService';
 import {
     initVggAlign,
     getTransformForImages,
     type TransformData,
     type TransformType
-} from '$lib/imagealign/vggAlignService';
+} from '$lib/alignment/vggAlignService';
 
 export type AlignmentSpec = {
     type: TransformType;

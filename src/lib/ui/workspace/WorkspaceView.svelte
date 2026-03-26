@@ -5,7 +5,7 @@
 	import ImageDetailPanel from '$lib/ui/workspace/ImageDetailPanel.svelte';
 	import GroupAnnotationsPanel from '$lib/ui/workspace/GroupAnnotationsPanel.svelte';
 
-	import { projectState } from '$lib/core/projectStore.svelte';
+	import { projectState } from '$lib/project/projectStore.svelte';
 
 	let leftPanelOpen = $state(true);
 	let selectedGroupId = $state<string | null>(null);
