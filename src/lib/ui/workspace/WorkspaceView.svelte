@@ -936,7 +936,7 @@
 
 <style>
 	.workspace {
-		--workspace-header-height: 36px;
+		--workspace-header-height: 38px;
 		display: flex;
 		height: 100%;
 		min-height: 0;
