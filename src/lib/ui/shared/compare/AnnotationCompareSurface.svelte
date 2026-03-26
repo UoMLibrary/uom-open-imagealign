@@ -189,7 +189,9 @@
 
 	function cycleReadingFocusState() {
 		const currentIndex = getCurrentReadingFocusStateIndex();
-		const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % readingFocusStates.length;
+		// If the current state does not exactly match one of our presets, the first cycle
+		// should turn reading focus on rather than snapping to another "off" variant.
+		const nextIndex = currentIndex < 0 ? 1 : (currentIndex + 1) % readingFocusStates.length;
 		applyReadingFocusState(readingFocusStates[nextIndex]);
 	}
 
