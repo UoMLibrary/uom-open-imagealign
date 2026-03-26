@@ -400,6 +400,7 @@
 		font-weight: 700;
 		line-height: 1.3;
 		word-break: break-word;
+		line-clamp: 2;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
