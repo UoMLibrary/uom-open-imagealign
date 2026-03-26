@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 
 	type Props = {
 		open?: boolean;
 		title?: string;
 		onClose?: () => void;
+		children?: Snippet;
 	};
 
-	let { open = false, title = '', onClose }: Props = $props();
+	let { open = false, title = '', onClose, children }: Props = $props();
 
 	function close() {
 		onClose?.();
@@ -37,7 +38,7 @@
 			</header>
 
 			<div class="modal-body">
-				<slot />
+				{@render children?.()}
 			</div>
 		</div>
 	</div>

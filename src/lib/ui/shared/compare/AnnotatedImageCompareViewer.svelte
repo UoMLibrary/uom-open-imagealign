@@ -1,6 +1,6 @@
 <!-- AnnotatedImageCompareViewer.svelte -->
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import type OpenSeadragon from 'openseadragon';
 	import CompareViewerToolbar from './CompareViewerToolbar.svelte';
 	import AnnotationCompareSurface from './AnnotationCompareSurface.svelte';
@@ -87,23 +87,24 @@
 		onViewStateChange
 	}: Props = $props();
 
-	const compareSession =
-		session ??
-		createAnnotationCompareSession({
-			annotations,
-			...initialViewState
-		});
+	const initialViewStateSnapshot = untrack(() => ({ ...initialViewState }));
+	const initialAnnotationsSnapshot = untrack(() => annotations);
+	const localCompareSession = createAnnotationCompareSession({
+		annotations: initialAnnotationsSnapshot,
+		...initialViewStateSnapshot
+	});
+	const compareSession = $derived(session ?? localCompareSession);
 
-	let collapsed = $state(initialViewState.collapsed ?? false);
-	let overlayOpacity = $state(initialViewState.overlayOpacity ?? 0.6);
-	let annotationMode = $state<AnnotationMode>(initialViewState.annotationMode ?? 'pan');
-	let annotationsVisible = $state(initialViewState.annotationsVisible ?? true);
+	let collapsed = $state(initialViewStateSnapshot.collapsed ?? false);
+	let overlayOpacity = $state(initialViewStateSnapshot.overlayOpacity ?? 0.6);
+	let annotationMode = $state<AnnotationMode>(initialViewStateSnapshot.annotationMode ?? 'pan');
+	let annotationsVisible = $state(initialViewStateSnapshot.annotationsVisible ?? true);
 	let selectedAnnotationId = $state<string | null>(null);
 
-	let readingFocusEnabled = $state(initialViewState.readingFocusEnabled ?? false);
-	let readingFocusClearCenterPct = $state(initialViewState.readingFocusClearCenterPct ?? 30);
-	let readingFocusOpacity = $state(initialViewState.readingFocusOpacity ?? 0.35);
-	let readingFocusBlurPx = $state(initialViewState.readingFocusBlurPx ?? 0);
+	let readingFocusEnabled = $state(initialViewStateSnapshot.readingFocusEnabled ?? false);
+	let readingFocusClearCenterPct = $state(initialViewStateSnapshot.readingFocusClearCenterPct ?? 30);
+	let readingFocusOpacity = $state(initialViewStateSnapshot.readingFocusOpacity ?? 0.35);
+	let readingFocusBlurPx = $state(initialViewStateSnapshot.readingFocusBlurPx ?? 0);
 
 	let surface: InstanceType<typeof AnnotationCompareSurface> | null = null;
 

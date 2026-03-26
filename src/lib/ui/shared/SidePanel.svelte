@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { appConfigState } from '$lib/core/appConfigStore.svelte';
 
 	type Props = {
 		side?: 'left' | 'right';
 		open?: boolean;
 		width?: number;
+		children?: Snippet;
+		header?: Snippet;
 	};
 
 	// Which side the panel is attached to. Controls toggle key + button placement.
-	let { side = 'left', open = $bindable(true), width = 260 }: Props = $props();
+	let { side = 'left', open = $bindable(true), width = 260, children, header }: Props = $props();
 
 	// Toggle panel state. Parent reacts via bind:open.
 	function toggle() {
@@ -42,12 +44,12 @@
 <div class="side-panel {side}" class:collapsed={!open} style="--panel-width: {width}px">
 	<aside>
 		<header class="panel-header">
-			<slot name="header" />
+			{@render header?.()}
 		</header>
 
 		{#if open}
 			<div class="panel-content">
-				<slot />
+				{@render children?.()}
 			</div>
 		{/if}
 	</aside>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { get } from 'svelte/store';
 	import { createOSDAnnotator } from '@annotorious/openseadragon';
 	import '@annotorious/openseadragon/annotorious-openseadragon.css';
@@ -39,12 +39,13 @@
 		onDelete,
 		onSelect
 	}: Props = $props();
+	const initialModeSnapshot = untrack(() => initialMode);
 
 	let annotator = $state.raw<any>(null);
 	let initializedForViewer = $state.raw<OpenSeadragon.Viewer | null>(null);
 	let unsubscribeSessionAnnotations: (() => void) | null = null;
 
-	let mode = $state<AnnotationMode>(initialMode);
+	let mode = $state<AnnotationMode>(initialModeSnapshot);
 	let knownIds = new Set<string>();
 	let annotationSigs = new Map<string, string>();
 

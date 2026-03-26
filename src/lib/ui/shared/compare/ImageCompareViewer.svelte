@@ -87,8 +87,8 @@
 	let lastAppliedFocusSig: string | null = null;
 
 	let pendingAppearance = false;
-	let pendingOpacity = overlayOpacity;
-	let pendingComposite: string | null = overlayCompositeOperation;
+	let pendingOpacity = 0.6;
+	let pendingComposite: string | null = null;
 
 	let holdDifferenceActive = $state(false);
 	let holdShowBaseActive = $state(false);

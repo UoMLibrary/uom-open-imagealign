@@ -144,7 +144,7 @@
 		onSelect
 	}: Props = $props();
 
-	let annotationLayer: AnnotationLayerHandle | null = null;
+	let annotationLayer = $state<AnnotationLayerHandle | null>(null);
 
 	const readingFocusStates: ReadingFocusState[] = [
 		{ enabled: false, clearCenterPct: 30, opacity: 0.45, blurPx: 3 },

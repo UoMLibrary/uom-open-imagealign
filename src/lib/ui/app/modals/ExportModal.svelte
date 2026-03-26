@@ -19,7 +19,7 @@
 
 	let selection = $state<ExportSelection>({
 		exportProfileId: null,
-		filename: defaultFilename
+		filename: ''
 	});
 
 	$effect(() => {
