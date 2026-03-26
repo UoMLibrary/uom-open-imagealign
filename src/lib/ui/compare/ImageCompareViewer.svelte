@@ -18,6 +18,8 @@
 	type Props = {
 		imageUrl?: string | null;
 		overlayUrl?: string | null;
+		showHomeControl?: boolean;
+		showZoomControl?: boolean;
 
 		overlayOpacity?: number;
 		overlayCompositeOperation?: string | null;
@@ -49,6 +51,8 @@
 	let {
 		imageUrl = null,
 		overlayUrl = null,
+		showHomeControl = false,
+		showZoomControl = false,
 
 		overlayOpacity = $bindable(0.6),
 		overlayCompositeOperation = null,
@@ -116,8 +120,8 @@
 			maxZoomLevel: 20,
 			maxZoomPixelRatio: 5,
 			showFullPageControl: false,
-			showHomeControl: false,
-			showZoomControl: false,
+			showHomeControl,
+			showZoomControl,
 			silenceMultiImageWarnings: true
 		});
 	}
