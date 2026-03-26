@@ -24,7 +24,7 @@ let engineInitPromise: Promise<void> | null = null;
 
 export function ensureAlignmentEngine(): Promise<void> {
     if (!engineInitPromise) {
-        engineInitPromise = initVggAlign();
+        engineInitPromise = initVggAlign().then(() => {});
     }
 
     return engineInitPromise;

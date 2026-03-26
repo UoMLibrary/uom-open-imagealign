@@ -106,7 +106,7 @@
 	let readingFocusOpacity = $state(initialViewStateSnapshot.readingFocusOpacity ?? 0.35);
 	let readingFocusBlurPx = $state(initialViewStateSnapshot.readingFocusBlurPx ?? 0);
 
-	let surface: InstanceType<typeof AnnotationCompareSurface> | null = null;
+	let surface: { cycleReadingFocus: () => void } | null = null;
 
 	function cycleReadingFocus() {
 		surface?.cycleReadingFocus();

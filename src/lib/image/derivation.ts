@@ -16,8 +16,17 @@
  */
 
 import { get, set, del } from 'idb-keyval';
-import type { ImagePreparation } from '$lib/core/types';
 import type { RuntimeImageSource } from '$lib/core/runtimeTypes';
+
+type ImagePreparation = {
+    rotation: number;
+    rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+};
 
 /* ============================================================
    VERSIONING & POLICY
@@ -355,7 +364,7 @@ export async function rehydrateImagesFromCache(
         imageList.map(async (img) => {
             if (img.runtimeUri) return img;
 
-            const contentHash = img.hashes?.contentHash;
+            const contentHash = img.contentHash;
             if (!contentHash) return img;
 
             const workKey = `work::${contentHash}::${WORKING_VERSION}`;

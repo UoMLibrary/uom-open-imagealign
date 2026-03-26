@@ -12,6 +12,7 @@ import {
     writeJsonFile
 } from '$lib/core/projectFileActions';
 import { settingsState } from '$lib/core/settingsStore.svelte';
+import type { LocalImageSource } from '$lib/core/types';
 
 type BusyAction =
     | null
@@ -241,7 +242,8 @@ async function rebuildLocalAssetCacheForRoot(
 
     for (const image of localImages) {
         try {
-            const file = await getFileFromRelativePath(rootHandle, image.source.imageRef);
+            const localSource = image.source as LocalImageSource;
+            const file = await getFileFromRelativePath(rootHandle, localSource.imageRef);
             await getDerivedBlob(image.contentHash, 'work', file);
             await getDerivedBlob(image.contentHash, 'thumb', file);
             rebuilt++;

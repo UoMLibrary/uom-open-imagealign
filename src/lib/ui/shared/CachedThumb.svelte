@@ -12,7 +12,7 @@
 	let { contentHash, alt = 'Thumbnail', onMissing }: Props = $props();
 
 	let src: string | null = $state(null);
-	let state: 'loading' | 'ready' | 'missing' = $state('loading');
+	let loadState: 'loading' | 'ready' | 'missing' = $state('loading');
 	let release: (() => void) | null = $state(null);
 
 	let runId = 0;
@@ -28,10 +28,10 @@
 
 		cleanup();
 		src = null;
-		state = 'loading';
+		loadState = 'loading';
 
 		if (!hash) {
-			state = 'missing';
+			loadState = 'missing';
 			onMissing?.(hash);
 			return;
 		}
@@ -46,13 +46,13 @@
 
 			release = res.release;
 			src = res.url;
-			state = 'ready';
+			loadState = 'ready';
 		} catch (err) {
 			console.error('Error loading thumbnail for', hash, err);
 
 			if (id !== runId) return;
 
-			state = 'missing';
+			loadState = 'missing';
 			onMissing?.(hash);
 		}
 	}
@@ -64,7 +64,7 @@
 		if (!hash) {
 			cleanup();
 			src = null;
-			state = 'missing';
+			loadState = 'missing';
 			lastLoadKey = null;
 			return;
 		}
@@ -78,9 +78,9 @@
 	onDestroy(() => cleanup());
 </script>
 
-{#if state === 'ready' && src}
+{#if loadState === 'ready' && src}
 	<img {src} {alt} class="img" draggable="false" loading="lazy" decoding="async" />
-{:else if state === 'loading'}
+{:else if loadState === 'loading'}
 	<div class="ph ph-loading">
 		<div class="spinner"></div>
 	</div>

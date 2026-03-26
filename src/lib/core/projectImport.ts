@@ -150,8 +150,11 @@ async function scanDirectory(
     prefix = ''
 ): Promise<ScannedImage[]> {
     const results: ScannedImage[] = [];
+    const entries = dirHandle as unknown as AsyncIterable<
+        FileSystemDirectoryHandle | FileSystemFileHandle
+    >;
 
-    for await (const entry of dirHandle.values()) {
+    for await (const entry of entries) {
         if (entry.kind === 'directory') {
             const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
             results.push(...(await scanDirectory(entry, nextPrefix)));
@@ -297,15 +300,21 @@ export async function buildProjectFromFolderHandle(
         }
     }
 
-    project.groups = Array.from(groups.values()).map(
-        (group): ImageGroup => ({
-            id: group.id,
-            label: group.label,
-            baseImageId: group.baseImageId!,
-            imageIds: group.imageIds,
-            metadata: {}
-        })
-    );
+    project.groups = Array.from(groups.values()).flatMap((group): ImageGroup[] => {
+        if (!group.baseImageId || group.imageIds.length === 0) {
+            return [];
+        }
+
+        return [
+            {
+                id: group.id,
+                label: group.label,
+                baseImageId: group.baseImageId,
+                imageIds: [group.imageIds[0], ...group.imageIds.slice(1)],
+                metadata: {}
+            }
+        ];
+    });
 
     project.updatedAt = nowIso();
     return project;

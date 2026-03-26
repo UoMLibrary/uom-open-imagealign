@@ -1,5 +1,5 @@
-import type { ImageSource as PersistedImageSource } from './types';
+import type { ImageRecord } from './types';
 
-export type RuntimeImageSource = PersistedImageSource & {
+export type RuntimeImageSource = ImageRecord & {
     runtimeUri?: string;
 };

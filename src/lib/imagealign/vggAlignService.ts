@@ -55,6 +55,15 @@ type VggModule = {
         im: ArrayLike<number>,
         rows: number
     ) => Float64Array;
+
+    warp_image: (
+        image: ArrayLike<number>,
+        rows: number,
+        transform: ArrayLike<number>,
+        targetRows: number,
+        targetCols: number,
+        type?: string
+    ) => Uint8Array;
 };
 
 declare global {

@@ -2,6 +2,13 @@
 
 import type { ImageAlignmentProject as Project } from '$lib/core/types';
 
+type PickerWindow = Window &
+    typeof globalThis & {
+        showOpenFilePicker?: (options?: unknown) => Promise<FileSystemFileHandle[]>;
+        showSaveFilePicker?: (options?: unknown) => Promise<FileSystemFileHandle>;
+        showDirectoryPicker?: (options?: unknown) => Promise<FileSystemDirectoryHandle>;
+    };
+
 function ensureBrowser() {
     if (typeof window === 'undefined') {
         throw new Error('File actions are only available in the browser.');
@@ -9,22 +16,25 @@ function ensureBrowser() {
 }
 
 export function supportsFileSystemAccess(): boolean {
+    const pickerWindow = window as PickerWindow;
+
     return (
         typeof window !== 'undefined' &&
-        'showOpenFilePicker' in window &&
-        'showSaveFilePicker' in window &&
-        'showDirectoryPicker' in window
+        typeof pickerWindow.showOpenFilePicker === 'function' &&
+        typeof pickerWindow.showSaveFilePicker === 'function' &&
+        typeof pickerWindow.showDirectoryPicker === 'function'
     );
 }
 
 export async function pickProjectFileHandle(): Promise<FileSystemFileHandle | null> {
     ensureBrowser();
+    const pickerWindow = window as PickerWindow;
 
     if (!supportsFileSystemAccess()) {
         throw new Error('This browser does not support the File System Access API.');
     }
 
-    const [handle] = await (window as any).showOpenFilePicker({
+    const [handle] = await pickerWindow.showOpenFilePicker!({
         multiple: false,
         excludeAcceptAllOption: false,
         types: [
@@ -42,12 +52,13 @@ export async function pickProjectFileHandle(): Promise<FileSystemFileHandle | nu
 
 export async function pickSpreadsheetHandle(): Promise<FileSystemFileHandle | null> {
     ensureBrowser();
+    const pickerWindow = window as PickerWindow;
 
     if (!supportsFileSystemAccess()) {
         throw new Error('This browser does not support the File System Access API.');
     }
 
-    const [handle] = await (window as any).showOpenFilePicker({
+    const [handle] = await pickerWindow.showOpenFilePicker!({
         multiple: false,
         excludeAcceptAllOption: false,
         types: [
@@ -68,12 +79,13 @@ export async function pickDirectoryHandle(
     mode: 'read' | 'readwrite' = 'read'
 ): Promise<FileSystemDirectoryHandle | null> {
     ensureBrowser();
+    const pickerWindow = window as PickerWindow;
 
     if (!supportsFileSystemAccess()) {
         throw new Error('This browser does not support the File System Access API.');
     }
 
-    const handle = await (window as any).showDirectoryPicker({
+    const handle = await pickerWindow.showDirectoryPicker!({
         mode
     });
 
@@ -84,12 +96,13 @@ export async function pickSaveProjectHandle(
     suggestedName = 'project.json'
 ): Promise<FileSystemFileHandle | null> {
     ensureBrowser();
+    const pickerWindow = window as PickerWindow;
 
     if (!supportsFileSystemAccess()) {
         throw new Error('This browser does not support the File System Access API.');
     }
 
-    const handle = await (window as any).showSaveFilePicker({
+    const handle = await pickerWindow.showSaveFilePicker!({
         suggestedName,
         types: [
             {
@@ -129,10 +142,12 @@ export async function pickSaveTextFileHandle(
         'text/plain': ['.txt']
     }
 ): Promise<FileSystemFileHandle | null> {
+    const pickerWindow = window as PickerWindow;
+
     if (!supportsFileSystemAccess()) return null;
 
     try {
-        return await window.showSaveFilePicker({
+        return await pickerWindow.showSaveFilePicker!({
             suggestedName,
             types: [
                 {

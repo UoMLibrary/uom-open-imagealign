@@ -16,10 +16,10 @@
 	// 	console.log('DerivedImage props changed:', { contentHash, kind, alt, className });
 	// });
 
-	let src: string | null = null;
-	let state: 'loading' | 'ready' | 'missing' = 'loading';
+	let src: string | null = $state(null);
+	let loadState: 'loading' | 'ready' | 'missing' = $state('loading');
 
-	let release: (() => void) | null = null;
+	let release: (() => void) | null = $state(null);
 	let runId = 0;
 
 	function cleanup() {
@@ -32,10 +32,10 @@
 
 		cleanup();
 		src = null;
-		state = 'loading';
+		loadState = 'loading';
 
 		if (!contentHash) {
-			state = 'missing';
+			loadState = 'missing';
 			onMissing?.(contentHash);
 			return;
 		}
@@ -50,10 +50,10 @@
 
 			src = res.url;
 			release = res.release;
-			state = 'ready';
+			loadState = 'ready';
 		} catch {
 			if (id !== runId) return;
-			state = 'missing';
+			loadState = 'missing';
 			onMissing?.(contentHash);
 		}
 	}
@@ -67,7 +67,7 @@
 	onDestroy(() => cleanup());
 </script>
 
-{#if state === 'ready' && src}
+{#if loadState === 'ready' && src}
 	<img
 		{src}
 		{alt}
@@ -76,7 +76,7 @@
 		loading="lazy"
 		decoding="async"
 	/>
-{:else if state === 'loading'}
+{:else if loadState === 'loading'}
 	<div class="ph ph-loading">
 		<div class="spinner"></div>
 	</div>
