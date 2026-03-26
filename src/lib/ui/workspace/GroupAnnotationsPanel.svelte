@@ -2,19 +2,55 @@
 	type AnnotationLike = {
 		id: string;
 		schemaId: string;
+		anchorImageId?: string;
 		targetImageIds: string[];
 		geometry?: unknown;
 	};
 
 	type Props = {
 		annotations: AnnotationLike[];
+		selectedAnnotationId?: string | null;
+		activePairImageIds?: string[];
+		imageTitleById?: Record<string, string>;
 		geometrySummary?: ((geometry: unknown) => string) | undefined;
+		onSelect?: ((annotationId: string) => void) | undefined;
 	};
 
-	let { annotations, geometrySummary }: Props = $props();
+	let {
+		annotations,
+		selectedAnnotationId = null,
+		activePairImageIds = [],
+		imageTitleById = {},
+		geometrySummary,
+		onSelect
+	}: Props = $props();
 
 	function summariseGeometry(geometry: unknown): string {
 		return geometrySummary?.(geometry) ?? '—';
+	}
+
+	function getImageLabel(imageId: string | undefined): string {
+		if (!imageId) return 'Unknown image';
+		return imageTitleById[imageId] ?? imageId;
+	}
+
+	function getPairLabel(annotation: AnnotationLike): string {
+		const anchor = getImageLabel(annotation.anchorImageId);
+		const targets = annotation.targetImageIds.map(getImageLabel);
+
+		if (targets.length === 0) return anchor;
+		return `${anchor} -> ${targets.join(', ')}`;
+	}
+
+	function isActivePair(annotation: AnnotationLike): boolean {
+		if (activePairImageIds.length === 0) return false;
+
+		const imageIds = new Set([annotation.anchorImageId, ...annotation.targetImageIds].filter(Boolean));
+		return activePairImageIds.every((imageId) => imageIds.has(imageId));
+	}
+
+	function select(annotationId: string) {
+		onSelect?.(annotationId);
 	}
 </script>
 
@@ -29,16 +65,23 @@
 	{:else}
 		<div class="annotation-list">
 			{#each annotations as annotation (annotation.id)}
-				<div class="annotation-row">
+				<button
+					type="button"
+					class="annotation-row"
+					class:selected={annotation.id === selectedAnnotationId}
+					class:pair-match={isActivePair(annotation)}
+					onclick={() => select(annotation.id)}
+				>
 					<div class="annotation-main">
 						<div class="annotation-title">{annotation.schemaId}</div>
+						<div class="annotation-pair">{getPairLabel(annotation)}</div>
 						<div class="annotation-sub">
 							{summariseGeometry(annotation.geometry)} · {annotation.targetImageIds.length} targets
 						</div>
 					</div>
 
 					<div class="annotation-id">{annotation.id}</div>
-				</div>
+				</button>
 			{/each}
 		</div>
 	{/if}
@@ -46,13 +89,12 @@
 
 <style>
 	.compact-panel {
+		height: 100%;
 		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		box-shadow:
-			0 10px 30px rgba(15, 23, 42, 0.05),
-			0 2px 8px rgba(15, 23, 42, 0.04);
-		padding: 1rem;
+		padding: 0.9rem;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
 	}
 
 	.detail-head {
@@ -60,6 +102,7 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 0.75rem;
+		flex: 0 0 auto;
 	}
 
 	.detail-head h3 {
@@ -86,6 +129,8 @@
 		flex-direction: column;
 		gap: 0.6rem;
 		margin-top: 0.8rem;
+		min-height: 0;
+		overflow: auto;
 	}
 
 	.annotation-row {
@@ -97,6 +142,28 @@
 		border-radius: 12px;
 		background: rgba(248, 250, 252, 0.92);
 		border: 1px solid rgba(15, 23, 42, 0.06);
+		text-align: left;
+		cursor: pointer;
+		color: inherit;
+		transition:
+			border-color 140ms ease,
+			background-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+
+	.annotation-row:hover {
+		border-color: rgba(59, 130, 246, 0.18);
+		background: rgba(239, 246, 255, 0.75);
+	}
+
+	.annotation-row.selected {
+		border-color: rgba(37, 99, 235, 0.38);
+		background: rgba(219, 234, 254, 0.82);
+		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+	}
+
+	.annotation-row.pair-match:not(.selected) {
+		border-color: rgba(16, 185, 129, 0.22);
 	}
 
 	.annotation-main {
@@ -109,10 +176,27 @@
 		color: #111827;
 	}
 
+	.annotation-pair {
+		margin-top: 0.16rem;
+		font-size: 0.74rem;
+		color: #334155;
+	}
+
 	.annotation-sub,
 	.annotation-id {
 		font-size: 0.73rem;
 		color: #64748b;
+	}
+
+	.annotation-sub {
+		margin-top: 0.18rem;
+	}
+
+	.annotation-id {
+		flex: 0 0 auto;
+		max-width: 7rem;
+		text-align: right;
+		word-break: break-word;
 	}
 
 	.empty-inline {
@@ -125,12 +209,18 @@
 		background: rgba(248, 250, 252, 0.9);
 		padding: 1rem;
 		font-size: 0.82rem;
+		margin-top: 0.8rem;
 	}
 
 	@media (max-width: 900px) {
 		.annotation-row {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.annotation-id {
+			max-width: none;
+			text-align: left;
 		}
 	}
 </style>
