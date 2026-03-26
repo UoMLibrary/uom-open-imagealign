@@ -623,13 +623,15 @@
 					{:else}
 						<div class="group-list">
 							{#each groups as group, idx (`${group.id}:${idx}`)}
-								{@const groupBaseImage = imageById.get(group.baseImageId)}
+								{@const groupPreviewImage =
+									imageById.get(group.baseImageId) ??
+									(group.imageIds[0] ? imageById.get(group.imageIds[0]) : null)}
 								{@const stats = groupStats.get(group.id)}
 
 								<GroupListItem
 									{group}
 									selected={group.id === selectedGroupId}
-									baseImageContentHash={groupBaseImage?.contentHash ?? null}
+									baseImageContentHash={groupPreviewImage?.contentHash ?? null}
 									alignmentCount={stats?.alignmentCount ?? 0}
 									annotationCount={stats?.annotationCount ?? 0}
 									onSelect={selectGroup}
