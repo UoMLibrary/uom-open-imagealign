@@ -1,14 +1,15 @@
-<script>
-	import { createEventDispatcher } from 'svelte';
+<script lang="ts">
+	type Props = {
+		title?: string;
+		size?: number;
+		onClick?: () => void;
+	};
 
-	const dispatch = createEventDispatcher();
+	let { title = 'Delete', size = 14, onClick }: Props = $props();
 
-	export let title = 'Delete';
-	export let size = 14;
-
-	function handleClick(e) {
+	function handleClick(e: MouseEvent) {
 		e.stopPropagation();
-		dispatch('click');
+		onClick?.();
 	}
 </script>
 

@@ -2,14 +2,14 @@
 	import { onMount } from 'svelte';
 	import { appConfigState } from '$lib/core/appConfigStore.svelte';
 
+	type Props = {
+		side?: 'left' | 'right';
+		open?: boolean;
+		width?: number;
+	};
+
 	// Which side the panel is attached to. Controls toggle key + button placement.
-	export let side: 'left' | 'right' = 'left';
-
-	// Whether the panel is open. Parent should use: bind:open
-	export let open = true;
-
-	// Width in pixels when expanded.
-	export let width = 260;
+	let { side = 'left', open = $bindable(true), width = 260 }: Props = $props();
 
 	// Toggle panel state. Parent reacts via bind:open.
 	function toggle() {

@@ -1,10 +1,14 @@
-<script>
+<script lang="ts">
 	import Modal from '../../shared/Modal.svelte';
 
-	export let open = false;
+	type Props = {
+		open?: boolean;
+	};
+
+	let { open = $bindable(false) }: Props = $props();
 </script>
 
-<Modal {open} title="How to use this tool" on:close={() => (open = false)}>
+<Modal {open} title="How to use this tool" onClose={() => (open = false)}>
 	<p>
 		This tool prepares image sets for annotation by analysing a directory of images and generating
 		paired (or grouped) image sets suitable for visual comparison and annotation.

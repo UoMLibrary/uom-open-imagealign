@@ -4,9 +4,13 @@
 		label: string;
 	};
 
-	export let options: FilterOption[] = [];
-	export let value: string;
-	export let onChange: (value: string) => void;
+	type Props = {
+		options?: FilterOption[];
+		value: string;
+		onChange?: (value: string) => void;
+	};
+
+	let { options = [], value, onChange }: Props = $props();
 
 	function select(v: string) {
 		if (v !== value) {

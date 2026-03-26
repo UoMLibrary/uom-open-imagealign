@@ -1,10 +1,14 @@
-<script>
+<script lang="ts">
 	import Modal from '../../shared/Modal.svelte';
 
-	export let open = false;
+	type Props = {
+		open?: boolean;
+	};
+
+	let { open = $bindable(false) }: Props = $props();
 </script>
 
-<Modal {open} title="About this tool" on:close={() => (open = false)}>
+<Modal {open} title="About this tool" onClose={() => (open = false)}>
 	<p>
 		This application is designed to support the preparation stage of image-based annotation
 		workflows. It focuses on organising collections of related images into structured pairs or

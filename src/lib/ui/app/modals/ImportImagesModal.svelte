@@ -6,7 +6,7 @@
 	$: title = state.ingesting ? 'Importing images' : 'Import results';
 </script>
 
-<Modal open={state.open} {title} on:close={dismissImageImportModal}>
+<Modal open={state.open} {title} onClose={dismissImageImportModal}>
 	<div class="stack">
 		{#if state.ingesting}
 			<div class="status-row">

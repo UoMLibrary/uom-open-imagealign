@@ -1,7 +1,11 @@
 <script lang="ts">
-	export let busy = false;
-	export let disabled = false;
-	export let onPress: (() => void) | undefined = undefined;
+	type Props = {
+		busy?: boolean;
+		disabled?: boolean;
+		onPress?: () => void;
+	};
+
+	let { busy = false, disabled = false, onPress }: Props = $props();
 </script>
 
 <button onclick={() => onPress?.()} {disabled}>

@@ -1,16 +1,19 @@
-<script>
-	import { createEventDispatcher, onMount } from 'svelte';
+<script lang="ts">
+	import { onMount } from 'svelte';
 
-	export let open = false;
-	export let title = '';
+	type Props = {
+		open?: boolean;
+		title?: string;
+		onClose?: () => void;
+	};
 
-	const dispatch = createEventDispatcher();
+	let { open = false, title = '', onClose }: Props = $props();
 
 	function close() {
-		dispatch('close');
+		onClose?.();
 	}
 
-	function onKey(e) {
+	function onKey(e: KeyboardEvent) {
 		if (e.key === 'Escape') close();
 	}
 
