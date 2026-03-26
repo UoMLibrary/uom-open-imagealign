@@ -367,3 +367,5 @@ needsReview: false
 }
 
 Need to add a log in to demonstrate that the user name is saved along with the dataGet annotations showing upGet Form shaped by JSON and using default valuesGet Speech to text hooked back inGet data export workingGet open from spreadsheet working
+
+TODO: Need loading indicator when relinking

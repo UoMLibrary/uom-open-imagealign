@@ -2,19 +2,23 @@
 	import ImportGroupingSection from '$lib/ui/app/settings/ImportGroupingSection.svelte';
 	import AnnotationSchemaSection from '$lib/ui/app/settings/AnnotationSchemaSection.svelte';
 	import ExportShapeSection from '$lib/ui/app/settings/ExportShapeSection.svelte';
+	import StorageUsage from '$lib/ui/app/settings/StorageUsage.svelte';
+	import AppConfigSection from '$lib/ui/app/settings/AppConfigSection.svelte';
 	import { settingsState } from '$lib/core/settingsStore.svelte';
+	import { appConfigState } from '$lib/core/appConfigStore.svelte';
 
-	type SettingsTab = 'grouping' | 'annotation' | 'export';
+	type SettingsTab = 'grouping' | 'annotation' | 'export' | 'storage' | 'config';
 
 	let activeTab = $state<SettingsTab>('grouping');
 
 	function resetAllSettings() {
 		const ok = window.confirm(
-			'Reset all saved settings profiles back to defaults? This will remove your custom grouping, annotation, and export profiles.'
+			'Reset saved settings and application config back to defaults? This will remove your custom grouping, annotation, export, and app configuration preferences.'
 		);
 
 		if (ok) {
 			settingsState.resetAll();
+			appConfigState.reset();
 			activeTab = 'grouping';
 		}
 	}
@@ -25,8 +29,8 @@
 		<div>
 			<h1>Settings</h1>
 			<p>
-				Manage reusable app-level profiles for folder grouping, annotation data shape, and export
-				shaping.
+				Manage reusable profiles, browser-side storage, and shared application configuration from
+				one place.
 			</p>
 		</div>
 
@@ -68,6 +72,26 @@
 				<div class="nav-title">Export Shape</div>
 				<div class="nav-sub">Python functions for reshaping project data for export</div>
 			</button>
+
+			<button
+				type="button"
+				class="nav-item"
+				class:selected={activeTab === 'storage'}
+				onclick={() => (activeTab = 'storage')}
+			>
+				<div class="nav-title">Storage</div>
+				<div class="nav-sub">Inspect and clear IndexedDB cache and saved browser-side app data</div>
+			</button>
+
+			<button
+				type="button"
+				class="nav-item"
+				class:selected={activeTab === 'config'}
+				onclick={() => (activeTab = 'config')}
+			>
+				<div class="nav-title">Application Config</div>
+				<div class="nav-sub">Shared browser-side preferences used across the application</div>
+			</button>
 		</aside>
 
 		<section class="settings-content">
@@ -75,8 +99,12 @@
 				<ImportGroupingSection />
 			{:else if activeTab === 'annotation'}
 				<AnnotationSchemaSection />
-			{:else}
+			{:else if activeTab === 'export'}
 				<ExportShapeSection />
+			{:else if activeTab === 'storage'}
+				<StorageUsage />
+			{:else}
+				<AppConfigSection />
 			{/if}
 		</section>
 	</div>

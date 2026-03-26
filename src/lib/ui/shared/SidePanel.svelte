@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { appConfigState } from '$lib/core/appConfigStore.svelte';
 
 	// Which side the panel is attached to. Controls toggle key + button placement.
 	export let side: 'left' | 'right' = 'left';
@@ -18,13 +19,15 @@
 	// Keyboard shortcut handler. [  toggles left panel, ]  toggles right panel
 	function handleKeydown(e: KeyboardEvent) {
 		const target = e.target as HTMLElement | null;
+		const leftKey = appConfigState.leftPanelToggleKey;
+		const rightKey = appConfigState.rightPanelToggleKey;
 
 		// Do not interfere with typing
 		if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) {
 			return;
 		}
 
-		if ((side === 'left' && e.key === '[') || (side === 'right' && e.key === ']')) {
+		if ((side === 'left' && e.key === leftKey) || (side === 'right' && e.key === rightKey)) {
 			e.preventDefault();
 			toggle();
 		}
