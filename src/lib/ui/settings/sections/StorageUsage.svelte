@@ -372,15 +372,15 @@
 	.storage-panel {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0;
+		height: 100%;
+		overflow: auto;
+		background: #fff;
 	}
 
 	.section-card {
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.96);
-		box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
-		padding: 1.1rem;
+		padding: 1rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 	}
 
 	.section-header {
@@ -407,7 +407,7 @@
 
 	.usage-summary {
 		padding: 0.95rem 1rem;
-		border-radius: 16px;
+		border-radius: 12px;
 		background: linear-gradient(180deg, rgba(239, 246, 255, 0.88), rgba(224, 242, 254, 0.82));
 		border: 1px solid rgba(59, 130, 246, 0.15);
 		margin-bottom: 1rem;
@@ -485,7 +485,7 @@
 		background: #fff;
 		color: #111827;
 		padding: 0.75rem 0.9rem;
-		border-radius: 12px;
+		border-radius: 10px;
 		font: inherit;
 		font-size: 0.84rem;
 		font-weight: 600;
@@ -517,7 +517,7 @@
 	.feedback {
 		margin-top: 0.9rem;
 		padding: 0.75rem 0.85rem;
-		border-radius: 12px;
+		border-radius: 10px;
 		background: rgba(236, 253, 245, 0.9);
 		border: 1px solid rgba(16, 185, 129, 0.14);
 		color: #065f46;

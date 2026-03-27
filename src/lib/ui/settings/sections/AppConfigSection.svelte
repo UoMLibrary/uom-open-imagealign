@@ -96,15 +96,14 @@
 	.config-section {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0;
+		height: 100%;
+		overflow: auto;
+		background: #fff;
 	}
 
 	.section-card {
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.96);
-		box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
-		padding: 1.1rem;
+		padding: 1rem;
 	}
 
 	.section-header {
@@ -140,7 +139,7 @@
 		flex-direction: column;
 		gap: 0.45rem;
 		padding: 0.9rem;
-		border-radius: 14px;
+		border-radius: 10px;
 		background: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(241, 245, 249, 0.92));
 		border: 1px solid rgba(148, 163, 184, 0.18);
 	}
@@ -173,7 +172,7 @@
 		background: #fff;
 		color: #111827;
 		padding: 0.65rem 0.9rem;
-		border-radius: 10px;
+		border-radius: 8px;
 		font: inherit;
 		font-size: 0.84rem;
 		font-weight: 600;

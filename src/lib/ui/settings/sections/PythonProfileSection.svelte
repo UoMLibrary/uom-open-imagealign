@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { runPython } from '$lib/python/runPython';
 	import type { PythonProfile } from '$lib/config/settingsStore.svelte';
+	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 
 	type Props = {
 		title: string;
@@ -31,6 +32,7 @@
 	let safeProfiles = $derived(profiles ?? []);
 
 	let selectedId = $state<string | null>(null);
+	let profilesPanelOpen = $state(true);
 	let draftName = $state('');
 	let draftDescription = $state('');
 	let draftScript = $state('');
@@ -147,58 +149,68 @@
 </script>
 
 <div class="section-shell">
-	<div class="section-header">
-		<div>
-			<h2>{title}</h2>
-			<p>{intro}</p>
-		</div>
-
-		<button type="button" class="primary-button" onclick={createProfile}>{createLabel}</button>
-	</div>
-
 	<div class="section-layout">
-		<aside class="profile-list-card">
-			<div class="profile-list-header">
-				<div class="profile-list-title">Saved profiles</div>
-				<div class="profile-list-count">{safeProfiles.length}</div>
-			</div>
+		<WorkspaceSidebar side="left" width={296} bind:open={profilesPanelOpen}>
+			{#snippet header()}
+				<div class="profile-sidebar-header">
+					<div>
+						<div class="profile-sidebar-title">Saved profiles</div>
+						<div class="profile-sidebar-subtitle">{safeProfiles.length} for {title}</div>
+					</div>
 
-			{#if safeProfiles.length === 0}
-				<div class="empty-list">No profiles yet.</div>
-			{:else}
-				<div class="profile-list">
-					{#each safeProfiles as profile (profile.id)}
-						<button
-							type="button"
-							class="profile-item"
-							class:selected={profile.id === selectedId}
-							onclick={() => (selectedId = profile.id)}
-						>
-							<div class="profile-name">{profile.name || 'Untitled profile'}</div>
-							{#if profile.description}
-								<div class="profile-desc">{profile.description}</div>
-							{/if}
-							<div class="profile-meta">
-								Updated {new Date(profile.updatedAt).toLocaleString('en-GB')}
-							</div>
-						</button>
-					{/each}
+					<button type="button" class="primary-button compact-button" onclick={createProfile}>
+						New
+					</button>
 				</div>
-			{/if}
-		</aside>
+			{/snippet}
+
+			<div class="profile-sidebar">
+				{#if safeProfiles.length === 0}
+					<div class="empty-list">No profiles yet.</div>
+				{:else}
+					<div class="profile-list">
+						{#each safeProfiles as profile (profile.id)}
+							<button
+								type="button"
+								class="profile-item"
+								class:selected={profile.id === selectedId}
+								onclick={() => (selectedId = profile.id)}
+							>
+								<div class="profile-title-row">
+									<div class="profile-name">{profile.name || 'Untitled profile'}</div>
+									<div class="profile-list-count">{profile.sampleOutput ? 'Out' : 'New'}</div>
+								</div>
+								{#if profile.description}
+									<div class="profile-desc">{profile.description}</div>
+								{/if}
+								<div class="profile-meta">
+									Updated {new Date(profile.updatedAt).toLocaleString('en-GB')}
+								</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		</WorkspaceSidebar>
 
 		<section class="editor-card">
 			{#if selectedProfile}
-				<div class="editor-actions">
-					<button type="button" class="secondary-button" onclick={duplicateProfile}
-						>Duplicate</button
-					>
-					<button type="button" class="danger-button" onclick={deleteProfile}>Delete</button>
-					<div class="spacer"></div>
-					<button type="button" class="secondary-button" onclick={saveProfile}>Save</button>
-					<button type="button" class="primary-button" disabled={testBusy} onclick={runTest}>
-						{#if testBusy}Running…{:else}Run test{/if}
-					</button>
+				<div class="editor-toolbar">
+					<div class="editor-leading">
+						<div class="editor-context">{title}</div>
+						<div class="editor-selected-name">{selectedProfile.name || 'Untitled profile'}</div>
+					</div>
+
+					<div class="editor-actions">
+						<button type="button" class="secondary-button" onclick={duplicateProfile}
+							>Duplicate</button
+						>
+						<button type="button" class="danger-button" onclick={deleteProfile}>Delete</button>
+						<button type="button" class="secondary-button" onclick={saveProfile}>Save</button>
+						<button type="button" class="primary-button" disabled={testBusy} onclick={runTest}>
+							{#if testBusy}Running…{:else}Run test{/if}
+						</button>
+					</div>
 				</div>
 
 				<div class="field-grid">
@@ -215,17 +227,18 @@
 
 				<div class="editor-workbench">
 					<section class="script-panel">
-						<div class="panel-header">
-							<div class="panel-title">Python script</div>
+						<div class="script-panel-toolbar">
+							<div class="script-panel-label">Python script</div>
 						</div>
-						<label class="field script-field">
+
+						<label class="script-editor-field">
 							<textarea bind:value={draftScript} rows="24" spellcheck="false"></textarea>
 						</label>
 					</section>
 
 					<section class="data-panel">
-						<div class="panel-header data-panel-header">
-							<div class="panel-tabs" role="tablist" aria-label="Profile test data">
+						<div class="data-panel-toolbar">
+							<div class="panel-tabs" role="tablist" aria-label={`${title} test data`}>
 								<button
 									type="button"
 									role="tab"
@@ -247,14 +260,25 @@
 									{outputLabel}
 								</button>
 							</div>
+
+							<div class="tab-actions">
+								<button
+									type="button"
+									class="primary-button compact-button"
+									disabled={testBusy}
+									onclick={runTest}
+								>
+									{#if testBusy}Running…{:else}Run{/if}
+								</button>
+							</div>
 						</div>
 
 						{#if activeDataTab === 'input'}
-							<label class="field data-field">
+							<label class="data-editor-field">
 								<textarea bind:value={draftSampleInput} rows="24" spellcheck="false"></textarea>
 							</label>
 						{:else}
-							<label class="field data-field">
+							<label class="data-editor-field">
 								<textarea value={testOutput} rows="24" readonly spellcheck="false"></textarea>
 							</label>
 						{/if}
@@ -274,122 +298,101 @@
 <style>
 	.section-shell {
 		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+		height: 100%;
 		min-height: 0;
-	}
-
-	.section-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 1rem 1.1rem;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.95);
-		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-	}
-
-	.section-header h2 {
-		margin: 0 0 0.3rem;
-		font-size: 1.1rem;
-		color: #111827;
-	}
-
-	.section-header p {
-		margin: 0;
-		font-size: 0.88rem;
-		line-height: 1.5;
-		color: #64748b;
-		max-width: 60rem;
 	}
 
 	.section-layout {
-		display: grid;
-		grid-template-columns: 280px minmax(0, 1fr);
-		gap: 1rem;
-		min-height: 0;
-	}
-
-	.profile-list-card,
-	.editor-card {
-		min-height: 0;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.95);
-		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-	}
-
-	.profile-list-card {
 		display: flex;
-		flex-direction: column;
+		flex: 1 1 auto;
+		min-height: 0;
+		width: 100%;
 		overflow: hidden;
 	}
 
-	.profile-list-header {
+	.profile-sidebar {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+		background: #f8fafc;
+	}
+
+	.profile-sidebar-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.95rem 1rem 0.85rem;
+		gap: 0.75rem;
+		padding: 0.8rem 0.9rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.96);
 	}
 
-	.profile-list-title {
-		font-size: 0.88rem;
-		font-weight: 700;
-		color: #111827;
+	.profile-sidebar-title {
+		font-size: 0.84rem;
+		font-weight: 800;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		color: #0f172a;
 	}
 
-	.profile-list-count {
-		min-width: 1.8rem;
-		height: 1.8rem;
-		padding: 0 0.55rem;
-		border-radius: 999px;
-		background: #eef2ff;
-		color: #4338ca;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.76rem;
-		font-weight: 700;
+	.profile-sidebar-subtitle {
+		margin-top: 0.2rem;
+		font-size: 0.75rem;
+		color: #64748b;
+	}
+
+	.profile-list,
+	.editor-card {
+		min-height: 0;
 	}
 
 	.profile-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.65rem;
-		padding: 0.8rem;
+		flex: 1 1 auto;
 		overflow: auto;
+		background: #ffffff;
 	}
 
 	.profile-item {
 		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #fff;
-		border-radius: 14px;
-		padding: 0.8rem 0.85rem;
+		border: 0;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: transparent;
+		padding: 0.8rem 0.9rem;
 		text-align: left;
 		cursor: pointer;
+		transition: background-color 140ms ease;
+	}
+
+	.profile-item:hover {
+		background: rgba(248, 250, 252, 0.72);
 	}
 
 	.profile-item.selected {
-		border-color: rgba(59, 130, 246, 0.3);
-		background: rgba(239, 246, 255, 0.9);
+		background: rgba(239, 246, 255, 0.72);
+	}
+
+	.profile-title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		justify-content: space-between;
 	}
 
 	.profile-name {
-		font-size: 0.88rem;
+		font-size: 0.9rem;
 		font-weight: 700;
 		color: #111827;
-		margin-bottom: 0.22rem;
+		min-width: 0;
 	}
 
 	.profile-desc {
-		font-size: 0.8rem;
+		font-size: 0.78rem;
 		color: #64748b;
 		line-height: 1.45;
-		margin-bottom: 0.4rem;
+		margin: 0.28rem 0 0.42rem;
 	}
 
 	.profile-meta {
@@ -398,41 +401,72 @@
 	}
 
 	.editor-card {
-		padding: 1rem;
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
 		min-width: 0;
+		flex: 1 1 auto;
+		background: #ffffff;
+		overflow: hidden;
+	}
+
+	.editor-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		flex-wrap: wrap;
+		padding: 0.75rem 0.9rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.98);
+	}
+
+	.editor-leading {
+		min-width: 0;
+	}
+
+	.editor-context {
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #64748b;
+	}
+
+	.editor-selected-name {
+		font-size: 0.96rem;
+		font-weight: 700;
+		color: #111827;
+		margin-top: 0.15rem;
 	}
 
 	.editor-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: 0.55rem;
 		flex-wrap: wrap;
-	}
-
-	.spacer {
-		flex: 1 1 auto;
 	}
 
 	.field-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.9rem;
+		gap: 0.75rem;
+		padding: 0.75rem 0.9rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: #ffffff;
 	}
 
 	.editor-workbench {
 		display: grid;
-		grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
-		gap: 0.9rem;
-		min-height: 32rem;
+		grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.8fr);
+		flex: 1 1 auto;
+		min-height: 0;
+		background: #e5e7eb;
 	}
 
 	.field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		gap: 0.35rem;
 		min-width: 0;
 	}
 
@@ -442,109 +476,135 @@
 		color: #111827;
 	}
 
-	.field input,
-	.field textarea {
+	.field input {
 		width: 100%;
 		min-width: 0;
-		padding: 0.75rem 0.85rem;
+		padding: 0.72rem 0.85rem;
 		border: 1px solid rgba(15, 23, 42, 0.12);
-		border-radius: 12px;
+		border-radius: 10px;
 		background: #fff;
 		font: inherit;
 		font-size: 0.84rem;
 		color: #111827;
 	}
 
-	.field textarea {
-		resize: vertical;
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-		line-height: 1.5;
-	}
-
-	.script-panel,
-	.data-panel {
+	.script-panel {
 		min-width: 0;
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 16px;
-		background: linear-gradient(180deg, rgba(248, 250, 252, 0.85), rgba(255, 255, 255, 0.96));
-		overflow: hidden;
+		background: #2b3038;
+		color: #e5e7eb;
 	}
 
-	.panel-header {
+	.data-panel {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		background: #ffffff;
+	}
+
+	.script-panel-toolbar,
+	.data-panel-toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
-		padding: 0.85rem 0.95rem 0.8rem;
-		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-		background: rgba(255, 255, 255, 0.76);
+		padding: 0.55rem 0.75rem 0;
+		flex-wrap: wrap;
 	}
 
-	.panel-title {
-		font-size: 0.8rem;
+	.script-panel-label {
+		font-size: 0.76rem;
 		font-weight: 800;
-		letter-spacing: 0.01em;
-		color: #0f172a;
+		letter-spacing: 0.06em;
 		text-transform: uppercase;
+		color: rgba(226, 232, 240, 0.75);
 	}
 
-	.data-panel-header {
-		padding-bottom: 0.7rem;
+	.script-editor-field,
+	.data-editor-field {
+		display: flex;
+		flex: 1 1 auto;
+		min-height: 0;
+		padding: 0.7rem 0.75rem 0.75rem;
 	}
 
 	.panel-tabs {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.45rem;
+		align-items: center;
+		gap: 0.2rem;
+		padding: 0;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 	}
 
 	.panel-tab {
 		appearance: none;
-		border: 1px solid transparent;
-		border-radius: 999px;
+		border: 0;
+		border-bottom: 2px solid transparent;
 		background: transparent;
-		padding: 0.45rem 0.75rem;
+		padding: 0.55rem 0.8rem 0.6rem;
 		font: inherit;
 		font-size: 0.8rem;
-		font-weight: 700;
+		font-weight: 600;
 		color: #64748b;
 		cursor: pointer;
 	}
 
+	.panel-tab:hover {
+		color: #111827;
+	}
+
 	.panel-tab.selected {
-		border-color: rgba(37, 99, 235, 0.18);
-		background: rgba(219, 234, 254, 0.72);
-		color: #1d4ed8;
+		border-bottom-color: #4f6ef7;
+		color: #3153f4;
 	}
 
-	.script-field,
-	.data-field {
-		flex: 1 1 auto;
-		padding: 0.9rem;
+	.tab-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
 	}
 
-	.script-field textarea,
-	.data-field textarea {
+	.script-editor-field textarea,
+	.data-editor-field textarea {
 		height: 100%;
-		min-height: 26rem;
+		min-height: 0;
 		resize: none;
-		background: rgba(255, 255, 255, 0.96);
+		border: 1px solid transparent;
+		border-radius: 0;
+		padding: 0.25rem 0.35rem;
+		background: transparent;
+		color: inherit;
+		font-size: 0.88rem;
+		line-height: 1.55;
+	}
+
+	.script-editor-field textarea {
+		color: #f3f4f6;
+	}
+
+	.data-editor-field textarea {
+		padding: 0.75rem 0.85rem;
+		background: #ffffff;
+		color: #111827;
+	}
+
+	.script-editor-field textarea:focus,
+	.data-editor-field textarea:focus {
+		outline: none;
 	}
 
 	.primary-button,
 	.secondary-button,
 	.danger-button {
 		appearance: none;
-		border-radius: 10px;
-		padding: 0.65rem 0.9rem;
+		border-radius: 8px;
+		padding: 0.6rem 0.88rem;
 		font: inherit;
-		font-size: 0.82rem;
-		font-weight: 700;
+		font-size: 0.8rem;
+		font-weight: 600;
 		cursor: pointer;
 	}
 
@@ -565,6 +625,11 @@
 		color: #111827;
 	}
 
+	.compact-button {
+		padding: 0.45rem 0.72rem;
+		font-size: 0.78rem;
+	}
+
 	.danger-button {
 		border: 1px solid rgba(239, 68, 68, 0.18);
 		background: rgba(254, 242, 242, 0.9);
@@ -574,15 +639,16 @@
 	.error-panel,
 	.empty-editor,
 	.empty-list {
-		border-radius: 14px;
 		padding: 0.85rem 0.95rem;
 		font-size: 0.84rem;
 	}
 
 	.error-panel {
-		background: rgba(254, 242, 242, 0.95);
-		border: 1px solid rgba(248, 113, 113, 0.22);
+		margin: 0.75rem 0.9rem;
+		background: rgba(254, 242, 242, 0.98);
+		border: 1px solid rgba(248, 113, 113, 0.2);
 		color: #991b1b;
+		border-radius: 10px;
 	}
 
 	.empty-editor,
@@ -592,11 +658,17 @@
 		color: #64748b;
 	}
 
-	@media (max-width: 1100px) {
-		.section-layout {
-			grid-template-columns: 1fr;
-		}
+	.empty-editor {
+		margin: 1rem;
+		border-radius: 10px;
+	}
 
+	.empty-list {
+		margin: 0.8rem;
+		border-radius: 10px;
+	}
+
+	@media (max-width: 1100px) {
 		.editor-workbench {
 			grid-template-columns: 1fr;
 		}
@@ -607,13 +679,10 @@
 			grid-template-columns: 1fr;
 		}
 
-		.section-header {
-			flex-direction: column;
-		}
-
-		.script-field textarea,
-		.data-field textarea {
-			min-height: 18rem;
+		.editor-toolbar,
+		.field-grid {
+			padding-left: 0.75rem;
+			padding-right: 0.75rem;
 		}
 	}
 </style>

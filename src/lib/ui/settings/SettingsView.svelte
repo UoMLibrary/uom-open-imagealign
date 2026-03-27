@@ -92,56 +92,60 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
-		padding: 1rem;
-		overflow: auto;
+		gap: 0;
+		padding: 0;
+		overflow: hidden;
 		background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(243, 244, 246, 0.98));
 	}
 
 	.settings-tabs-card {
-		padding: 0.85rem 1rem;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.9);
-		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+		display: flex;
+		align-items: center;
+		min-height: 48px;
+		padding: 0 0.8rem;
+		background: rgba(255, 255, 255, 0.97);
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 	}
 
 	.settings-tabs {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.7rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15rem;
+		padding: 0.1rem;
+		border-radius: 10px;
+		background: rgba(15, 23, 42, 0.035);
+		overflow-x: auto;
+		max-width: 100%;
 	}
 
 	.tab-pill {
 		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: rgba(248, 250, 252, 0.92);
-		color: #334155;
-		border-radius: 999px;
-		padding: 0.68rem 1rem;
+		border: 0;
+		background: transparent;
+		color: #1f2937;
+		border-radius: 8px;
+		height: 32px;
+		padding: 0 0.9rem;
 		font: inherit;
-		font-size: 0.84rem;
-		font-weight: 700;
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		white-space: nowrap;
 		cursor: pointer;
 		transition:
-			border-color 140ms ease,
 			background-color 140ms ease,
 			color 140ms ease,
-			box-shadow 140ms ease,
-			transform 140ms ease;
+			box-shadow 140ms ease;
 	}
 
 	.tab-pill:hover {
-		transform: translateY(-1px);
-		border-color: rgba(37, 99, 235, 0.22);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+		background: #f3f4f6;
 	}
 
 	.tab-pill.selected {
-		border-color: rgba(37, 99, 235, 0.25);
-		background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(219, 234, 254, 0.92));
-		color: #1d4ed8;
-		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
+		background: #f3f4f6;
+		color: #111827;
+		box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
 	}
 
 	.settings-content {
@@ -149,23 +153,25 @@
 		min-height: 0;
 		flex: 1 1 auto;
 		display: flex;
+		overflow: hidden;
 	}
 
 	.content-shell {
 		flex: 1 1 auto;
 		min-width: 0;
 		min-height: 0;
+		overflow: hidden;
 	}
 
 	@media (max-width: 1000px) {
-		.settings-workspace {
-			padding: 0.8rem;
+		.settings-tabs-card {
+			padding: 0 0.55rem;
 		}
 	}
 
 	@media (max-width: 700px) {
 		.settings-tabs-card {
-			padding: 0.8rem;
+			padding: 0 0.45rem;
 		}
 	}
 </style>

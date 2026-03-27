@@ -1,7 +1,9 @@
 <script lang="ts">
+	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 	import { settingsState, type AnnotationSchemaProfile } from '$lib/config/settingsStore.svelte';
 
 	let selectedId = $state<string | null>(null);
+	let profilesPanelOpen = $state(true);
 
 	let draftName = $state('');
 	let draftDescription = $state('');
@@ -127,59 +129,63 @@
 </script>
 
 <div class="section-shell">
-	<div class="section-header">
-		<div>
-			<h2>Annotation Data Shape</h2>
-			<p>
-				Create named JSON schema profiles for annotation data. These define the editable data
-				attached to captured geometry.
-			</p>
-		</div>
-
-		<button type="button" class="primary-button" onclick={createProfile}>New schema profile</button>
-	</div>
-
 	<div class="section-layout">
-		<aside class="profile-list-card">
-			<div class="profile-list-header">
-				<div class="profile-list-title">Saved schemas</div>
-				<div class="profile-list-count">{profiles.length}</div>
-			</div>
+		<WorkspaceSidebar side="left" width={296} bind:open={profilesPanelOpen}>
+			{#snippet header()}
+				<div class="profile-sidebar-header">
+					<div>
+						<div class="profile-sidebar-title">Saved schemas</div>
+						<div class="profile-sidebar-subtitle">{profiles.length} profiles</div>
+					</div>
 
-			{#if profiles.length === 0}
-				<div class="empty-list">No annotation schema profiles yet.</div>
-			{:else}
-				<div class="profile-list">
-					{#each profiles as profile (profile.id)}
-						<button
-							type="button"
-							class="profile-item"
-							class:selected={profile.id === selectedId}
-							onclick={() => (selectedId = profile.id)}
-						>
-							<div class="profile-name">{profile.name || 'Untitled schema'}</div>
-							{#if profile.description}
-								<div class="profile-desc">{profile.description}</div>
-							{/if}
-							<div class="profile-meta">
-								Updated {new Date(profile.updatedAt).toLocaleString('en-GB')}
-							</div>
-						</button>
-					{/each}
+					<button type="button" class="primary-button compact-button" onclick={createProfile}>
+						New
+					</button>
 				</div>
-			{/if}
-		</aside>
+			{/snippet}
+
+			<div class="profile-sidebar">
+				{#if profiles.length === 0}
+					<div class="empty-list">No annotation schema profiles yet.</div>
+				{:else}
+					<div class="profile-list">
+						{#each profiles as profile (profile.id)}
+							<button
+								type="button"
+								class="profile-item"
+								class:selected={profile.id === selectedId}
+								onclick={() => (selectedId = profile.id)}
+							>
+								<div class="profile-name">{profile.name || 'Untitled schema'}</div>
+								{#if profile.description}
+									<div class="profile-desc">{profile.description}</div>
+								{/if}
+								<div class="profile-meta">
+									Updated {new Date(profile.updatedAt).toLocaleString('en-GB')}
+								</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		</WorkspaceSidebar>
 
 		<section class="editor-stack">
 			<section class="editor-card">
 				{#if selectedProfile}
-					<div class="editor-actions">
-						<button type="button" class="secondary-button" onclick={duplicateProfile}
-							>Duplicate</button
-						>
-						<button type="button" class="danger-button" onclick={deleteProfile}>Delete</button>
-						<div class="spacer"></div>
-						<button type="button" class="primary-button" onclick={saveProfile}>Save schema</button>
+					<div class="editor-toolbar">
+						<div class="editor-leading">
+							<div class="editor-context">Annotation Data Shape</div>
+							<div class="editor-selected-name">{selectedProfile.name || 'Untitled schema'}</div>
+						</div>
+
+						<div class="editor-actions">
+							<button type="button" class="secondary-button" onclick={duplicateProfile}
+								>Duplicate</button
+							>
+							<button type="button" class="danger-button" onclick={deleteProfile}>Delete</button>
+							<button type="button" class="primary-button" onclick={saveProfile}>Save schema</button>
+						</div>
 					</div>
 
 					<div class="field-grid">
@@ -263,122 +269,88 @@
 <style>
 	.section-shell {
 		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+		height: 100%;
 		min-height: 0;
-	}
-
-	.section-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 1rem 1.1rem;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.95);
-		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-	}
-
-	.section-header h2 {
-		margin: 0 0 0.3rem;
-		font-size: 1.1rem;
-		color: #111827;
-	}
-
-	.section-header p {
-		margin: 0;
-		font-size: 0.88rem;
-		line-height: 1.5;
-		color: #64748b;
-		max-width: 60rem;
 	}
 
 	.section-layout {
-		display: grid;
-		grid-template-columns: 320px minmax(0, 1fr);
-		gap: 1rem;
-		min-height: 0;
-	}
-
-	.profile-list-card,
-	.editor-card,
-	.preview-card {
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.95);
-		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-	}
-
-	.profile-list-card {
 		display: flex;
-		flex-direction: column;
+		flex: 1 1 auto;
+		min-height: 0;
+		width: 100%;
 		overflow: hidden;
 	}
 
-	.profile-list-header {
+	.profile-sidebar {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+		background: #f8fafc;
+	}
+
+	.profile-sidebar-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.95rem 1rem 0.85rem;
+		gap: 0.75rem;
+		padding: 0.8rem 0.9rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.96);
 	}
 
-	.profile-list-title {
-		font-size: 0.88rem;
-		font-weight: 700;
-		color: #111827;
+	.profile-sidebar-title {
+		font-size: 0.84rem;
+		font-weight: 800;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		color: #0f172a;
 	}
 
-	.profile-list-count {
-		min-width: 1.8rem;
-		height: 1.8rem;
-		padding: 0 0.55rem;
-		border-radius: 999px;
-		background: #eef2ff;
-		color: #4338ca;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.76rem;
-		font-weight: 700;
+	.profile-sidebar-subtitle {
+		margin-top: 0.2rem;
+		font-size: 0.75rem;
+		color: #64748b;
 	}
 
 	.profile-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.65rem;
-		padding: 0.8rem;
+		flex: 1 1 auto;
 		overflow: auto;
+		background: #ffffff;
 	}
 
 	.profile-item {
 		appearance: none;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: #fff;
-		border-radius: 14px;
-		padding: 0.8rem 0.85rem;
+		border: 0;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: transparent;
+		padding: 0.8rem 0.9rem;
 		text-align: left;
 		cursor: pointer;
+		transition: background-color 140ms ease;
+	}
+
+	.profile-item:hover {
+		background: rgba(248, 250, 252, 0.72);
 	}
 
 	.profile-item.selected {
-		border-color: rgba(59, 130, 246, 0.3);
-		background: rgba(239, 246, 255, 0.9);
+		background: rgba(239, 246, 255, 0.72);
 	}
 
 	.profile-name {
-		font-size: 0.88rem;
+		font-size: 0.9rem;
 		font-weight: 700;
 		color: #111827;
-		margin-bottom: 0.22rem;
 	}
 
 	.profile-desc {
-		font-size: 0.8rem;
+		font-size: 0.78rem;
 		color: #64748b;
 		line-height: 1.45;
-		margin-bottom: 0.4rem;
+		margin: 0.28rem 0 0.42rem;
 	}
 
 	.profile-meta {
@@ -389,37 +361,62 @@
 	.editor-stack {
 		display: grid;
 		grid-template-rows: auto auto;
-		gap: 1rem;
+		gap: 0;
 		min-width: 0;
-	}
-
-	.editor-card,
-	.preview-card {
-		padding: 1rem;
+		flex: 1 1 auto;
+		background: #fff;
+		overflow: auto;
 	}
 
 	.editor-card {
 		display: flex;
 		flex-direction: column;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+	}
+
+	.editor-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		gap: 1rem;
+		flex-wrap: wrap;
+		padding: 0.75rem 0.9rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.98);
+	}
+
+	.editor-leading {
+		min-width: 0;
+	}
+
+	.editor-context {
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #64748b;
+	}
+
+	.editor-selected-name {
+		font-size: 0.96rem;
+		font-weight: 700;
+		color: #111827;
+		margin-top: 0.15rem;
 	}
 
 	.editor-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: 0.55rem;
 		flex-wrap: wrap;
-	}
-
-	.spacer {
-		flex: 1 1 auto;
 	}
 
 	.field-grid,
 	.json-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.9rem;
+		gap: 0.75rem;
+		padding: 0.75rem 0.9rem;
 	}
 
 	.field {
@@ -439,9 +436,9 @@
 	.field textarea {
 		width: 100%;
 		min-width: 0;
-		padding: 0.75rem 0.85rem;
+		padding: 0.72rem 0.85rem;
 		border: 1px solid rgba(15, 23, 42, 0.12);
-		border-radius: 12px;
+		border-radius: 10px;
 		background: #fff;
 		font: inherit;
 		font-size: 0.84rem;
@@ -456,14 +453,19 @@
 		line-height: 1.5;
 	}
 
+	.preview-card {
+		padding: 0 0.9rem 0.9rem;
+	}
+
 	.preview-card h3 {
-		margin: 0 0 0.8rem;
+		margin: 0;
+		padding: 0.8rem 0 0;
 		font-size: 1rem;
 		color: #111827;
 	}
 
 	.preview-block + .preview-block {
-		margin-top: 1rem;
+		margin-top: 0.9rem;
 	}
 
 	.preview-label {
@@ -483,7 +485,7 @@
 
 	.field-preview-item {
 		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 12px;
+		border-radius: 10px;
 		padding: 0.75rem 0.85rem;
 		background: rgba(248, 250, 252, 0.8);
 	}
@@ -513,7 +515,7 @@
 	pre {
 		margin: 0;
 		padding: 0.85rem 0.95rem;
-		border-radius: 12px;
+		border-radius: 10px;
 		background: #0f172a;
 		color: #e2e8f0;
 		font-size: 0.78rem;
@@ -524,11 +526,11 @@
 	.secondary-button,
 	.danger-button {
 		appearance: none;
-		border-radius: 10px;
-		padding: 0.65rem 0.9rem;
+		border-radius: 8px;
+		padding: 0.6rem 0.88rem;
 		font: inherit;
-		font-size: 0.82rem;
-		font-weight: 700;
+		font-size: 0.8rem;
+		font-weight: 600;
 		cursor: pointer;
 	}
 
@@ -550,19 +552,25 @@
 		color: #b91c1c;
 	}
 
+	.compact-button {
+		padding: 0.45rem 0.72rem;
+		font-size: 0.78rem;
+	}
+
 	.error-panel,
 	.empty-editor,
 	.empty-list,
 	.empty-inline {
-		border-radius: 14px;
 		padding: 0.85rem 0.95rem;
 		font-size: 0.84rem;
 	}
 
 	.error-panel {
+		margin: 0 0.9rem 0.9rem;
 		background: rgba(254, 242, 242, 0.95);
 		border: 1px solid rgba(248, 113, 113, 0.22);
 		color: #991b1b;
+		border-radius: 10px;
 	}
 
 	.empty-editor,
@@ -573,20 +581,25 @@
 		color: #64748b;
 	}
 
+	.empty-editor {
+		margin: 1rem;
+		border-radius: 10px;
+	}
+
+	.empty-list {
+		margin: 0.8rem;
+		border-radius: 10px;
+	}
+
 	@media (max-width: 1100px) {
-		.section-layout {
+		.json-grid {
 			grid-template-columns: 1fr;
 		}
 	}
 
 	@media (max-width: 800px) {
-		.field-grid,
-		.json-grid {
+		.field-grid {
 			grid-template-columns: 1fr;
-		}
-
-		.section-header {
-			flex-direction: column;
 		}
 	}
 </style>
