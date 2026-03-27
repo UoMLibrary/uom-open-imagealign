@@ -93,6 +93,15 @@
 		transition: width 0.2s ease;
 	}
 
+	.side-panel.right aside {
+		border-left: 1px solid rgba(15, 23, 42, 0.08);
+	}
+
+	.side-panel.left aside {
+		border-right: 1px solid rgba(15, 23, 42, 0.08);
+	}
+
+
 	.side-panel.collapsed aside {
 		width: 0;
 	}

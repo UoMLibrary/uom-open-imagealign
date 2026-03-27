@@ -1497,7 +1497,6 @@
 		padding: 0.45rem 1rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 		background: rgba(255, 255, 255, 0.96);
-		border-left: 1px solid rgba(15, 23, 42, 0.08);
 		display: flex;
 		align-items: center;
 	}
