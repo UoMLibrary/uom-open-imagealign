@@ -18,7 +18,8 @@
 	let selectedGroupId = $state<string | null>(null);
 	let selectedImageId = $state<string | null>(null);
 	let alignmentWorkbenchImageId = $state<string | null>(null);
-	let referenceImageId = $state<string | null>(null);
+	let annotationBackgroundImageId = $state<string | null>(null);
+	let annotationOverlayImageId = $state<string | null>(null);
 	let selectedAnnotationId = $state<string | null>(null);
 	let alignmentApproach = $state<'auto' | 'feature' | 'manual'>('auto');
 
@@ -161,9 +162,9 @@
 
 	let referenceImage = $derived.by(() => {
 		if (!selectedGroup) return null;
-		const pool = canAnnotate ? alignedImages : selectedGroupImages;
+		const pool = hasBaseImage ? alignedImages : selectedGroupImages;
 		const fallbackId = selectedGroup.baseImageId || pool[0]?.id || null;
-		const targetId = referenceImageId ?? fallbackId;
+		const targetId = annotationBackgroundImageId ?? fallbackId;
 		return (
 			pool.find((image) => image.id === targetId) ??
 			(fallbackId ? (imageById.get(fallbackId) ?? null) : null)
@@ -171,13 +172,11 @@
 	});
 
 	let comparedImage = $derived.by(() => {
-		if (canAnnotate) {
-			const selected = alignedImages.find((image) => image.id === selectedImageId);
-			if (selected && selected.id !== referenceImage?.id) return selected;
-			return alignedImages.find((image) => image.id !== referenceImage?.id) ?? null;
-		}
+		if (!hasBaseImage || !referenceImage) return null;
 
-		return alignmentTargetImage;
+		const selected = alignedImages.find((image) => image.id === annotationOverlayImageId);
+		if (selected && selected.id !== referenceImage.id) return selected;
+		return alignedImages.find((image) => image.id !== referenceImage.id) ?? null;
 	});
 
 	function annotationIncludesPair(
@@ -237,7 +236,8 @@
 		if (!project) {
 			selectedGroupId = null;
 			selectedImageId = null;
-			referenceImageId = null;
+			annotationBackgroundImageId = null;
+			annotationOverlayImageId = null;
 			selectedAnnotationId = null;
 			return;
 		}
@@ -250,7 +250,8 @@
 	$effect(() => {
 		if (!selectedGroup) {
 			selectedImageId = null;
-			referenceImageId = null;
+			annotationBackgroundImageId = null;
+			annotationOverlayImageId = null;
 			selectedAnnotationId = null;
 			return;
 		}
@@ -266,16 +267,40 @@
 	$effect(() => {
 		if (!selectedGroup) return;
 
-		const referencePool = canAnnotate ? alignedImages : selectedGroupImages;
+		const referencePool = hasBaseImage ? alignedImages : selectedGroupImages;
 		if (referencePool.length === 0) {
-			referenceImageId = null;
+			annotationBackgroundImageId = null;
 			return;
 		}
 
 		const fallbackId = selectedGroup.baseImageId || referencePool[0]?.id || null;
-		const valid = referenceImageId && referencePool.some((image) => image.id === referenceImageId);
+		const valid =
+			annotationBackgroundImageId &&
+			referencePool.some((image) => image.id === annotationBackgroundImageId);
 		if (!valid) {
-			referenceImageId = fallbackId;
+			annotationBackgroundImageId = fallbackId;
+		}
+	});
+
+	$effect(() => {
+		if (!hasBaseImage) {
+			annotationOverlayImageId = null;
+			return;
+		}
+
+		const validOverlayImages = alignedImages.filter(
+			(image) => image.id !== annotationBackgroundImageId
+		);
+		if (validOverlayImages.length === 0) {
+			annotationOverlayImageId = null;
+			return;
+		}
+
+		const valid =
+			annotationOverlayImageId &&
+			validOverlayImages.some((image) => image.id === annotationOverlayImageId);
+		if (!valid) {
+			annotationOverlayImageId = validOverlayImages[0]?.id ?? null;
 		}
 	});
 
@@ -312,14 +337,35 @@
 		alignmentWorkbenchImageId = null;
 	}
 
-	function selectReferenceImage(imageId: string) {
-		referenceImageId = imageId;
+	function setAnnotationBackgroundImage(imageId: string) {
+		if (!alignedImageIds.has(imageId)) return;
+		const previousBackgroundId = annotationBackgroundImageId;
+
+		annotationBackgroundImageId = imageId;
+		selectedImageId = imageId;
+		alignmentWorkbenchImageId = null;
 		selectedAnnotationId = null;
 
-		if (selectedImageId === imageId) {
-			const fallback = alignedImages.find((image) => image.id !== imageId) ?? null;
-			selectedImageId = fallback?.id ?? selectedImageId;
+		if (annotationOverlayImageId === imageId) {
+			const fallback =
+				(previousBackgroundId &&
+					previousBackgroundId !== imageId &&
+					alignedImages.some((image) => image.id === previousBackgroundId)
+					? previousBackgroundId
+					: alignedImages.find((image) => image.id !== imageId)?.id) ?? null;
+
+			annotationOverlayImageId = fallback;
 		}
+	}
+
+	function setAnnotationOverlayImage(imageId: string) {
+		if (!alignedImageIds.has(imageId)) return;
+		if (annotationBackgroundImageId === imageId) return;
+
+		annotationOverlayImageId = imageId;
+		selectedImageId = imageId;
+		alignmentWorkbenchImageId = null;
+		selectedAnnotationId = null;
 	}
 
 	function selectAnnotation(annotationId: string) {
@@ -327,13 +373,14 @@
 		if (!annotation) return;
 
 		selectedAnnotationId = annotation.id;
-		referenceImageId = annotation.anchorImageId;
+		annotationBackgroundImageId = annotation.anchorImageId;
 
 		const comparedId =
 			annotation.targetImageIds.find((imageId) => imageId !== annotation.anchorImageId) ??
 			annotation.targetImageIds[0] ??
 			null;
 
+		annotationOverlayImageId = comparedId;
 		if (comparedId) selectedImageId = comparedId;
 		rightPanelOpen = true;
 	}
@@ -349,15 +396,11 @@
 			targetGroup.baseImageId = nextBaseImage.id;
 		});
 
-		referenceImageId = nextBaseImage.id;
+		annotationBackgroundImageId = nextBaseImage.id;
+		annotationOverlayImageId = null;
 		selectedImageId = nextBaseImage.id;
 		alignmentWorkbenchImageId = null;
 		selectedAnnotationId = null;
-	}
-
-	function setSelectedAsBaseImage() {
-		if (!alignmentTargetImage) return;
-		setImageAsBase(alignmentTargetImage.id);
 	}
 
 	function confirmAlignment() {
@@ -394,7 +437,8 @@
 		});
 
 		selectedAnnotationId = null;
-		referenceImageId = selectedGroup.imageIds[0] ?? null;
+		annotationBackgroundImageId = selectedGroup.imageIds[0] ?? null;
+		annotationOverlayImageId = null;
 		selectedImageId = selectedGroup.imageIds[1] ?? selectedGroup.imageIds[0] ?? null;
 	}
 
@@ -422,7 +466,8 @@
 
 		selectedImageId = selectedGroup.imageIds[0] ?? null;
 		alignmentWorkbenchImageId = null;
-		referenceImageId = null;
+		annotationBackgroundImageId = null;
+		annotationOverlayImageId = null;
 		selectedAnnotationId = null;
 	}
 
@@ -454,8 +499,11 @@
 		if (alignmentWorkbenchImageId === imageId) {
 			alignmentWorkbenchImageId = null;
 		}
-		if (referenceImageId === imageId) {
-			referenceImageId = selectedGroup.baseImageId;
+		if (annotationBackgroundImageId === imageId) {
+			annotationBackgroundImageId = selectedGroup.baseImageId || null;
+		}
+		if (annotationOverlayImageId === imageId) {
+			annotationOverlayImageId = null;
 		}
 	}
 
@@ -529,10 +577,8 @@
 	let viewerMode = $derived.by(() => {
 		if (isBaseSelectionPhase) return 'base-selection';
 		if (showAlignmentWorkbench) return 'align';
-		if (!hasBaseImage) return 'base';
-		if (canAnnotate && referenceImage && comparedImage) return 'annotate';
-		if (baseImage && alignmentTargetImage) return 'align';
-		return 'base';
+		if (hasBaseImage) return 'annotate';
+		return 'base-selection';
 	});
 
 	let previewBaseImage = $derived.by(() => {
@@ -705,7 +751,11 @@
 				</section>
 
 				<div class="main-body">
-					<section class="stage-column" class:base-selection-layout={isBaseSelectionPhase}>
+					<section
+						class="stage-column"
+						class:base-selection-layout={isBaseSelectionPhase}
+						class:workbench-layout={!isBaseSelectionPhase && showAlignmentWorkbench}
+					>
 							{#if !isBaseSelectionPhase && showAlignmentWorkbench && alignmentWorkbenchImage}
 								<section class="alignment-workbench">
 									<div class="alignment-workbench-copy">
@@ -755,6 +805,8 @@
 										<div class="viewer-title">
 											{#if viewerMode === 'annotate' && referenceImage && comparedImage}
 												{getImageTitle(referenceImage)} -> {getImageTitle(comparedImage)}
+											{:else if viewerMode === 'annotate' && referenceImage}
+												{getImageTitle(referenceImage)}
 											{:else if viewerMode === 'align' && baseImage && alignmentTargetImage}
 												{getImageTitle(baseImage)} -> {getImageTitle(alignmentTargetImage)}
 											{:else if previewBaseImage}
@@ -765,7 +817,9 @@
 										</div>
 										<div class="viewer-subtitle">
 											{#if viewerMode === 'annotate'}
-												Annotated comparison viewer
+												{comparedImage
+													? 'Annotated comparison viewer'
+													: 'Annotated single-image viewer'}
 											{:else if viewerMode === 'align'}
 												Simple compare viewer for alignment review
 											{:else}
@@ -776,7 +830,11 @@
 
 									<div class="viewer-meta">
 										{#if viewerMode === 'annotate'}
-											<span>{activePairAnnotations.length} pair annotations</span>
+											<span>
+												{comparedImage
+													? `${activePairAnnotations.length} pair annotations`
+													: `${selectedGroupAnnotations.length} group annotations`}
+											</span>
 										{:else if viewerMode === 'align' && activeAlignment}
 											<span>{activeAlignment.status}</span>
 											<span>{activeAlignment.result.transformModel}</span>
@@ -852,97 +910,123 @@
 								class="filmstrip"
 								class:filmstrip-flat={isBaseSelectionPhase}
 								aria-label="Images in selected group"
-								>
-									{#each orderedStripImages as image (image.id)}
-										{#if isBaseSelectionPhase}
+							>
+								{#each orderedStripImages as image (image.id)}
+									{@const isAlignedImage =
+										image.id === selectedGroup.baseImageId || confirmedAlignmentIds.has(image.id)}
+									{#if isBaseSelectionPhase}
+										<div
+											class="filmstrip-item filmstrip-item-flat"
+											class:selected={image.id === selectedImageId}
+											class:base={image.id === selectedGroup.baseImageId}
+										>
 											<div
-												class="filmstrip-item filmstrip-item-flat"
-												class:selected={image.id === selectedImageId}
-												class:base={image.id === selectedGroup.baseImageId}
-											>
-												<div
-													class="filmstrip-select filmstrip-select-card"
-													role="button"
-													tabindex="0"
-													onclick={() => selectImage(image.id)}
-													onkeydown={(event) => handleImageTileKeydown(event, image.id)}
-												>
-													<div class="filmstrip-thumb">
-														<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
-														{#if image.id === selectedGroup.baseImageId}
-															<span class="thumb-pill">Base</span>
-														{:else}
-															<button
-																type="button"
-																class="thumb-center-action"
-																onclick={(event) => {
-																	event.stopPropagation();
-																	selectImage(image.id);
-																	setImageAsBase(image.id);
-																}}
-															>
-																Set as base image
-															</button>
-														{/if}
-													</div>
-
-													<div class="filmstrip-copy">
-														<div class="filmstrip-title">{getImageTitle(image)}</div>
-														<div class="filmstrip-subline">
-															{getImageSourceKind(image)} · {image.dimensions.width} × {image
-																.dimensions.height}
-														</div>
-													</div>
-												</div>
-
-											</div>
-										{:else}
-											<div
-												class="filmstrip-item"
-												class:selected={image.id === selectedImageId}
-												class:reference={image.id === referenceImage?.id}
-												class:annotatable={alignedImageIds.has(image.id)}
+												class="filmstrip-select filmstrip-select-card"
 												role="button"
 												tabindex="0"
 												onclick={() => selectImage(image.id)}
 												onkeydown={(event) => handleImageTileKeydown(event, image.id)}
 											>
-												<div class="filmstrip-select filmstrip-select-card">
-													<div class="filmstrip-thumb">
-														<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
-														{#if image.id === selectedGroup.baseImageId}
-															<span class="thumb-pill">Base</span>
-												{:else if confirmedAlignmentIds.has(image.id)}
-													<span class="thumb-pill aligned">Aligned</span>
-												{:else}
-													<button
-														type="button"
-														class="thumb-center-action"
-														onclick={(event) => {
-															event.stopPropagation();
-															openAlignmentWorkbench(image.id);
-														}}
-													>
-														Align image
-													</button>
-												{/if}
-											</div>
-
-											<div class="filmstrip-copy">
-												<div class="filmstrip-title">{getImageTitle(image)}</div>
-												<div class="filmstrip-subline">
-													{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions
-														.height}
-												</div>
-													{#if image.id === referenceImage?.id && canAnnotate}
-														<div class="filmstrip-tags">
-															<span class="mini-tag ref">Reference</span>
-														</div>
+												<div class="filmstrip-thumb">
+													<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
+													{#if image.id === selectedGroup.baseImageId}
+														<span class="thumb-pill">Base</span>
+													{:else}
+														<button
+															type="button"
+															class="thumb-center-action"
+															onclick={(event) => {
+																event.stopPropagation();
+																selectImage(image.id);
+																setImageAsBase(image.id);
+															}}
+														>
+															Set as base image
+														</button>
 													{/if}
 												</div>
+
+												<div class="filmstrip-copy">
+													<div class="filmstrip-title">{getImageTitle(image)}</div>
+													<div class="filmstrip-subline">
+														{getImageSourceKind(image)} · {image.dimensions.width} × {image
+															.dimensions.height}
+													</div>
 												</div>
 											</div>
-										{/if}
+										</div>
+									{:else}
+										<div
+											class="filmstrip-item"
+											class:selected={image.id === selectedImageId}
+											class:reference={image.id === referenceImage?.id}
+											class:annotatable={alignedImageIds.has(image.id)}
+											class:active-background={image.id === referenceImage?.id}
+											class:active-overlay={image.id === comparedImage?.id}
+											role="button"
+											tabindex="0"
+											onclick={() => selectImage(image.id)}
+											onkeydown={(event) => handleImageTileKeydown(event, image.id)}
+										>
+											<div class="filmstrip-select filmstrip-select-card">
+												<div class="filmstrip-thumb">
+													<CachedThumb contentHash={image.contentHash} alt={getImageTitle(image)} />
+													{#if image.id === selectedGroup.baseImageId}
+														<span class="thumb-pill">Base</span>
+													{:else if confirmedAlignmentIds.has(image.id)}
+														<span class="thumb-pill aligned">Aligned</span>
+													{:else}
+														<button
+															type="button"
+															class="thumb-center-action"
+															onclick={(event) => {
+																event.stopPropagation();
+																openAlignmentWorkbench(image.id);
+															}}
+														>
+															Align image
+														</button>
+													{/if}
+												</div>
+
+												<div class="filmstrip-copy">
+													<div class="filmstrip-title">{getImageTitle(image)}</div>
+													<div class="filmstrip-subline">
+														{getImageSourceKind(image)} · {image.dimensions.width} × {image.dimensions
+															.height}
+													</div>
+
+													<div class="filmstrip-actions">
+														{#if isAlignedImage}
+															<button
+																type="button"
+																class="mini-action"
+																class:active={image.id === referenceImage?.id}
+																onclick={(event) => {
+																	event.stopPropagation();
+																	setAnnotationBackgroundImage(image.id);
+																}}
+															>
+																Background
+															</button>
+															<button
+																type="button"
+																class="mini-action"
+																class:active={image.id === comparedImage?.id}
+																disabled={image.id === referenceImage?.id}
+																onclick={(event) => {
+																	event.stopPropagation();
+																	setAnnotationOverlayImage(image.id);
+																}}
+															>
+																Overlay
+															</button>
+														{/if}
+													</div>
+												</div>
+											</div>
+										</div>
+									{/if}
 								{/each}
 							</div>
 						</section>
@@ -984,6 +1068,8 @@
 <style>
 	.workspace {
 		--workspace-header-height: 38px;
+		--workspace-footer-height: 236px;
+		--workspace-footer-head-height: 40px;
 		display: flex;
 		height: 100%;
 		min-height: 0;
@@ -1070,6 +1156,8 @@
 	.main {
 		flex: 1 1 auto;
 		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.group-header-card {
@@ -1101,8 +1189,7 @@
 		width: 100%;
 	}
 
-	.phase-pill,
-	.mini-tag {
+	.phase-pill {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -1124,32 +1211,34 @@
 		flex: 1 1 auto;
 		min-height: 0;
 		display: flex;
+		overflow: hidden;
 	}
 
 	.stage-column {
 		flex: 1 1 auto;
 		min-width: 0;
 		min-height: 0;
+		height: 100%;
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr) auto;
-		gap: 0.8rem;
-		padding: 0.9rem;
+		grid-template-rows: minmax(0, 1fr) var(--workspace-footer-height);
+		gap: 0;
+		padding: 0;
+		overflow: hidden;
 	}
 
 	.stage-column.base-selection-layout {
 		gap: 0;
 		padding: 0;
-		grid-template-rows: minmax(0, 1fr) auto;
+		grid-template-rows: minmax(0, 1fr) var(--workspace-footer-height);
+	}
+
+	.stage-column.workbench-layout {
+		grid-template-rows: auto minmax(0, 1fr) var(--workspace-footer-height);
 	}
 
 	.viewer-card,
 	.filmstrip-card {
-		background: rgba(255, 255, 255, 0.95);
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 16px;
-		box-shadow:
-			0 14px 30px rgba(15, 23, 42, 0.04),
-			0 2px 8px rgba(15, 23, 42, 0.03);
+		background: rgba(255, 255, 255, 0.96);
 	}
 
 	.mini-kicker {
@@ -1174,13 +1263,11 @@
 		align-items: end;
 		justify-content: space-between;
 		gap: 1rem;
-		padding: 0.85rem 1rem;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		border-radius: 16px;
-		background: rgba(255, 255, 255, 0.95);
-		box-shadow:
-			0 14px 30px rgba(15, 23, 42, 0.04),
-			0 2px 8px rgba(15, 23, 42, 0.03);
+		margin: 0;
+		padding: 0.75rem 1rem;
+		border-top: 1px solid rgba(15, 23, 42, 0.08);
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.96);
 	}
 
 	.alignment-workbench-copy {
@@ -1250,10 +1337,15 @@
 	}
 
 	.viewer-card {
+		height: 100%;
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
+		margin: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
 	}
 
 	.viewer-card.viewer-stage-only {
@@ -1261,12 +1353,13 @@
 		border-radius: 0;
 		box-shadow: none;
 		background: transparent;
+		margin: 0;
 	}
 
 	.viewer-card-head,
 	.filmstrip-head,
 	.right-sidebar-header {
-		padding: 0.9rem 1rem 0.75rem;
+		padding: 0.75rem 1rem 0.6rem;
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
@@ -1283,7 +1376,8 @@
 
 	.viewer-shell {
 		flex: 1 1 auto;
-		min-height: 22rem;
+		min-height: 0;
+		height: 100%;
 		border-top: 1px solid rgba(15, 23, 42, 0.06);
 		background:
 			radial-gradient(circle at top, rgba(14, 116, 144, 0.08), transparent 24%),
@@ -1332,19 +1426,22 @@
 	}
 
 	.filmstrip-card.filmstrip-footer {
-		margin-left: -0.9rem;
-		margin-right: -0.9rem;
-		margin-bottom: -0.9rem;
+		height: var(--workspace-footer-height);
+		margin: 0;
 		padding: 0;
 		border: none;
 		border-radius: 0;
 		box-shadow: none;
 		background: rgba(255, 255, 255, 0.96);
 		border-top: 1px solid rgba(15, 23, 42, 0.08);
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
 	}
 
 	.filmstrip-head.filmstrip-head-flat {
-		padding: 0.6rem 1rem 0.55rem;
+		min-height: var(--workspace-footer-head-height);
+		padding: 0.2rem 1rem;
 		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 		align-items: center;
 	}
@@ -1352,20 +1449,25 @@
 	.filmstrip-title-bar {
 		font-size: 0.95rem;
 		font-weight: 700;
+		line-height: 1.1;
 		color: #0f172a;
 	}
 
 	.filmstrip {
+		flex: 1 1 auto;
+		min-height: 0;
 		display: grid;
 		grid-auto-flow: column;
 		grid-auto-columns: 132px;
 		gap: 0.75rem;
 		overflow-x: auto;
-		padding: 0 0.9rem;
+		overflow-y: hidden;
+		padding: 0.2rem 1rem 0.45rem;
+		align-content: start;
 	}
 
 	.filmstrip.filmstrip-flat {
-		padding: 0;
+		padding: 0.2rem 1rem 0.45rem;
 		gap: 0;
 		grid-auto-columns: 148px;
 	}
@@ -1484,6 +1586,9 @@
 	.filmstrip-copy {
 		min-width: 0;
 		padding: 0 0.08rem;
+		display: grid;
+		gap: 0.3rem;
+		align-content: start;
 	}
 
 	.filmstrip-title {
@@ -1499,7 +1604,6 @@
 	}
 
 	.filmstrip-subline {
-		margin-top: 0.24rem;
 		font-size: 0.7rem;
 		line-height: 1.28;
 		color: #64748b;
@@ -1510,24 +1614,35 @@
 		overflow: hidden;
 	}
 
-	.filmstrip-tags {
-		margin-top: 0.48rem;
+	.filmstrip-actions {
+		min-height: 2rem;
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.28rem;
+		gap: 0.35rem;
+		align-items: flex-start;
 	}
 
-	.mini-tag {
-		padding: 0.18rem 0.42rem;
+	.mini-action {
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		background: rgba(255, 255, 255, 0.96);
+		color: #334155;
+		border-radius: 999px;
+		padding: 0.24rem 0.52rem;
 		font-size: 0.66rem;
-		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: rgba(241, 245, 249, 0.92);
-		color: #475569;
+		font-weight: 700;
+		line-height: 1;
+		cursor: pointer;
 	}
 
-	.mini-tag.ref {
-		background: rgba(245, 158, 11, 0.12);
-		color: #b45309;
+	.mini-action.active {
+		border-color: rgba(15, 118, 110, 0.3);
+		background: rgba(15, 118, 110, 0.1);
+		color: #0f766e;
+	}
+
+	.mini-action:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 
 	.ghost-button.compact {
