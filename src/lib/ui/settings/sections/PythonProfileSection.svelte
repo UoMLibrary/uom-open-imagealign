@@ -35,6 +35,7 @@
 	let draftDescription = $state('');
 	let draftScript = $state('');
 	let draftSampleInput = $state('{}');
+	let activeDataTab = $state<'input' | 'output'>('input');
 
 	let testBusy = $state(false);
 	let testError = $state('');
@@ -51,6 +52,7 @@
 		draftSampleInput = prettyJson(profile?.sampleInput ?? {});
 		testError = '';
 		testOutput = profile?.sampleOutput ? prettyJson(profile.sampleOutput) : '';
+		activeDataTab = 'input';
 	}
 
 	let selectedProfile = $derived(
@@ -125,6 +127,7 @@
 			const result = await runPython(draftScript, parsedInput);
 
 			testOutput = JSON.stringify(result, null, 2);
+			activeDataTab = 'output';
 
 			if (selectedId) {
 				onUpdate(selectedId, {
@@ -210,21 +213,52 @@
 					</label>
 				</div>
 
-				<label class="field">
-					<span>Python script</span>
-					<textarea bind:value={draftScript} rows="18" spellcheck="false"></textarea>
-				</label>
+				<div class="editor-workbench">
+					<section class="script-panel">
+						<div class="panel-header">
+							<div class="panel-title">Python script</div>
+						</div>
+						<label class="field script-field">
+							<textarea bind:value={draftScript} rows="24" spellcheck="false"></textarea>
+						</label>
+					</section>
 
-				<div class="io-grid">
-					<label class="field">
-						<span>{inputLabel}</span>
-						<textarea bind:value={draftSampleInput} rows="14" spellcheck="false"></textarea>
-					</label>
+					<section class="data-panel">
+						<div class="panel-header data-panel-header">
+							<div class="panel-tabs" role="tablist" aria-label="Profile test data">
+								<button
+									type="button"
+									role="tab"
+									class="panel-tab"
+									class:selected={activeDataTab === 'input'}
+									aria-selected={activeDataTab === 'input'}
+									onclick={() => (activeDataTab = 'input')}
+								>
+									{inputLabel}
+								</button>
+								<button
+									type="button"
+									role="tab"
+									class="panel-tab"
+									class:selected={activeDataTab === 'output'}
+									aria-selected={activeDataTab === 'output'}
+									onclick={() => (activeDataTab = 'output')}
+								>
+									{outputLabel}
+								</button>
+							</div>
+						</div>
 
-					<label class="field">
-						<span>{outputLabel}</span>
-						<textarea value={testOutput} rows="14" readonly spellcheck="false"></textarea>
-					</label>
+						{#if activeDataTab === 'input'}
+							<label class="field data-field">
+								<textarea bind:value={draftSampleInput} rows="24" spellcheck="false"></textarea>
+							</label>
+						{:else}
+							<label class="field data-field">
+								<textarea value={testOutput} rows="24" readonly spellcheck="false"></textarea>
+							</label>
+						{/if}
+					</section>
 				</div>
 
 				{#if testError}
@@ -273,7 +307,7 @@
 
 	.section-layout {
 		display: grid;
-		grid-template-columns: 320px minmax(0, 1fr);
+		grid-template-columns: 280px minmax(0, 1fr);
 		gap: 1rem;
 		min-height: 0;
 	}
@@ -368,6 +402,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		min-width: 0;
 	}
 
 	.editor-actions {
@@ -387,10 +422,11 @@
 		gap: 0.9rem;
 	}
 
-	.io-grid {
+	.editor-workbench {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
 		gap: 0.9rem;
+		min-height: 32rem;
 	}
 
 	.field {
@@ -425,6 +461,79 @@
 			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
 			monospace;
 		line-height: 1.5;
+	}
+
+	.script-panel,
+	.data-panel {
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		border: 1px solid rgba(15, 23, 42, 0.08);
+		border-radius: 16px;
+		background: linear-gradient(180deg, rgba(248, 250, 252, 0.85), rgba(255, 255, 255, 0.96));
+		overflow: hidden;
+	}
+
+	.panel-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.85rem 0.95rem 0.8rem;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		background: rgba(255, 255, 255, 0.76);
+	}
+
+	.panel-title {
+		font-size: 0.8rem;
+		font-weight: 800;
+		letter-spacing: 0.01em;
+		color: #0f172a;
+		text-transform: uppercase;
+	}
+
+	.data-panel-header {
+		padding-bottom: 0.7rem;
+	}
+
+	.panel-tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.panel-tab {
+		appearance: none;
+		border: 1px solid transparent;
+		border-radius: 999px;
+		background: transparent;
+		padding: 0.45rem 0.75rem;
+		font: inherit;
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: #64748b;
+		cursor: pointer;
+	}
+
+	.panel-tab.selected {
+		border-color: rgba(37, 99, 235, 0.18);
+		background: rgba(219, 234, 254, 0.72);
+		color: #1d4ed8;
+	}
+
+	.script-field,
+	.data-field {
+		flex: 1 1 auto;
+		padding: 0.9rem;
+	}
+
+	.script-field textarea,
+	.data-field textarea {
+		height: 100%;
+		min-height: 26rem;
+		resize: none;
+		background: rgba(255, 255, 255, 0.96);
 	}
 
 	.primary-button,
@@ -487,16 +596,24 @@
 		.section-layout {
 			grid-template-columns: 1fr;
 		}
+
+		.editor-workbench {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	@media (max-width: 800px) {
-		.field-grid,
-		.io-grid {
+		.field-grid {
 			grid-template-columns: 1fr;
 		}
 
 		.section-header {
 			flex-direction: column;
+		}
+
+		.script-field textarea,
+		.data-field textarea {
+			min-height: 18rem;
 		}
 	}
 </style>

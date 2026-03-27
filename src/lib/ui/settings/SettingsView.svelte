@@ -9,7 +9,44 @@
 
 	type SettingsTab = 'grouping' | 'annotation' | 'export' | 'storage' | 'config';
 
+	type TabMeta = {
+		id: SettingsTab;
+		label: string;
+		description: string;
+	};
+
+	const tabs: TabMeta[] = [
+		{
+			id: 'grouping',
+			label: 'Import Grouping',
+			description: 'Python functions used when creating projects from folders.'
+		},
+		{
+			id: 'annotation',
+			label: 'Annotation Data Shape',
+			description: 'JSON schema profiles for annotation forms and data.'
+		},
+		{
+			id: 'export',
+			label: 'Export Shape',
+			description: 'Python functions for reshaping project data for export.'
+		},
+		{
+			id: 'storage',
+			label: 'Storage',
+			description: 'Inspect and clear IndexedDB cache and saved browser-side app data.'
+		},
+		{
+			id: 'config',
+			label: 'Application Config',
+			description: 'Shared browser-side preferences used across the application.'
+		}
+	];
+
 	let activeTab = $state<SettingsTab>('grouping');
+	let activeTabMeta = $derived(
+		tabs.find((tab) => tab.id === activeTab) ?? tabs[0]
+	);
 
 	function resetAllSettings() {
 		const ok = window.confirm(
@@ -26,11 +63,11 @@
 
 <div class="settings-workspace">
 	<div class="settings-header">
-		<div>
+		<div class="settings-header-copy">
 			<h1>Settings</h1>
 			<p>
-				Manage reusable profiles, browser-side storage, and shared application configuration from
-				one place.
+				Manage reusable profiles, browser-side storage, and shared application configuration from one
+				place.
 			</p>
 		</div>
 
@@ -41,60 +78,30 @@
 		</div>
 	</div>
 
-	<div class="settings-layout">
-		<aside class="settings-nav">
-			<button
-				type="button"
-				class="nav-item"
-				class:selected={activeTab === 'grouping'}
-				onclick={() => (activeTab = 'grouping')}
-			>
-				<div class="nav-title">Import Grouping</div>
-				<div class="nav-sub">Python functions used when creating projects from folders</div>
-			</button>
+	<div class="settings-tabs-card">
+		<div class="settings-tabs" role="tablist" aria-label="Settings categories">
+			{#each tabs as tab}
+				<button
+					type="button"
+					role="tab"
+					class="tab-pill"
+					class:selected={activeTab === tab.id}
+					aria-selected={activeTab === tab.id}
+					onclick={() => (activeTab = tab.id)}
+				>
+					{tab.label}
+				</button>
+			{/each}
+		</div>
 
-			<button
-				type="button"
-				class="nav-item"
-				class:selected={activeTab === 'annotation'}
-				onclick={() => (activeTab = 'annotation')}
-			>
-				<div class="nav-title">Annotation Data Shape</div>
-				<div class="nav-sub">JSON schema profiles for annotation forms and data</div>
-			</button>
+		<div class="active-tab-summary">
+			<div class="active-tab-label">{activeTabMeta.label}</div>
+			<p>{activeTabMeta.description}</p>
+		</div>
+	</div>
 
-			<button
-				type="button"
-				class="nav-item"
-				class:selected={activeTab === 'export'}
-				onclick={() => (activeTab = 'export')}
-			>
-				<div class="nav-title">Export Shape</div>
-				<div class="nav-sub">Python functions for reshaping project data for export</div>
-			</button>
-
-			<button
-				type="button"
-				class="nav-item"
-				class:selected={activeTab === 'storage'}
-				onclick={() => (activeTab = 'storage')}
-			>
-				<div class="nav-title">Storage</div>
-				<div class="nav-sub">Inspect and clear IndexedDB cache and saved browser-side app data</div>
-			</button>
-
-			<button
-				type="button"
-				class="nav-item"
-				class:selected={activeTab === 'config'}
-				onclick={() => (activeTab = 'config')}
-			>
-				<div class="nav-title">Application Config</div>
-				<div class="nav-sub">Shared browser-side preferences used across the application</div>
-			</button>
-		</aside>
-
-		<section class="settings-content">
+	<section class="settings-content">
+		<div class="content-shell">
 			{#if activeTab === 'grouping'}
 				<ImportGroupingSection />
 			{:else if activeTab === 'annotation'}
@@ -106,8 +113,8 @@
 			{:else}
 				<AppConfigSection />
 			{/if}
-		</section>
-	</div>
+		</div>
+	</section>
 </div>
 
 <style>
@@ -131,6 +138,11 @@
 		border-radius: 18px;
 		background: rgba(255, 255, 255, 0.95);
 		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+		flex-wrap: wrap;
+	}
+
+	.settings-header-copy {
+		flex: 1 1 32rem;
 	}
 
 	.settings-header h1 {
@@ -147,67 +159,86 @@
 		max-width: 62rem;
 	}
 
-	.settings-layout {
-		display: grid;
-		grid-template-columns: 280px minmax(0, 1fr);
-		gap: 1rem;
-		min-height: 0;
-		flex: 1 1 auto;
-	}
-
-	.settings-nav,
-	.settings-content {
-		min-height: 0;
-	}
-
-	.settings-nav {
+	.settings-tabs-card {
 		display: flex;
 		flex-direction: column;
+		gap: 0.8rem;
+		padding: 0.85rem 1rem 0.95rem;
+		border: 1px solid rgba(15, 23, 42, 0.08);
+		border-radius: 18px;
+		background: rgba(255, 255, 255, 0.9);
+		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+	}
+
+	.settings-tabs {
+		display: flex;
+		flex-wrap: wrap;
 		gap: 0.7rem;
 	}
 
-	.nav-item {
+	.tab-pill {
 		appearance: none;
 		border: 1px solid rgba(15, 23, 42, 0.08);
-		background: rgba(255, 255, 255, 0.94);
-		border-radius: 16px;
-		padding: 0.95rem 1rem;
-		text-align: left;
+		background: rgba(248, 250, 252, 0.92);
+		color: #334155;
+		border-radius: 999px;
+		padding: 0.68rem 1rem;
+		font: inherit;
+		font-size: 0.84rem;
+		font-weight: 700;
 		cursor: pointer;
 		transition:
-			transform 120ms ease,
-			border-color 120ms ease,
-			background-color 120ms ease,
-			box-shadow 120ms ease;
+			border-color 140ms ease,
+			background-color 140ms ease,
+			color 140ms ease,
+			box-shadow 140ms ease,
+			transform 140ms ease;
 	}
 
-	.nav-item:hover {
+	.tab-pill:hover {
 		transform: translateY(-1px);
-		border-color: rgba(59, 130, 246, 0.18);
-		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+		border-color: rgba(37, 99, 235, 0.22);
+		box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 	}
 
-	.nav-item.selected {
-		border-color: rgba(59, 130, 246, 0.32);
-		background: rgba(239, 246, 255, 0.9);
-		box-shadow: 0 8px 20px rgba(59, 130, 246, 0.08);
+	.tab-pill.selected {
+		border-color: rgba(37, 99, 235, 0.25);
+		background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(219, 234, 254, 0.92));
+		color: #1d4ed8;
+		box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
 	}
 
-	.nav-title {
-		font-size: 0.92rem;
+	.active-tab-summary {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		padding: 0 0.1rem;
+	}
+
+	.active-tab-label {
+		font-size: 0.9rem;
 		font-weight: 700;
 		color: #111827;
-		margin-bottom: 0.25rem;
 	}
 
-	.nav-sub {
-		font-size: 0.8rem;
+	.active-tab-summary p {
+		margin: 0;
+		font-size: 0.83rem;
 		color: #64748b;
-		line-height: 1.45;
+		line-height: 1.5;
 	}
 
 	.settings-content {
 		min-width: 0;
+		min-height: 0;
+		flex: 1 1 auto;
+		display: flex;
+	}
+
+	.content-shell {
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	.ghost-button {
@@ -228,19 +259,18 @@
 	}
 
 	@media (max-width: 1000px) {
-		.settings-layout {
-			grid-template-columns: 1fr;
-		}
-
-		.settings-nav {
-			display: grid;
-			grid-template-columns: 1fr;
+		.settings-workspace {
+			padding: 0.8rem;
 		}
 	}
 
 	@media (max-width: 700px) {
 		.settings-header {
 			flex-direction: column;
+		}
+
+		.settings-tabs-card {
+			padding: 0.8rem;
 		}
 	}
 </style>
