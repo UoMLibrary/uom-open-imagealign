@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { runPython } from '$lib/python/runPython';
 	import type { PythonProfile } from '$lib/config/settingsStore.svelte';
+	import CodeEditor from '$lib/ui/shared/CodeEditor.svelte';
 	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 
 	type Props = {
@@ -231,9 +232,9 @@
 							<div class="script-panel-label">Python script</div>
 						</div>
 
-						<label class="script-editor-field">
-							<textarea bind:value={draftScript} rows="24" spellcheck="false"></textarea>
-						</label>
+						<div class="script-editor-field">
+							<CodeEditor bind:value={draftScript} language="python" ariaLabel="Python script" />
+						</div>
 					</section>
 
 					<section class="data-panel">
@@ -528,7 +529,12 @@
 		display: flex;
 		flex: 1 1 auto;
 		min-height: 0;
+		min-width: 0;
 		padding: 0.7rem 0.75rem 0.75rem;
+	}
+
+	.script-editor-field {
+		overflow: hidden;
 	}
 
 	.panel-tabs {
@@ -567,10 +573,11 @@
 		gap: 0.4rem;
 	}
 
-	.script-editor-field textarea,
 	.data-editor-field textarea {
+		width: 100%;
 		height: 100%;
 		min-height: 0;
+		min-width: 0;
 		resize: none;
 		border: 1px solid transparent;
 		border-radius: 0;
@@ -581,17 +588,12 @@
 		line-height: 1.55;
 	}
 
-	.script-editor-field textarea {
-		color: #f3f4f6;
-	}
-
 	.data-editor-field textarea {
 		padding: 0.75rem 0.85rem;
 		background: #ffffff;
 		color: #111827;
 	}
 
-	.script-editor-field textarea:focus,
 	.data-editor-field textarea:focus {
 		outline: none;
 	}
