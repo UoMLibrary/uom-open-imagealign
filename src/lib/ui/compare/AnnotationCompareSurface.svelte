@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import type OpenSeadragon from 'openseadragon';
 	import ImageCompareViewer, {
 		type ImageCompareViewerReadyPayload
@@ -145,6 +145,7 @@
 	}: Props = $props();
 
 	let annotationLayer = $state<AnnotationLayerHandle | null>(null);
+	let pendingCreatedAnnotationId = $state<string | null>(null);
 
 	const readingFocusStates: ReadingFocusState[] = [
 		{ enabled: false, clearCenterPct: 30, opacity: 0.45, blurPx: 3 },
@@ -223,12 +224,14 @@
 		onAnnotationReady?.(payload);
 	}
 
-	function handleCreate(annotation: any) {
+	async function handleCreate(annotation: any) {
+		pendingCreatedAnnotationId = annotation?.id ?? null;
 		session?.addAnnotation?.(annotation);
-		selectedAnnotationId = annotation?.id ?? null;
-		session?.selectAnnotation?.(selectedAnnotationId);
-
 		applyAnnotationMode('pan');
+		await tick();
+		annotationLayer?.clearSelection();
+		selectedAnnotationId = null;
+		session?.selectAnnotation?.(null);
 		onCreate?.(annotation);
 	}
 
@@ -252,6 +255,21 @@
 	}
 
 	function handleSelect(id: string | null) {
+		if (pendingCreatedAnnotationId) {
+			if (id === pendingCreatedAnnotationId) {
+				queueMicrotask(() => {
+					annotationLayer?.clearSelection();
+					selectedAnnotationId = null;
+					session?.selectAnnotation?.(null);
+				});
+				return;
+			}
+
+			if (id === null) {
+				pendingCreatedAnnotationId = null;
+			}
+		}
+
 		selectedAnnotationId = id;
 		session?.selectAnnotation?.(id);
 		onSelect?.(id);
