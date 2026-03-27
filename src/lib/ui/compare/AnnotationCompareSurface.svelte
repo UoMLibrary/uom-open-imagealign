@@ -199,8 +199,6 @@
 	function applyAnnotationModeToLayer(nextMode: AnnotationMode) {
 		if (!annotationLayer) return;
 
-		annotationLayer.clearSelection();
-
 		if (nextMode === 'pan') annotationLayer.pan();
 		if (nextMode === 'rectangle') annotationLayer.rectangle();
 		if (nextMode === 'polygon') annotationLayer.polygon();
@@ -227,11 +225,12 @@
 	async function handleCreate(annotation: any) {
 		pendingCreatedAnnotationId = annotation?.id ?? null;
 		session?.addAnnotation?.(annotation);
-		applyAnnotationMode('pan');
+		annotationMode = 'pan';
+		annotationLayer?.pan();
 		await tick();
-		annotationLayer?.clearSelection();
-		selectedAnnotationId = null;
-		session?.selectAnnotation?.(null);
+		selectedAnnotationId = annotation?.id ?? null;
+		session?.selectAnnotation?.(annotation?.id ?? null);
+		annotationLayer?.select(annotation?.id ?? null);
 		onCreate?.(annotation);
 	}
 
@@ -256,16 +255,11 @@
 
 	function handleSelect(id: string | null) {
 		if (pendingCreatedAnnotationId) {
-			if (id === pendingCreatedAnnotationId) {
-				queueMicrotask(() => {
-					annotationLayer?.clearSelection();
-					selectedAnnotationId = null;
-					session?.selectAnnotation?.(null);
-				});
+			if (id === null) {
 				return;
 			}
 
-			if (id === null) {
+			if (id === pendingCreatedAnnotationId) {
 				pendingCreatedAnnotationId = null;
 			}
 		}
@@ -355,11 +349,17 @@
 	$effect(() => {
 		if (!annotationLayer) return;
 
-		if (selectedAnnotationId) {
-			annotationLayer.select(selectedAnnotationId);
-		} else {
-			annotationLayer.clearSelection();
-		}
+		const targetId = selectedAnnotationId;
+
+		queueMicrotask(() => {
+			if (!annotationLayer) return;
+
+			if (targetId) {
+				annotationLayer.select(targetId);
+			} else {
+				annotationLayer.clearSelection();
+			}
+		});
 	});
 
 	$effect(() => {

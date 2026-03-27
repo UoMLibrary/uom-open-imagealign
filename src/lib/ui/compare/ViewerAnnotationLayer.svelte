@@ -48,6 +48,8 @@
 	let mode = $state<AnnotationMode>(initialModeSnapshot);
 	let knownIds = new Set<string>();
 	let annotationSigs = new Map<string, string>();
+	let pendingProgrammaticSelection: string | null | undefined = undefined;
+	let ignoreSelectionChangedUntil = 0;
 
 	function annotationSignature(annotation: any) {
 		try {
@@ -67,6 +69,13 @@
 		initializedForViewer = null;
 		knownIds = new Set<string>();
 		annotationSigs = new Map<string, string>();
+		pendingProgrammaticSelection = undefined;
+		ignoreSelectionChangedUntil = 0;
+	}
+
+	function beginProgrammaticSelection(id: string | null) {
+		pendingProgrammaticSelection = id;
+		ignoreSelectionChangedUntil = performance.now() + 120;
 	}
 
 	function hydrateFromSession() {
@@ -166,13 +175,13 @@
 	function applyVisibility() {
 		if (!annotator) return;
 
-		annotator.setSelected?.();
-
 		if (visible) {
 			annotator.setVisible?.(true);
 			annotator.setFilter?.(); // clear filter
 			applyMode(mode);
 		} else {
+			beginProgrammaticSelection(null);
+			annotator.setSelected?.();
 			annotator.setVisible?.(false);
 			annotator.setFilter?.(() => false);
 			annotator.setDrawingEnabled?.(false);
@@ -215,6 +224,17 @@
 
 		annotator.on?.('selectionChanged', (selection: any[]) => {
 			const id = selection?.[0]?.id ?? null;
+
+			if (pendingProgrammaticSelection !== undefined && performance.now() <= ignoreSelectionChangedUntil) {
+				if (id === pendingProgrammaticSelection || id === null) {
+					if (id === pendingProgrammaticSelection) {
+						pendingProgrammaticSelection = undefined;
+					}
+					return;
+				}
+			}
+
+			pendingProgrammaticSelection = undefined;
 			onSelect?.(id);
 		});
 
@@ -315,12 +335,14 @@
 
 	export function select(id: string | null) {
 		if (!annotator || !visible) return;
+		beginProgrammaticSelection(id);
 		if (id) annotator.setSelected?.(id);
 		else annotator.setSelected?.();
 	}
 
 	export function clearSelection() {
 		if (!annotator) return;
+		beginProgrammaticSelection(null);
 		annotator.setSelected?.();
 	}
 

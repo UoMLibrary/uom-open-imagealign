@@ -49,6 +49,10 @@
 
 		onAnnotationsChange?: (annotations: any[]) => void;
 		onViewStateChange?: (viewState: AnnotationCompareViewState) => void;
+		onCreate?: (annotation: any) => void;
+		onUpdate?: (annotation: any) => void;
+		onDelete?: (annotation: any) => void;
+		onSelect?: (id: string | null) => void;
 	};
 
 	let {
@@ -84,7 +88,11 @@
 		viewer = $bindable<OpenSeadragon.Viewer | null>(null),
 
 		onAnnotationsChange,
-		onViewStateChange
+		onViewStateChange,
+		onCreate,
+		onUpdate,
+		onDelete,
+		onSelect
 	}: Props = $props();
 
 	const initialViewStateSnapshot = untrack(() => ({ ...initialViewState }));
@@ -205,6 +213,10 @@
 		{holdShowBaseKey}
 		{holdDifferenceOpacity}
 		{enableAnnotationShortcuts}
+		{onCreate}
+		{onUpdate}
+		{onDelete}
+		{onSelect}
 	/>
 
 	{#if showToolbar}

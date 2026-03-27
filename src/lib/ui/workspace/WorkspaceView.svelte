@@ -20,8 +20,17 @@
 	import type { TransformData } from '$lib/alignment/vggAlignService';
 	import { getDerivedBlob, getDerivedUrl } from '$lib/images/derivationService';
 	import { getDerivationCacheKey } from '$lib/images/derivationState.svelte';
-	import { mutateProject, projectState } from '$lib/project/projectStore.svelte';
-	import type { LocalImageSource } from '$lib/project/types';
+	import {
+		getProjectAnnotationConfig,
+		mutateProject,
+		projectState
+	} from '$lib/project/projectStore.svelte';
+	import type {
+		AnnotationGeometry,
+		AnnotationRecord,
+		JsonValue,
+		LocalImageSource
+	} from '$lib/project/types';
 
 	let leftPanelOpen = $state(true);
 	let rightPanelOpen = $state(true);
@@ -31,6 +40,7 @@
 	let annotationBackgroundImageId = $state<string | null>(null);
 	let annotationOverlayImageId = $state<string | null>(null);
 	let selectedAnnotationId = $state<string | null>(null);
+	let pendingAnnotationSelectionId = $state<string | null>(null);
 	let alignmentApproach = $state<'auto' | 'feature' | 'manual'>('auto');
 	let alignmentSpec = $state<AlignmentSpec>({
 		type: 'affine',
@@ -49,6 +59,7 @@
 	let images = $derived(project?.images ?? []);
 	let alignments = $derived(project?.alignments ?? []);
 	let annotations = $derived(project?.annotations ?? []);
+	let annotationConfig = $derived(getProjectAnnotationConfig(project));
 
 	let imageById = $derived.by(() => {
 		const map = new Map<string, (typeof images)[number]>();
@@ -245,6 +256,16 @@
 		);
 	});
 
+	let selectedAnnotation = $derived.by(
+		() => selectedGroupAnnotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null
+	);
+
+	let activePairViewerAnnotations = $derived.by(() =>
+		activePairAnnotations
+			.map((annotation) => projectAnnotationToViewerAnnotation(annotation))
+			.filter(Boolean)
+	);
+
 	let orderedGroupAnnotations = $derived.by(() => {
 		const activeIds = new Set(activePairAnnotations.map((annotation) => annotation.id));
 		return [...selectedGroupAnnotations].sort((a, b) => {
@@ -262,19 +283,46 @@
 	const compareSession = createAnnotationCompareSession({
 		annotations: []
 	});
+	let lastSessionAnnotationSignature = $state('');
 
 	$effect(() => {
-		compareSession.setAnnotations(activePairAnnotations);
+		const nextSignature = activePairViewerAnnotations
+			.map((annotation) => annotationShapeSignature(annotation))
+			.sort()
+			.join('|');
+
+		if (nextSignature !== lastSessionAnnotationSignature) {
+			lastSessionAnnotationSignature = nextSignature;
+			compareSession.setAnnotations(activePairViewerAnnotations);
+		}
 
 		if (
 			selectedAnnotationId &&
-			activePairAnnotations.some((annotation) => annotation.id === selectedAnnotationId)
+			activePairViewerAnnotations.some((annotation) => annotation.id === selectedAnnotationId)
 		) {
+			if (pendingAnnotationSelectionId === selectedAnnotationId) {
+				pendingAnnotationSelectionId = null;
+			}
 			compareSession.selectAnnotation(selectedAnnotationId);
 			return;
 		}
 
+		if (pendingAnnotationSelectionId && selectedAnnotationId === pendingAnnotationSelectionId) {
+			return;
+		}
+
 		compareSession.selectAnnotation(null);
+	});
+
+	$effect(() => {
+		const unsubscribe = compareSession.selectedId.subscribe((id) => {
+			if (id === null && pendingAnnotationSelectionId) return;
+			if (selectedAnnotationId === id) return;
+			selectedAnnotationId = id;
+			if (id) rightPanelOpen = true;
+		});
+
+		return unsubscribe;
 	});
 
 	$effect(() => {
@@ -434,6 +482,285 @@
 		annotationOverlayImageId = comparedId;
 		if (comparedId) selectedImageId = comparedId;
 		rightPanelOpen = true;
+	}
+
+	function annotationShapeSignature(annotation: any): string {
+		const selector = annotation?.target?.selector;
+		const geometry = selector?.geometry;
+
+		return JSON.stringify({
+			id: annotation?.id ?? null,
+			type: selector?.type ?? null,
+			x: geometry?.x ?? null,
+			y: geometry?.y ?? null,
+			w: geometry?.w ?? null,
+			h: geometry?.h ?? null,
+			points: Array.isArray(geometry?.points) ? geometry.points : null
+		});
+	}
+
+	function buildAnnotationBounds(points: Array<{ x: number; y: number }>) {
+		const xs = points.map((point) => point.x);
+		const ys = points.map((point) => point.y);
+
+		return {
+			minX: Math.min(...xs),
+			minY: Math.min(...ys),
+			maxX: Math.max(...xs),
+			maxY: Math.max(...ys)
+		};
+	}
+
+	function projectGeometryToViewerSelector(geometry: AnnotationGeometry): any | null {
+		if (geometry.type === 'rect') {
+			const { x, y, w, h } = geometry.value;
+			return {
+				type: 'RECTANGLE',
+				geometry: {
+					x,
+					y,
+					w,
+					h,
+					bounds: {
+						minX: x,
+						minY: y,
+						maxX: x + w,
+						maxY: y + h
+					}
+				}
+			};
+		}
+
+		if (geometry.type === 'polygon') {
+			const points = geometry.value.points.map((point) => [point.x, point.y]);
+			return {
+				type: 'POLYGON',
+				geometry: {
+					points,
+					bounds: buildAnnotationBounds(geometry.value.points)
+				}
+			};
+		}
+
+		if (geometry.type === 'line') {
+			const points = geometry.value.points.map((point) => [point.x, point.y]);
+			return {
+				type: 'LINE',
+				geometry: {
+					points,
+					bounds: buildAnnotationBounds(geometry.value.points)
+				}
+			};
+		}
+
+		return null;
+	}
+
+	function projectAnnotationToViewerAnnotation(annotation: AnnotationRecord): any | null {
+		const selector = projectGeometryToViewerSelector(annotation.geometry);
+		if (!selector) return null;
+
+		return {
+			id: annotation.id,
+			bodies: [],
+			target: {
+				annotation: annotation.id,
+				selector
+			}
+		};
+	}
+
+	function viewerAnnotationToProjectGeometry(annotation: any): AnnotationGeometry | null {
+		const selector = annotation?.target?.selector;
+		const geometry = selector?.geometry;
+
+		if (selector?.type === 'RECTANGLE' && geometry) {
+			return {
+				space: 'base-pixels',
+				type: 'rect',
+				value: {
+					x: Number(geometry.x ?? 0),
+					y: Number(geometry.y ?? 0),
+					w: Number(geometry.w ?? 0),
+					h: Number(geometry.h ?? 0)
+				}
+			};
+		}
+
+		if (selector?.type === 'POLYGON' && Array.isArray(geometry?.points) && geometry.points.length >= 3) {
+			return {
+				space: 'base-pixels',
+				type: 'polygon',
+				value: {
+					points: geometry.points.map(([x, y]: [number, number]) => ({
+						x: Number(x ?? 0),
+						y: Number(y ?? 0)
+					}))
+				}
+			} as AnnotationGeometry;
+		}
+
+		if (selector?.type === 'LINE' && Array.isArray(geometry?.points) && geometry.points.length >= 2) {
+			return {
+				space: 'base-pixels',
+				type: 'line',
+				value: {
+					points: geometry.points.slice(0, 2).map(([x, y]: [number, number]) => ({
+						x: Number(x ?? 0),
+						y: Number(y ?? 0)
+					}))
+				}
+			} as AnnotationGeometry;
+		}
+
+		return null;
+	}
+
+	function toJsonValue(value: unknown): JsonValue {
+		if (
+			typeof value === 'string' ||
+			typeof value === 'number' ||
+			typeof value === 'boolean' ||
+			value === null
+		) {
+			return value as JsonValue;
+		}
+
+		if (Array.isArray(value)) {
+			return value.map((item) => toJsonValue(item));
+		}
+
+		if (value && typeof value === 'object') {
+			return Object.fromEntries(
+				Object.entries(value).map(([key, nested]) => [key, toJsonValue(nested)])
+			);
+		}
+
+		return value == null ? null : String(value);
+	}
+
+	function buildDefaultAnnotationData(): Record<string, JsonValue> {
+		const schema =
+			annotationConfig?.schema && typeof annotationConfig.schema === 'object'
+				? (annotationConfig.schema as Record<string, unknown>)
+				: {};
+		const properties =
+			schema.properties && typeof schema.properties === 'object'
+				? (schema.properties as Record<string, Record<string, unknown>>)
+				: {};
+
+		const seeded: Record<string, JsonValue> = {};
+
+		for (const [key, property] of Object.entries(properties)) {
+			if (property.default !== undefined) {
+				seeded[key] = toJsonValue(property.default);
+				continue;
+			}
+
+			if (Array.isArray(property.enum) && property.enum.length > 0) {
+				seeded[key] = toJsonValue(property.enum[0]);
+				continue;
+			}
+
+			if (property.type === 'boolean') {
+				seeded[key] = false;
+				continue;
+			}
+
+			if (property.type === 'number' || property.type === 'integer') {
+				seeded[key] = typeof property.minimum === 'number' ? property.minimum : 0;
+				continue;
+			}
+
+			if (property.type === 'string') {
+				seeded[key] = '';
+			}
+		}
+
+		const configuredDefaults =
+			annotationConfig?.defaultData && typeof annotationConfig.defaultData === 'object'
+				? Object.fromEntries(
+						Object.entries(annotationConfig.defaultData).map(([key, value]) => [key, toJsonValue(value)])
+					)
+				: {};
+
+		return {
+			...seeded,
+			...configuredDefaults
+		};
+	}
+
+	function buildAnnotationContext() {
+		if (!selectedGroup || !referenceImage || !comparedImage) return null;
+
+		return {
+			groupId: selectedGroup.id,
+			anchorImageId: referenceImage.id,
+			targetImageIds: [comparedImage.id] as [string],
+			alignmentId: comparedImageAlignment?.id,
+			schemaId:
+				annotationConfig?.sourceProfileId ?? annotationConfig?.sourceProfileName ?? 'annotation'
+		};
+	}
+
+	function handleViewerAnnotationCreate(annotation: any) {
+		const context = buildAnnotationContext();
+		if (!context) return;
+
+		const geometry = viewerAnnotationToProjectGeometry(annotation);
+		if (!geometry) return;
+
+		mutateProject((nextProject) => {
+			const existing = nextProject.annotations.find((item) => item.id === annotation.id);
+			if (existing) return;
+
+			nextProject.annotations.push({
+				id: annotation.id,
+				groupId: context.groupId,
+				anchorImageId: context.anchorImageId,
+				targetImageIds: context.targetImageIds,
+				schemaId: context.schemaId,
+				alignmentId: context.alignmentId,
+				geometry,
+				data: buildDefaultAnnotationData(),
+				metadata: {}
+			});
+		});
+
+		pendingAnnotationSelectionId = annotation.id;
+		selectedAnnotationId = annotation.id;
+		rightPanelOpen = true;
+	}
+
+	function handleViewerAnnotationUpdate(annotation: any) {
+		const geometry = viewerAnnotationToProjectGeometry(annotation);
+		if (!geometry) return;
+
+		mutateProject((nextProject) => {
+			const existing = nextProject.annotations.find((item) => item.id === annotation.id);
+			if (!existing) return;
+			existing.geometry = geometry;
+		});
+	}
+
+	function handleViewerAnnotationDelete(annotation: any) {
+		const id = annotation?.id;
+		if (!id) return;
+
+		mutateProject((nextProject) => {
+			nextProject.annotations = nextProject.annotations.filter((item) => item.id !== id);
+		});
+	}
+
+	function handleAnnotationDataChange(annotationId: string, nextValue: Record<string, unknown>) {
+		mutateProject((nextProject) => {
+			const annotation = nextProject.annotations.find((item) => item.id === annotationId);
+			if (!annotation) return;
+
+			annotation.data = Object.fromEntries(
+				Object.entries(nextValue).map(([key, value]) => [key, toJsonValue(value)])
+			);
+		});
 	}
 
 	function setImageAsBase(imageId: string) {
@@ -1106,6 +1433,9 @@
 															imageUrl={baseUrl}
 															overlayUrl={alignmentPreviewUrl}
 															session={compareSession}
+															onCreate={handleViewerAnnotationCreate}
+															onUpdate={handleViewerAnnotationUpdate}
+															onDelete={handleViewerAnnotationDelete}
 															initialViewState={{
 																overlayOpacity: 0.6,
 																annotationsVisible: true,
@@ -1174,6 +1504,9 @@
 												imageUrl={baseUrl}
 												{overlayUrl}
 												session={compareSession}
+												onCreate={handleViewerAnnotationCreate}
+												onUpdate={handleViewerAnnotationUpdate}
+												onDelete={handleViewerAnnotationDelete}
 												initialViewState={{
 													overlayOpacity: 0.6,
 													annotationsVisible: true,
@@ -1380,10 +1713,13 @@
 							<GroupAnnotationsPanel
 								annotations={orderedGroupAnnotations}
 								{selectedAnnotationId}
+								{selectedAnnotation}
+								annotationSchema={annotationConfig?.schema ?? null}
 								{activePairImageIds}
 								imageTitleById={Object.fromEntries(imageTitleById)}
 								{geometrySummary}
 								onSelect={selectAnnotation}
+								onDataChange={handleAnnotationDataChange}
 							/>
 						</WorkspaceSidebar>
 					{/if}
