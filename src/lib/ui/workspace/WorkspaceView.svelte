@@ -1,17 +1,25 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 
 	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 	import GroupListItem from '$lib/ui/workspace/GroupListItem.svelte';
 	import GroupAnnotationsPanel from '$lib/ui/workspace/GroupAnnotationsPanel.svelte';
+	import AlignmentTransformControls from '$lib/ui/alignment/AlignmentTransformControls.svelte';
 	import ImageCompareViewer from '$lib/ui/compare/ImageCompareViewer.svelte';
 	import AnnotatedImageCompareViewer from '$lib/ui/compare/AnnotatedImageCompareViewer.svelte';
 	import { createAnnotationCompareSession } from '$lib/ui/compare/annotationCompareSession';
 	import CachedThumb from '$lib/ui/shared/CachedThumb.svelte';
 
-	import { getDerivedUrl } from '$lib/images/derivationService';
+	import {
+		ensureAlignmentEngine,
+		runAlignmentWorkflow,
+		type AlignmentSpec,
+		type ComputedAlignment
+	} from '$lib/alignment/alignmentWorkflow';
+	import { getDerivedBlob, getDerivedUrl } from '$lib/images/derivationService';
 	import { getDerivationCacheKey } from '$lib/images/derivationState.svelte';
 	import { mutateProject, projectState } from '$lib/project/projectStore.svelte';
+	import type { LocalImageSource } from '$lib/project/types';
 
 	let leftPanelOpen = $state(true);
 	let rightPanelOpen = $state(true);
@@ -22,6 +30,17 @@
 	let annotationOverlayImageId = $state<string | null>(null);
 	let selectedAnnotationId = $state<string | null>(null);
 	let alignmentApproach = $state<'auto' | 'feature' | 'manual'>('auto');
+	let alignmentSpec = $state<AlignmentSpec>({
+		type: 'affine',
+		photometric: false
+	});
+	let alignmentEngineReady = $state(false);
+	let alignmentEngineStatus = $state('Loading VGG alignment engine...');
+	let alignmentRunError = $state<string | null>(null);
+	let alignmentIsRunning = $state(false);
+	let alignmentPreviewUrl: string | null = $state(null);
+	let alignmentPreviewComputed: ComputedAlignment | null = $state(null);
+	let alignmentPreviewRefreshKey = $state(0);
 
 	let project = $derived(projectState.project);
 	let groups = $derived(project?.groups ?? []);
@@ -150,6 +169,10 @@
 		alignmentWorkbenchImageId
 			? (selectedGroupImages.find((image) => image.id === alignmentWorkbenchImageId) ?? null)
 			: null
+	);
+
+	let canRunAlignmentWorkbench = $derived(
+		Boolean(baseImage && alignmentWorkbenchImage && alignmentEngineReady && !alignmentIsRunning)
 	);
 
 	let showAlignmentWorkbench = $derived(
@@ -313,6 +336,8 @@
 
 	function selectGroup(groupId: string) {
 		selectedGroupId = groupId;
+		clearAlignmentPreview();
+		alignmentRunError = null;
 		alignmentWorkbenchImageId = null;
 		selectedAnnotationId = null;
 	}
@@ -330,10 +355,14 @@
 
 	function openAlignmentWorkbench(imageId: string) {
 		selectImage(imageId);
+		clearAlignmentPreview();
+		alignmentRunError = null;
 		alignmentWorkbenchImageId = imageId;
 	}
 
 	function closeAlignmentWorkbench() {
+		clearAlignmentPreview();
+		alignmentRunError = null;
 		alignmentWorkbenchImageId = null;
 	}
 
@@ -399,18 +428,62 @@
 		annotationBackgroundImageId = nextBaseImage.id;
 		annotationOverlayImageId = null;
 		selectedImageId = nextBaseImage.id;
+		clearAlignmentPreview();
+		alignmentRunError = null;
 		alignmentWorkbenchImageId = null;
 		selectedAnnotationId = null;
 	}
 
 	function confirmAlignment() {
-		if (!activeAlignment || activeAlignment.status === 'confirmed') return;
+		if (!selectedGroup || !baseImage || !alignmentWorkbenchImage || !alignmentPreviewComputed) return;
 
 		mutateProject((nextProject) => {
-			const alignment = nextProject.alignments.find((item) => item.id === activeAlignment.id);
-			if (!alignment) return;
-			alignment.status = 'confirmed';
+			const existing = nextProject.alignments.find(
+				(item) =>
+					item.groupId === selectedGroup.id &&
+					item.baseImageId === baseImage.id &&
+					item.comparedImageId === alignmentWorkbenchImage.id
+			);
+
+			const nextResult = {
+				transformModel: alignmentPreviewComputed.transform.type,
+				...alignmentPreviewComputed.transform
+			};
+
+			if (existing) {
+				existing.status = 'confirmed';
+				existing.schemaId =
+					existing.schemaId ||
+					nextProject.definitions.alignmentSchemas[0]?.id ||
+					'vgg-align';
+				existing.params = {
+					type: alignmentPreviewComputed.spec.type,
+					photometric: alignmentPreviewComputed.spec.photometric,
+					approach: alignmentApproach
+				};
+				existing.result = nextResult;
+				return;
+			}
+
+			nextProject.alignments.push({
+				id: `alignment:${selectedGroup.id}:${baseImage.id}:${alignmentWorkbenchImage.id}`,
+				groupId: selectedGroup.id,
+				baseImageId: baseImage.id,
+				comparedImageId: alignmentWorkbenchImage.id,
+				schemaId: nextProject.definitions.alignmentSchemas[0]?.id || 'vgg-align',
+				status: 'confirmed',
+				params: {
+					type: alignmentPreviewComputed.spec.type,
+					photometric: alignmentPreviewComputed.spec.photometric,
+					approach: alignmentApproach
+				},
+				result: nextResult
+			});
 		});
+
+		annotationOverlayImageId = alignmentWorkbenchImage.id;
+		selectedImageId = alignmentWorkbenchImage.id;
+		alignmentWorkbenchImageId = null;
 	}
 
 	function resetGroupWorkflow() {
@@ -465,6 +538,8 @@
 		});
 
 		selectedImageId = selectedGroup.imageIds[0] ?? null;
+		clearAlignmentPreview();
+		alignmentRunError = null;
 		alignmentWorkbenchImageId = null;
 		annotationBackgroundImageId = null;
 		annotationOverlayImageId = null;
@@ -604,6 +679,17 @@
 	let previewKey: string | null = $state(null);
 	let viewerRefreshKey = $state(0);
 
+	function releaseObjectUrl(url: string | null) {
+		if (url) URL.revokeObjectURL(url);
+	}
+
+	function clearAlignmentPreview() {
+		releaseObjectUrl(alignmentPreviewUrl);
+		alignmentPreviewUrl = null;
+		alignmentPreviewComputed = null;
+		alignmentPreviewRefreshKey += 1;
+	}
+
 	function cleanupPreview() {
 		baseRelease?.();
 		baseRelease = null;
@@ -648,6 +734,82 @@
 		}
 	}
 
+	async function getFileFromLocalSource(image: (typeof images)[number]): Promise<File> {
+		if (image.source.kind !== 'local') {
+			throw new Error('Local source required');
+		}
+
+		const source = image.source as LocalImageSource;
+		const rootHandle = projectState.assetRootHandles[source.rootId];
+		if (!rootHandle) {
+			throw new Error(`Reconnect the asset root for "${getImageTitle(image)}" before aligning.`);
+		}
+
+		const parts = source.imageRef.split('/').filter(Boolean);
+		let dir = rootHandle;
+
+		for (let i = 0; i < parts.length - 1; i += 1) {
+			dir = await dir.getDirectoryHandle(parts[i]);
+		}
+
+		const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
+		return await fileHandle.getFile();
+	}
+
+	async function resolveAlignmentFile(image: (typeof images)[number]): Promise<File> {
+		let blob: Blob;
+		try {
+			blob = await getDerivedBlob(image.contentHash, 'work');
+		} catch {
+			if (image.source.kind === 'local') {
+				const localFile = await getFileFromLocalSource(image);
+				return localFile;
+			}
+
+			const response = await fetch(image.source.url);
+			if (!response.ok) {
+				throw new Error(`Unable to load "${getImageTitle(image)}" for alignment.`);
+			}
+			blob = await response.blob();
+		}
+
+		const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+		return new File([blob], `${getImageTitle(image)}.${extension}`, { type: blob.type });
+	}
+
+	async function runAlignmentWorkbench() {
+		if (!baseImage || !alignmentWorkbenchImage || !canRunAlignmentWorkbench) return;
+
+		alignmentIsRunning = true;
+		alignmentRunError = null;
+		clearAlignmentPreview();
+
+		try {
+			const [baseFile, queryFile] = await Promise.all([
+				resolveAlignmentFile(baseImage),
+				resolveAlignmentFile(alignmentWorkbenchImage)
+			]);
+
+			const result = await runAlignmentWorkflow({
+				baseFile,
+				queryFile,
+				spec: alignmentSpec
+			});
+
+			alignmentPreviewComputed = {
+				spec: result.spec,
+				transform: result.transform
+			};
+			alignmentPreviewUrl = result.warpedUrl;
+			alignmentPreviewRefreshKey += 1;
+		} catch (error) {
+			alignmentRunError =
+				error instanceof Error ? error.message : 'Alignment failed to complete.';
+		} finally {
+			alignmentIsRunning = false;
+		}
+	}
+
 	$effect(() => {
 		const currentBaseHash = previewBaseImage?.contentHash ?? '';
 		const currentOverlayHash = previewOverlayImage?.contentHash ?? null;
@@ -671,9 +833,24 @@
 		void loadPreview(currentBaseHash, currentOverlayHash);
 	});
 
+	onMount(() => {
+		void ensureAlignmentEngine()
+			.then(() => {
+				alignmentEngineReady = true;
+				alignmentEngineStatus = 'Engine ready';
+			})
+			.catch((error) => {
+				alignmentEngineReady = false;
+				alignmentEngineStatus = 'Engine failed to load';
+				alignmentRunError =
+					error instanceof Error ? error.message : 'Failed to load alignment engine.';
+			});
+	});
+
 	onDestroy(() => {
 		previewRunId += 1;
 		cleanupPreview();
+		clearAlignmentPreview();
 	});
 </script>
 
@@ -754,50 +931,7 @@
 					<section
 						class="stage-column"
 						class:base-selection-layout={isBaseSelectionPhase}
-						class:workbench-layout={!isBaseSelectionPhase && showAlignmentWorkbench}
 					>
-							{#if !isBaseSelectionPhase && showAlignmentWorkbench && alignmentWorkbenchImage}
-								<section class="alignment-workbench">
-									<div class="alignment-workbench-copy">
-										<div class="mini-kicker">Alignment</div>
-										<div class="mini-title">
-											{baseImage ? getImageTitle(baseImage) : 'Base'} -> {getImageTitle(alignmentWorkbenchImage)}
-										</div>
-										<div class="mini-copy">
-											Review this image against the base in the viewer, then confirm the alignment when it looks right.
-										</div>
-									</div>
-
-									<div class="alignment-workbench-controls">
-										<label class="field">
-											<span>Approach</span>
-											<select
-												value={alignmentApproach}
-												onchange={(event) =>
-													(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
-											>
-												<option value="auto">Automatic</option>
-												<option value="feature">Feature match</option>
-												<option value="manual">Manual</option>
-											</select>
-										</label>
-
-										<button
-											type="button"
-											class="action-button"
-											disabled={!activeAlignment || activeAlignment.status === 'confirmed'}
-											onclick={confirmAlignment}
-										>
-											Confirm alignment
-										</button>
-
-										<button type="button" class="ghost-button" onclick={closeAlignmentWorkbench}>
-											Close
-										</button>
-									</div>
-								</section>
-							{/if}
-
 						<section class="viewer-card" class:viewer-stage-only={isBaseSelectionPhase}>
 							{#if !isBaseSelectionPhase}
 								<div class="viewer-card-head">
@@ -844,7 +978,97 @@
 							{/if}
 
 							<div class="viewer-shell">
-								{#if previewState === 'ready' && baseUrl}
+								{#if viewerMode === 'align'}
+									<div class="alignment-result-panel">
+										<div class="alignment-viewer-shell">
+											{#if alignmentPreviewUrl && baseUrl}
+												{#key `${baseUrl}:${alignmentPreviewUrl}:${alignmentPreviewRefreshKey}`}
+													<div class="alignment-viewer-host">
+														<AnnotatedImageCompareViewer
+															imageUrl={baseUrl}
+															overlayUrl={alignmentPreviewUrl}
+															session={compareSession}
+															initialViewState={{
+																overlayOpacity: 0.6,
+																annotationsVisible: true,
+																annotationMode: 'pan',
+																readingFocusEnabled: false,
+																readingFocusClearCenterPct: 30,
+																readingFocusOpacity: 0.35,
+																readingFocusBlurPx: 3
+															}}
+															refreshKey={alignmentPreviewRefreshKey}
+														/>
+													</div>
+												{/key}
+											{:else}
+												<div class="viewer-empty">
+													<div class="viewer-empty-card">
+														<h3>No alignment result yet</h3>
+														<p>
+															Run the alignment controls to generate an aligned preview for
+															{alignmentWorkbenchImage ? ` ${getImageTitle(alignmentWorkbenchImage)}` : ' the selected image'}.
+														</p>
+													</div>
+												</div>
+											{/if}
+
+											<div class="alignment-controls-overlay">
+												<div class="alignment-overlay-card">
+													<div class="alignment-overlay-top">
+														<div>
+															<div class="mini-kicker">Alignment</div>
+															<div class="mini-title">
+																{baseImage ? getImageTitle(baseImage) : 'Base'} ->
+																{alignmentWorkbenchImage ? getImageTitle(alignmentWorkbenchImage) : 'Image'}
+															</div>
+														</div>
+
+														<button
+															type="button"
+															class="ghost-button compact"
+															onclick={closeAlignmentWorkbench}
+														>
+															Close
+														</button>
+													</div>
+
+													<label class="field">
+														<span>Approach</span>
+														<select
+															value={alignmentApproach}
+															onchange={(event) =>
+																(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
+														>
+															<option value="auto">Automatic</option>
+															<option value="feature">Feature match</option>
+															<option value="manual">Manual</option>
+														</select>
+													</label>
+
+													<AlignmentTransformControls
+														spec={alignmentSpec}
+														engineStatus={alignmentEngineStatus}
+														isRunning={alignmentIsRunning}
+														canAlign={canRunAlignmentWorkbench}
+														error={alignmentRunError}
+														onRun={runAlignmentWorkbench}
+														onSpecChange={(nextSpec) => (alignmentSpec = nextSpec)}
+													/>
+
+													<button
+														type="button"
+														class="action-button"
+														disabled={!alignmentPreviewComputed}
+														onclick={confirmAlignment}
+													>
+														Confirm alignment
+													</button>
+												</div>
+											</div>
+										</div>
+									</div>
+								{:else if previewState === 'ready' && baseUrl}
 									{#key `${baseUrl}:${overlayUrl ?? ''}:${viewerRefreshKey}:${viewerMode}`}
 										{#if viewerMode === 'annotate' && overlayUrl}
 											<AnnotatedImageCompareViewer
@@ -1117,7 +1341,6 @@
 
 	.project-created,
 	.group-summary,
-	.mini-copy,
 	.viewer-subtitle,
 	.right-sidebar-subtitle {
 		color: #64748b;
@@ -1232,10 +1455,6 @@
 		grid-template-rows: minmax(0, 1fr) var(--workspace-footer-height);
 	}
 
-	.stage-column.workbench-layout {
-		grid-template-rows: auto minmax(0, 1fr) var(--workspace-footer-height);
-	}
-
 	.viewer-card,
 	.filmstrip-card {
 		background: rgba(255, 255, 255, 0.96);
@@ -1258,28 +1477,66 @@
 		color: #0f172a;
 	}
 
-	.alignment-workbench {
+	.alignment-result-panel {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+		padding: 0.85rem;
+		box-sizing: border-box;
+	}
+
+	.alignment-viewer-shell {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+		border-radius: 16px;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		background: #f8fafc;
+		overflow: hidden;
+	}
+
+	.alignment-viewer-host {
+		position: absolute;
+		inset: 0;
+	}
+
+	.alignment-viewer-host :global(.viewer-shell),
+	.alignment-viewer-host :global(.wheel-capture),
+	.alignment-viewer-host :global(.osd) {
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.alignment-controls-overlay {
+		position: absolute;
+		top: 0.75rem;
+		right: 0.75rem;
+		width: min(320px, calc(100% - 1.5rem));
+		z-index: 2;
+	}
+
+	.alignment-overlay-card {
 		display: flex;
-		align-items: end;
+		flex-direction: column;
+		gap: 0.7rem;
+		padding: 0.75rem;
+		border-radius: 14px;
+		background: rgba(255, 255, 255, 0.94);
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		box-shadow:
+			0 14px 30px rgba(15, 23, 42, 0.12),
+			0 2px 6px rgba(15, 23, 42, 0.08);
+		backdrop-filter: blur(12px);
+	}
+
+	.alignment-overlay-top {
+		display: flex;
+		align-items: flex-start;
 		justify-content: space-between;
-		gap: 1rem;
-		margin: 0;
-		padding: 0.75rem 1rem;
-		border-top: 1px solid rgba(15, 23, 42, 0.08);
-		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-		background: rgba(255, 255, 255, 0.96);
-	}
-
-	.alignment-workbench-copy {
-		min-width: 0;
-	}
-
-	.alignment-workbench-controls {
-		display: flex;
-		align-items: end;
 		gap: 0.75rem;
-		flex-wrap: wrap;
-		justify-content: flex-end;
 	}
 
 	.action-button,
@@ -1334,6 +1591,39 @@
 		padding: 0.68rem 0.78rem;
 		font-size: 0.86rem;
 		color: #111827;
+	}
+
+	.alignment-overlay-card :global(.transform-card) {
+		padding: 0.65rem 0.7rem;
+		border-radius: 12px;
+		box-shadow: none;
+		background: rgba(248, 250, 252, 0.92);
+	}
+
+	.alignment-overlay-card :global(.transform-top) {
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.alignment-overlay-card :global(.title-block h2) {
+		font-size: 0.88rem;
+	}
+
+	.alignment-overlay-card :global(.title-block p) {
+		font-size: 0.72rem;
+		margin-top: 0.18rem;
+	}
+
+	.alignment-overlay-card :global(.transform-controls) {
+		gap: 0.6rem 0.75rem;
+	}
+
+	.alignment-overlay-card :global(.field) {
+		min-width: 0;
+	}
+
+	.alignment-overlay-card :global(.model-field) {
+		flex-basis: 100%;
 	}
 
 	.viewer-card {
