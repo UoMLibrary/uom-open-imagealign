@@ -578,16 +578,17 @@
 		selectedAnnotationId = null;
 	}
 
-	function resetSelectedImageWorkflow() {
-		if (!selectedGroup || !alignmentTargetImage) return;
+	function resetImageWorkflow(imageId: string) {
+		if (!selectedGroup) return;
+		const targetImage = selectedGroupImages.find((image) => image.id === imageId) ?? null;
+		if (!targetImage || targetImage.id === selectedGroup.baseImageId) return;
 
 		const confirmed = window.confirm(
-			`Reset the alignment workflow for "${getImageTitle(alignmentTargetImage)}"? This clears its alignment record and annotations involving this image.`
+			`Remove the alignment for "${getImageTitle(targetImage)}"? Any annotations made with this image will be lost.`
 		);
 
 		if (!confirmed) return;
 
-		const imageId = alignmentTargetImage.id;
 		const groupId = selectedGroup.id;
 
 		mutateProject((nextProject) => {
@@ -1296,7 +1297,16 @@
 													{#if image.id === selectedGroup.baseImageId}
 														<span class="thumb-pill">Base</span>
 													{:else if confirmedAlignmentIds.has(image.id)}
-														<span class="thumb-pill aligned">Aligned</span>
+														<button
+															type="button"
+															class="thumb-pill aligned thumb-pill-button"
+															onclick={(event) => {
+																event.stopPropagation();
+																resetImageWorkflow(image.id);
+															}}
+														>
+															Aligned
+														</button>
 													{:else}
 														<button
 															type="button"
@@ -1906,6 +1916,11 @@
 		background: #0f766e;
 		color: #ffffff;
 		box-shadow: 0 4px 12px rgba(15, 118, 110, 0.18);
+	}
+
+	.thumb-pill-button {
+		border: none;
+		cursor: pointer;
 	}
 
 	.thumb-pill.aligned {
