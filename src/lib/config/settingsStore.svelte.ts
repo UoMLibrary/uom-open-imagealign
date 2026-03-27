@@ -74,6 +74,31 @@ def process(data):
     return sorted(result, key=lambda g: g["label"].lower())
 `;
 
+const LEAF_FOLDER_WITH_BASE_IMAGE_GROUPING_SCRIPT = `from collections import defaultdict
+from pathlib import PurePosixPath
+
+def process(data):
+    files = data.get("files", [])
+    grouped = defaultdict(list)
+
+    for item in files:
+        rel = item.get("relativePath", "")
+        path = PurePosixPath(rel)
+        key = path.parent.name or "Ungrouped"
+        grouped[key].append(rel)
+
+    result = []
+    for label, image_refs in grouped.items():
+        sorted_refs = sorted(image_refs)
+        result.append({
+            "label": label,
+            "imageRefs": sorted_refs,
+            "baseImageRef": sorted_refs[0] if sorted_refs else None
+        })
+
+    return sorted(result, key=lambda g: g["label"].lower())
+`;
+
 const DEFAULT_GROUPING_INPUT = {
     files: [
         {
@@ -96,6 +121,26 @@ const DEFAULT_GROUPING_INPUT = {
         }
     ]
 };
+
+const SINGLE_IMAGE_GROUPING_SCRIPT = `from pathlib import PurePosixPath
+
+def process(data):
+    files = data.get("files", [])
+    result = []
+
+    for item in files:
+        rel = item.get("relativePath", "")
+        path = PurePosixPath(rel)
+        label = path.stem or rel or "Untitled image"
+
+        result.append({
+            "label": label,
+            "imageRefs": [rel],
+            "baseImageRef": rel
+        })
+
+    return sorted(result, key=lambda g: g["label"].lower())
+`;
 
 const DEFAULT_EXPORT_SCRIPT = `def process(data):
     rows = []
@@ -188,6 +233,24 @@ function buildDefaultSnapshot(): SettingsSnapshot {
                 script: DEFAULT_GROUPING_SCRIPT,
                 sampleInput: DEFAULT_GROUPING_INPUT,
                 updatedAt: nowIso()
+            },
+            {
+                id: uid('grouping'),
+                kind: 'importGrouping',
+                name: 'Leaf folder with base image',
+                description: 'Groups files by leaf folder and sets the first sorted image as the base image.',
+                script: LEAF_FOLDER_WITH_BASE_IMAGE_GROUPING_SCRIPT,
+                sampleInput: DEFAULT_GROUPING_INPUT,
+                updatedAt: nowIso()
+            },
+            {
+                id: uid('grouping'),
+                kind: 'importGrouping',
+                name: 'Single images',
+                description: 'Creates one group per image and uses that image as the base image.',
+                script: SINGLE_IMAGE_GROUPING_SCRIPT,
+                sampleInput: DEFAULT_GROUPING_INPUT,
+                updatedAt: nowIso()
             }
         ],
         exportProfiles: [
@@ -224,10 +287,22 @@ function createSettingsState() {
 
     function hydrate(snapshot: Partial<SettingsSnapshot> | null | undefined) {
         const defaults = buildDefaultSnapshot();
+        const savedImportGroupingProfiles = snapshot?.importGroupingProfiles?.length
+            ? snapshot.importGroupingProfiles
+            : [];
+        const mergedImportGroupingProfiles = [
+            ...savedImportGroupingProfiles,
+            ...defaults.importGroupingProfiles.filter(
+                (defaultProfile) =>
+                    !savedImportGroupingProfiles.some(
+                        (savedProfile) => savedProfile.name === defaultProfile.name
+                    )
+            )
+        ];
 
         state.importGroupingProfiles = clone(
-            snapshot?.importGroupingProfiles?.length
-                ? snapshot.importGroupingProfiles
+            mergedImportGroupingProfiles.length
+                ? mergedImportGroupingProfiles
                 : defaults.importGroupingProfiles
         );
 

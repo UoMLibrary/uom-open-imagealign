@@ -312,7 +312,6 @@ export async function buildProjectFromFolderHandle(
         {
             id: string;
             label: string;
-            baseImageId: string | null;
             imageIds: string[];
         }
     >();
@@ -349,17 +348,12 @@ export async function buildProjectFromFolderHandle(
             group = {
                 id: makeId('grp'),
                 label: groupLabel,
-                baseImageId: null,
                 imageIds: []
             };
             groups.set(groupKey, group);
         }
 
         group.imageIds.push(image.id);
-
-        if (!group.baseImageId) {
-            group.baseImageId = image.id;
-        }
     }
 
     if (isGroupingProfileDefinition(strategy)) {
@@ -374,8 +368,7 @@ export async function buildProjectFromFolderHandle(
                 return [];
             }
 
-            const baseImageId =
-                (group.baseImageRef ? imageIdByRef.get(group.baseImageRef) : null) ?? imageIds[0];
+            const baseImageId = group.baseImageRef ? imageIdByRef.get(group.baseImageRef) ?? '' : '';
 
             return [
                 {
@@ -393,7 +386,7 @@ export async function buildProjectFromFolderHandle(
     }
 
     project.groups = Array.from(groups.values()).flatMap((group): ImageGroup[] => {
-        if (!group.baseImageId || group.imageIds.length === 0) {
+        if (group.imageIds.length === 0) {
             return [];
         }
 
@@ -401,7 +394,7 @@ export async function buildProjectFromFolderHandle(
             {
                 id: group.id,
                 label: group.label,
-                baseImageId: group.baseImageId,
+                baseImageId: '',
                 imageIds: [group.imageIds[0], ...group.imageIds.slice(1)],
                 metadata: {}
             }
