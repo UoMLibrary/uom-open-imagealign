@@ -48,6 +48,7 @@
 	let mode = $state<AnnotationMode>(initialModeSnapshot);
 	let knownIds = new Set<string>();
 	let annotationSigs = new Map<string, string>();
+	let suppressedDeleteIds = new Set<string>();
 	let pendingProgrammaticSelection: string | null | undefined = undefined;
 	let ignoreSelectionChangedUntil = 0;
 
@@ -63,12 +64,16 @@
 		unsubscribeSessionAnnotations?.();
 		unsubscribeSessionAnnotations = null;
 
+		for (const id of knownIds) {
+			suppressedDeleteIds.add(id);
+		}
 		annotator?.destroy?.();
 		annotator = null;
 
 		initializedForViewer = null;
 		knownIds = new Set<string>();
 		annotationSigs = new Map<string, string>();
+		suppressedDeleteIds = new Set<string>();
 		pendingProgrammaticSelection = undefined;
 		ignoreSelectionChangedUntil = 0;
 	}
@@ -83,6 +88,9 @@
 
 		const list = get(session.annotations) ?? [];
 
+		for (const id of knownIds) {
+			suppressedDeleteIds.add(id);
+		}
 		annotator.clearAnnotations?.();
 
 		for (const annotation of list) {
@@ -120,6 +128,7 @@
 
 		for (const id of knownIds) {
 			if (!nextIds.has(id)) {
+				suppressedDeleteIds.add(id);
 				annotator.removeAnnotation?.(id);
 			}
 		}
@@ -215,9 +224,14 @@
 		});
 
 		annotator.on?.('deleteAnnotation', (annotation: any) => {
-			if (annotation?.id) {
-				knownIds.delete(annotation.id);
-				annotationSigs.delete(annotation.id);
+			const id = annotation?.id;
+			if (id) {
+				knownIds.delete(id);
+				annotationSigs.delete(id);
+				if (suppressedDeleteIds.has(id)) {
+					suppressedDeleteIds.delete(id);
+					return;
+				}
 			}
 			onDelete?.(annotation);
 		});

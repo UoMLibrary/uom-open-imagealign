@@ -122,12 +122,13 @@
 		selectedGroupImages.filter((image) => alignedImageIds.has(image.id))
 	);
 
-	let canAnnotate = $derived(alignedImages.length >= 2);
-
 	let selectedGroupAnnotations = $derived.by(() => {
 		if (!selectedGroup) return [];
 		return annotations.filter((annotation) => annotation.groupId === selectedGroup.id);
 	});
+
+	let canAnnotate = $derived(alignedImages.length >= 2);
+	let showAnnotationsSidebar = $derived(canAnnotate || selectedGroupAnnotations.length > 0);
 
 	let isBaseSelectionPhase = $derived(!hasBaseImage);
 
@@ -1697,14 +1698,18 @@
 						</section>
 					</section>
 
-					{#if canAnnotate}
+					{#if showAnnotationsSidebar}
 						<WorkspaceSidebar side="right" width={332} bind:open={rightPanelOpen}>
 							{#snippet header()}
 								<div class="right-sidebar-header">
 									<div>
 										<div class="right-sidebar-title">Annotations</div>
 										<div class="right-sidebar-subtitle">
-											Available once at least two images are on confirmed geometry
+											{#if canAnnotate}
+												Available once at least two images are on confirmed geometry
+											{:else}
+												Stored annotations for this group
+											{/if}
 										</div>
 									</div>
 								</div>
