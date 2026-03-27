@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import SpeechTextField from '$lib/ui/shared/SpeechTextField.svelte';
 
 	type SchemaProperty = {
 		type?: string;
@@ -51,10 +52,6 @@
 			...currentValue,
 			[key]: next
 		});
-	}
-
-	function handleTextInput(key: string, event: Event) {
-		updateField(key, (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value);
 	}
 
 	function handleNumberInput(key: string, event: Event) {
@@ -143,15 +140,20 @@
 							oninput={(event) => handleNumberInput(key, event)}
 						/>
 					{:else if key.toLowerCase().includes('note') || key.toLowerCase().includes('description')}
-						<textarea
-							rows="4"
-							oninput={(event) => handleTextInput(key, event)}
-						>{typeof currentValue[key] === 'string' ? currentValue[key] : ''}</textarea>
-					{:else}
-						<input
-							type="text"
+						<SpeechTextField
+							id={`${annotationId ?? 'annotation'}-${key}`}
+							label={getLabel(key, field)}
 							value={typeof currentValue[key] === 'string' ? currentValue[key] : ''}
-							oninput={(event) => handleTextInput(key, event)}
+							multiline={true}
+							rows={4}
+							onChange={(nextValue) => updateField(key, nextValue)}
+						/>
+					{:else}
+						<SpeechTextField
+							id={`${annotationId ?? 'annotation'}-${key}`}
+							label={getLabel(key, field)}
+							value={typeof currentValue[key] === 'string' ? currentValue[key] : ''}
+							onChange={(nextValue) => updateField(key, nextValue)}
 						/>
 					{/if}
 
@@ -193,8 +195,7 @@
 	}
 
 	.field input,
-	.field select,
-	.field textarea {
+	.field select {
 		width: 100%;
 		border-radius: 10px;
 		border: 1px solid rgba(148, 163, 184, 0.45);
@@ -205,14 +206,8 @@
 		box-sizing: border-box;
 	}
 
-	.field textarea {
-		resize: vertical;
-		min-height: 5.5rem;
-	}
-
 	.field input:focus,
-	.field select:focus,
-	.field textarea:focus {
+	.field select:focus {
 		outline: none;
 		border-color: rgba(37, 99, 235, 0.5);
 		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);

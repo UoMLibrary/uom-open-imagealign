@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SpeechTextField from '$lib/ui/shared/SpeechTextField.svelte';
 	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 	import { settingsState, type AnnotationSchemaProfile } from '$lib/config/settingsStore.svelte';
 
@@ -191,24 +192,42 @@
 					<div class="field-grid">
 						<label class="field">
 							<span>Name</span>
-							<input bind:value={draftName} type="text" />
+							<SpeechTextField label="Schema name" value={draftName} onChange={(next) => (draftName = next)} />
 						</label>
 
 						<label class="field">
 							<span>Description</span>
-							<input bind:value={draftDescription} type="text" />
+							<SpeechTextField
+								label="Schema description"
+								value={draftDescription}
+								onChange={(next) => (draftDescription = next)}
+							/>
 						</label>
 					</div>
 
 					<div class="json-grid">
 						<label class="field">
 							<span>JSON schema</span>
-							<textarea bind:value={draftSchemaText} rows="18" spellcheck="false"></textarea>
+							<SpeechTextField
+								label="JSON schema"
+								value={draftSchemaText}
+								multiline={true}
+								rows={18}
+								monospace={true}
+								onChange={(next) => (draftSchemaText = next)}
+							/>
 						</label>
 
 						<label class="field">
 							<span>Default annotation data</span>
-							<textarea bind:value={draftDefaultDataText} rows="18" spellcheck="false"></textarea>
+							<SpeechTextField
+								label="Default annotation data"
+								value={draftDefaultDataText}
+								multiline={true}
+								rows={18}
+								monospace={true}
+								onChange={(next) => (draftDefaultDataText = next)}
+							/>
 						</label>
 					</div>
 
@@ -430,27 +449,6 @@
 		font-size: 0.79rem;
 		font-weight: 700;
 		color: #111827;
-	}
-
-	.field input,
-	.field textarea {
-		width: 100%;
-		min-width: 0;
-		padding: 0.72rem 0.85rem;
-		border: 1px solid rgba(15, 23, 42, 0.12);
-		border-radius: 10px;
-		background: #fff;
-		font: inherit;
-		font-size: 0.84rem;
-		color: #111827;
-	}
-
-	.field textarea {
-		resize: vertical;
-		font-family:
-			ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-			monospace;
-		line-height: 1.5;
 	}
 
 	.preview-card {

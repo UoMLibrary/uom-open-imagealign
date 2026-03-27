@@ -2,6 +2,7 @@
 	import { runPython } from '$lib/python/runPython';
 	import type { PythonProfile } from '$lib/config/settingsStore.svelte';
 	import CodeEditor from '$lib/ui/shared/CodeEditor.svelte';
+	import SpeechTextField from '$lib/ui/shared/SpeechTextField.svelte';
 	import WorkspaceSidebar from '$lib/ui/workspace/WorkspaceSidebar.svelte';
 
 	type Props = {
@@ -217,12 +218,16 @@
 				<div class="field-grid">
 					<label class="field">
 						<span>Name</span>
-						<input bind:value={draftName} type="text" />
+						<SpeechTextField label="Profile name" value={draftName} onChange={(next) => (draftName = next)} />
 					</label>
 
 					<label class="field">
 						<span>Description</span>
-						<input bind:value={draftDescription} type="text" />
+						<SpeechTextField
+							label="Profile description"
+							value={draftDescription}
+							onChange={(next) => (draftDescription = next)}
+						/>
 					</label>
 				</div>
 
@@ -276,7 +281,14 @@
 
 						{#if activeDataTab === 'input'}
 							<label class="data-editor-field">
-								<textarea bind:value={draftSampleInput} rows="24" spellcheck="false"></textarea>
+								<SpeechTextField
+									label={inputLabel}
+									value={draftSampleInput}
+									multiline={true}
+									rows={24}
+									monospace={true}
+									onChange={(next) => (draftSampleInput = next)}
+								/>
 							</label>
 						{:else}
 							<label class="data-editor-field">
@@ -474,18 +486,6 @@
 	.field span {
 		font-size: 0.79rem;
 		font-weight: 700;
-		color: #111827;
-	}
-
-	.field input {
-		width: 100%;
-		min-width: 0;
-		padding: 0.72rem 0.85rem;
-		border: 1px solid rgba(15, 23, 42, 0.12);
-		border-radius: 10px;
-		background: #fff;
-		font: inherit;
-		font-size: 0.84rem;
 		color: #111827;
 	}
 
