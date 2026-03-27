@@ -16,6 +16,8 @@
 		type AlignmentSpec,
 		type ComputedAlignment
 	} from '$lib/alignment/alignmentWorkflow';
+	import { getAlignedImageUrl } from '$lib/alignment/alignedImageCache';
+	import type { TransformData } from '$lib/alignment/vggAlignService';
 	import { getDerivedBlob, getDerivedUrl } from '$lib/images/derivationService';
 	import { getDerivationCacheKey } from '$lib/images/derivationState.svelte';
 	import { mutateProject, projectState } from '$lib/project/projectStore.svelte';
@@ -200,6 +202,26 @@
 		const selected = alignedImages.find((image) => image.id === annotationOverlayImageId);
 		if (selected && selected.id !== referenceImage.id) return selected;
 		return alignedImages.find((image) => image.id !== referenceImage.id) ?? null;
+	});
+
+	let selectedConfirmedAlignment = $derived.by(() => {
+		if (!selectedImage || !hasBaseImage) return null;
+		return (
+			selectedGroupAlignments.find(
+				(alignment) =>
+					alignment.comparedImageId === selectedImage.id && alignment.status === 'confirmed'
+			) ?? null
+		);
+	});
+
+	let comparedImageAlignment = $derived.by(() => {
+		if (!comparedImage) return null;
+		return (
+			selectedGroupAlignments.find(
+				(alignment) =>
+					alignment.comparedImageId === comparedImage.id && alignment.status === 'confirmed'
+			) ?? null
+		);
 	});
 
 	function annotationIncludesPair(
@@ -437,6 +459,9 @@
 	function confirmAlignment() {
 		if (!selectedGroup || !baseImage || !alignmentWorkbenchImage || !alignmentPreviewComputed) return;
 
+		const confirmedImage = alignmentWorkbenchImage;
+		const confirmedTransform = alignmentPreviewComputed.transform;
+
 		mutateProject((nextProject) => {
 			const existing = nextProject.alignments.find(
 				(item) =>
@@ -480,6 +505,13 @@
 				result: nextResult
 			});
 		});
+
+		void resolveAlignmentFile(confirmedImage)
+			.then((sourceFile) => getAlignedImageUrl(confirmedImage.contentHash, confirmedTransform, sourceFile))
+			.then((res) => res.release())
+			.catch((error) => {
+				console.warn('Unable to warm aligned-image cache', error);
+			});
 
 		annotationOverlayImageId = alignmentWorkbenchImage.id;
 		selectedImageId = alignmentWorkbenchImage.id;
@@ -649,9 +681,36 @@
 		return value.toFixed(3).replace(/\.?0+$/, '');
 	}
 
+	function alignmentResultToTransformData(result: Record<string, unknown> | null): TransformData | null {
+		if (!result) return null;
+		const H = Array.isArray(result.H) ? result.H.map((value) => Number(value)) : null;
+		const targetSizeValue = result.targetSize;
+		const targetSize =
+			targetSizeValue && typeof targetSizeValue === 'object'
+				? {
+						width: Number((targetSizeValue as { width?: unknown }).width ?? 0),
+						height: Number((targetSizeValue as { height?: unknown }).height ?? 0)
+					}
+				: null;
+		const type = typeof result.transformModel === 'string' ? result.transformModel : result.type;
+
+		if (!H || !targetSize || typeof type !== 'string' || !targetSize.width || !targetSize.height) {
+			return null;
+		}
+
+		return {
+			...(result as unknown as TransformData),
+			type: type as TransformData['type'],
+			H,
+			targetSize
+		};
+	}
+
 	let viewerMode = $derived.by(() => {
 		if (isBaseSelectionPhase) return 'base-selection';
 		if (showAlignmentWorkbench) return 'align';
+		if (hasBaseImage && selectedImage && selectedImage.id !== selectedGroup?.baseImageId && !selectedConfirmedAlignment)
+			return 'inspect';
 		if (hasBaseImage) return 'annotate';
 		return 'base-selection';
 	});
@@ -660,12 +719,14 @@
 		if (viewerMode === 'base-selection')
 			return selectedImage ?? baseImage ?? selectedGroupImages[0] ?? null;
 		if (viewerMode === 'annotate') return referenceImage;
+		if (viewerMode === 'inspect') return selectedImage ?? baseImage ?? selectedGroupImages[0] ?? null;
 		if (viewerMode === 'align') return baseImage;
 		return alignmentTargetImage ?? baseImage ?? selectedGroupImages[0] ?? null;
 	});
 
 	let previewOverlayImage = $derived.by(() => {
 		if (viewerMode === 'annotate') return comparedImage;
+		if (viewerMode === 'inspect') return null;
 		if (viewerMode === 'align') return alignmentTargetImage;
 		return null;
 	});
@@ -728,6 +789,51 @@
 		} catch (error) {
 			console.error('Error loading comparison preview', error);
 
+			if (id !== previewRunId) return;
+			cleanupPreview();
+			previewState = 'missing';
+		}
+	}
+
+	async function loadAnnotatedPreview(
+		nextBaseHash: string,
+		overlayImage: (typeof images)[number],
+		alignment: (typeof alignments)[number] | null
+	) {
+		const id = ++previewRunId;
+		cleanupPreview();
+		previewState = 'loading';
+
+		try {
+			const baseRes = await getDerivedUrl(nextBaseHash, 'work');
+			let overlayRes: Awaited<ReturnType<typeof getAlignedImageUrl>> | Awaited<ReturnType<typeof getDerivedUrl>> | null =
+				null;
+
+			const transform = alignmentResultToTransformData(
+				(alignment?.result as Record<string, unknown> | undefined) ?? null
+			);
+
+			if (transform) {
+				const sourceFile = await resolveAlignmentFile(overlayImage);
+				overlayRes = await getAlignedImageUrl(overlayImage.contentHash, transform, sourceFile);
+			} else {
+				overlayRes = await getDerivedUrl(overlayImage.contentHash, 'work');
+			}
+
+			if (id !== previewRunId) {
+				baseRes.release();
+				overlayRes?.release();
+				return;
+			}
+
+			baseRelease = baseRes.release;
+			overlayRelease = overlayRes?.release ?? null;
+			baseUrl = baseRes.url;
+			overlayUrl = overlayRes?.url ?? null;
+			previewState = 'ready';
+			viewerRefreshKey += 1;
+		} catch (error) {
+			console.error('Error loading annotated preview', error);
 			if (id !== previewRunId) return;
 			cleanupPreview();
 			previewState = 'missing';
@@ -830,6 +936,11 @@
 			return;
 		}
 
+		if (viewerMode === 'annotate' && previewOverlayImage) {
+			void loadAnnotatedPreview(currentBaseHash, previewOverlayImage, comparedImageAlignment);
+			return;
+		}
+
 		void loadPreview(currentBaseHash, currentOverlayHash);
 	});
 
@@ -922,6 +1033,8 @@
 								? 'Annotate'
 								: viewerMode === 'align'
 									? 'Align'
+									: viewerMode === 'inspect'
+										? 'View'
 									: 'Choose base'}
 						</div>
 					</div>
@@ -941,6 +1054,8 @@
 												{getImageTitle(referenceImage)} -> {getImageTitle(comparedImage)}
 											{:else if viewerMode === 'annotate' && referenceImage}
 												{getImageTitle(referenceImage)}
+											{:else if viewerMode === 'inspect' && selectedImage}
+												{getImageTitle(selectedImage)}
 											{:else if viewerMode === 'align' && baseImage && alignmentTargetImage}
 												{getImageTitle(baseImage)} -> {getImageTitle(alignmentTargetImage)}
 											{:else if previewBaseImage}
@@ -954,6 +1069,8 @@
 												{comparedImage
 													? 'Annotated comparison viewer'
 													: 'Annotated single-image viewer'}
+											{:else if viewerMode === 'inspect'}
+												Single-image preview
 											{:else if viewerMode === 'align'}
 												Simple compare viewer for alignment review
 											{:else}
