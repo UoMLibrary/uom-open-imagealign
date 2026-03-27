@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { appConfigState } from '$lib/config/appConfigStore.svelte';
 
+	type Props = {
+		onReset?: () => void;
+	};
+
+	let { onReset }: Props = $props();
+
 	let config = $derived(appConfigState.snapshot);
 
 	function updateShortcut(field: 'leftPanelToggleKey' | 'rightPanelToggleKey', value: string) {
@@ -16,8 +22,17 @@
 <div class="config-section">
 	<div class="section-card">
 		<div class="section-header">
-			<h2>Application Config</h2>
-			<p>Set lightweight browser-side preferences that shared UI components can use throughout the app.</p>
+			<div>
+				<h2>Application Config</h2>
+				<p>
+					Set lightweight browser-side preferences that shared UI components can use throughout the
+					app.
+				</p>
+			</div>
+
+			{#if onReset}
+				<button type="button" class="ghost-button" onclick={onReset}>Reset to defaults</button>
+			{/if}
 		</div>
 
 		<div class="field-grid">
@@ -94,6 +109,11 @@
 
 	.section-header {
 		margin-bottom: 1rem;
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+		flex-wrap: wrap;
 	}
 
 	.section-header h2 {
@@ -145,6 +165,23 @@
 		font: inherit;
 		background: #fff;
 		color: #111827;
+	}
+
+	.ghost-button {
+		appearance: none;
+		border: 1px solid rgba(15, 23, 42, 0.12);
+		background: #fff;
+		color: #111827;
+		padding: 0.65rem 0.9rem;
+		border-radius: 10px;
+		font: inherit;
+		font-size: 0.84rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.ghost-button:hover {
+		background: #f8fafc;
 	}
 
 	.checkbox-field {
