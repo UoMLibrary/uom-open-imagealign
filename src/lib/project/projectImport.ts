@@ -1,6 +1,7 @@
 // $lib/project/projectImport.ts
 
 import { getDerivedBlob } from '$lib/images/derivationService';
+import { runPython } from '$lib/python/runPython';
 
 import type {
     ImageAlignmentProject as Project,
@@ -10,6 +11,12 @@ import type {
 } from '$lib/project/types';
 
 export type GroupingStrategy = 'leaf-folder' | 'single-image' | 'filename-group';
+export type GroupingProfileDefinition = {
+    id?: string;
+    name?: string;
+    script: string;
+};
+export type GroupingDefinition = GroupingStrategy | GroupingProfileDefinition;
 
 export type LocalFileImportResult = {
     contentHash: string;
@@ -150,9 +157,11 @@ async function scanDirectory(
     prefix = ''
 ): Promise<ScannedImage[]> {
     const results: ScannedImage[] = [];
-    const entries = dirHandle as unknown as AsyncIterable<
-        FileSystemDirectoryHandle | FileSystemFileHandle
-    >;
+    const entries = (
+        dirHandle as FileSystemDirectoryHandle & {
+            values(): AsyncIterable<FileSystemDirectoryHandle | FileSystemFileHandle>;
+        }
+    ).values();
 
     for await (const entry of entries) {
         if (entry.kind === 'directory') {
@@ -231,9 +240,56 @@ function resolveGroupLabel(item: ScannedImage, strategy: GroupingStrategy): stri
     }
 }
 
+function isGroupingProfileDefinition(value: GroupingDefinition): value is GroupingProfileDefinition {
+    return typeof value === 'object' && value !== null && typeof value.script === 'string';
+}
+
+function buildGroupingProfileInput(scanned: ScannedImage[]) {
+    return {
+        files: scanned.map((item) => ({
+            relativePath: item.relativePath,
+            filename: item.filename,
+            stem: stripExtension(item.filename),
+            extension: getExtension(item.filename),
+            parentPath: item.parentPath,
+            parentFolderName: item.parentFolderName
+        }))
+    };
+}
+
+async function resolveGroupsFromProfile(
+    strategy: GroupingProfileDefinition,
+    scanned: ScannedImage[]
+): Promise<Array<{ label: string; imageRefs: string[]; baseImageRef?: string | null }>> {
+    const result = await runPython(strategy.script, buildGroupingProfileInput(scanned));
+
+    if (!Array.isArray(result)) {
+        throw new Error('Grouping profile must return an array of groups.');
+    }
+
+    return result.map((item, index) => {
+        if (!item || typeof item !== 'object' || !Array.isArray((item as any).imageRefs)) {
+            throw new Error(`Grouping profile returned an invalid group at index ${index}.`);
+        }
+
+        return {
+            label:
+                typeof (item as any).label === 'string' && (item as any).label.trim()
+                    ? (item as any).label.trim()
+                    : `Group ${index + 1}`,
+            imageRefs: (item as any).imageRefs,
+            baseImageRef:
+                typeof (item as any).baseImageRef === 'string' ||
+                (item as any).baseImageRef === null
+                    ? (item as any).baseImageRef
+                    : undefined
+        };
+    });
+}
+
 export async function buildProjectFromFolderHandle(
     rootHandle: FileSystemDirectoryHandle,
-    strategy: GroupingStrategy,
+    strategy: GroupingDefinition = 'leaf-folder',
     importLocalFile: LocalFileImporter = defaultLocalFileImporter
 ): Promise<Project> {
     const project = createEmptyProject(rootHandle.name);
@@ -249,6 +305,7 @@ export async function buildProjectFromFolderHandle(
     const scanned = await scanDirectory(rootHandle);
 
     scanned.sort((a, b) => a.relativePath.localeCompare(b.relativePath, undefined, { numeric: true }));
+    const imageIdByRef = new Map<string, string>();
 
     const groups = new Map<
         string,
@@ -277,6 +334,11 @@ export async function buildProjectFromFolderHandle(
         };
 
         project.images.push(image);
+        imageIdByRef.set(item.relativePath, image.id);
+
+        if (isGroupingProfileDefinition(strategy)) {
+            continue;
+        }
 
         const groupKey = resolveGroupKey(item, strategy);
         const groupLabel = resolveGroupLabel(item, strategy);
@@ -298,6 +360,36 @@ export async function buildProjectFromFolderHandle(
         if (!group.baseImageId) {
             group.baseImageId = image.id;
         }
+    }
+
+    if (isGroupingProfileDefinition(strategy)) {
+        const grouped = await resolveGroupsFromProfile(strategy, scanned);
+
+        project.groups = grouped.flatMap((group): ImageGroup[] => {
+            const imageIds = group.imageRefs
+                .map((imageRef) => imageIdByRef.get(imageRef))
+                .filter((imageId): imageId is string => Boolean(imageId));
+
+            if (imageIds.length === 0) {
+                return [];
+            }
+
+            const baseImageId =
+                (group.baseImageRef ? imageIdByRef.get(group.baseImageRef) : null) ?? imageIds[0];
+
+            return [
+                {
+                    id: makeId('grp'),
+                    label: group.label,
+                    baseImageId,
+                    imageIds: [imageIds[0], ...imageIds.slice(1)],
+                    metadata: {}
+                }
+            ];
+        });
+
+        project.updatedAt = nowIso();
+        return project;
     }
 
     project.groups = Array.from(groups.values()).flatMap((group): ImageGroup[] => {
