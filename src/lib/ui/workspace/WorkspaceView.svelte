@@ -1133,13 +1133,7 @@
 											<div class="alignment-controls-overlay">
 												<div class="alignment-overlay-card">
 													<div class="alignment-overlay-top">
-														<div>
-															<div class="mini-kicker">Alignment</div>
-															<div class="mini-title">
-																{baseImage ? getImageTitle(baseImage) : 'Base'} ->
-																{alignmentWorkbenchImage ? getImageTitle(alignmentWorkbenchImage) : 'Image'}
-															</div>
-														</div>
+														<div class="mini-kicker">Alignment</div>
 
 														<button
 															type="button"
@@ -1149,19 +1143,6 @@
 															Close
 														</button>
 													</div>
-
-													<label class="field">
-														<span>Approach</span>
-														<select
-															value={alignmentApproach}
-															onchange={(event) =>
-																(alignmentApproach = (event.currentTarget as HTMLSelectElement).value as typeof alignmentApproach)}
-														>
-															<option value="auto">Automatic</option>
-															<option value="feature">Feature match</option>
-															<option value="manual">Manual</option>
-														</select>
-													</label>
 
 													<AlignmentTransformControls
 														spec={alignmentSpec}
@@ -1585,7 +1566,6 @@
 		color: #b45309;
 	}
 
-	.mini-title,
 	.viewer-title,
 	.right-sidebar-title {
 		margin-top: 0.22rem;
@@ -1629,8 +1609,8 @@
 
 	.alignment-controls-overlay {
 		position: absolute;
-		top: 0.75rem;
 		right: 0.75rem;
+		bottom: 0.75rem;
 		width: min(320px, calc(100% - 1.5rem));
 		z-index: 2;
 	}
@@ -1651,7 +1631,7 @@
 
 	.alignment-overlay-top {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
 	}
@@ -1685,29 +1665,6 @@
 		color: #b91c1c;
 		border-color: rgba(239, 68, 68, 0.22);
 		background: rgba(254, 242, 242, 0.8);
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: 0.34rem;
-	}
-
-	.field span {
-		font-size: 0.76rem;
-		font-weight: 700;
-		color: #334155;
-	}
-
-	.field select {
-		appearance: none;
-		width: 100%;
-		border: 1px solid rgba(148, 163, 184, 0.38);
-		border-radius: 12px;
-		background: #fff;
-		padding: 0.68rem 0.78rem;
-		font-size: 0.86rem;
-		color: #111827;
 	}
 
 	.alignment-overlay-card :global(.transform-card) {
